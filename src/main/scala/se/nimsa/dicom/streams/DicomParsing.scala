@@ -53,7 +53,6 @@ trait DicomParsing {
   private def dicomInfo(data: ByteString, assumeBigEndian: Boolean): Option[Info] = {
     val tag1 = bytesToTag(data, assumeBigEndian)
     val vr = Dictionary.vrOf(tag1)
-    println(tagToString(tag1) + " " + vr)
     if (vr == VR.UN)
       None
     else {
