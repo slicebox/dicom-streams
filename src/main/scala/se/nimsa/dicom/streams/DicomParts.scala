@@ -52,18 +52,20 @@ object DicomParts {
 
   case class DicomHeader(tag: Int, vr: VR, length: Long, isFmi: Boolean, bigEndian: Boolean, explicitVR: Boolean, bytes: ByteString) extends DicomPart with TagPart with LengthPart {
 
-    def withUpdatedLength(newLength: Long): DicomHeader = {
+    def withUpdatedLength(newLength: Long): DicomHeader =
+      if (newLength == length)
+        this
+      else {
+        val updated = if ((bytes.size >= 8) && explicitVR && (vr.headerLength == 8)) { //explicit vr
+          bytes.take(6) ++ shortToBytes(newLength.toShort, bigEndian)
+        } else if ((bytes.size >= 12) && explicitVR && (vr.headerLength == 12)) { //explicit vr
+          bytes.take(8) ++ intToBytes(newLength.toInt, bigEndian)
+        } else { //implicit vr
+          bytes.take(4) ++ intToBytes(newLength.toInt, bigEndian)
+        }
 
-      val updated = if ((bytes.size >= 8) && explicitVR && (vr.headerLength == 8)) { //explicit vr
-        bytes.take(6) ++ shortToBytes(newLength.toShort, bigEndian)
-      } else if ((bytes.size >= 12) && explicitVR && (vr.headerLength == 12)) { //explicit vr
-        bytes.take(8) ++ intToBytes(newLength.toInt, bigEndian)
-      } else { //implicit vr
-        bytes.take(4) ++ intToBytes(newLength.toInt, bigEndian)
+        DicomHeader(tag, vr, newLength, isFmi, bigEndian, explicitVR, updated)
       }
-
-      DicomHeader(tag, vr, newLength, isFmi, bigEndian, explicitVR, updated)
-    }
 
     override def toString = s"DicomHeader ${tagToString(tag)} ${if (isFmi) "(meta) " else ""}$vr ${if (!explicitVR) "(implicit) " else ""}length = ${bytes.length} value length = $length ${if (bigEndian) "(big endian) " else ""}$bytes"
   }
