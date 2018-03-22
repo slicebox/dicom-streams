@@ -106,6 +106,57 @@ class DicomModifyFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Fla
       .expectDicomComplete()
   }
 
+  it should "insert attributes between a normal attribute and a sequence attribute" in {
+    val bytes = studyDate ++ sequence(Tag.AbstractPriorCodeSequence) ++ sequenceEnd
+
+    val source = Source.single(bytes)
+      .via(new DicomParseFlow())
+      .via(modifyFlow(TagModification.contains(TagPath.fromTag(Tag.PatientName), _ => patientNameJohnDoe.drop(8), insert = true)))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectHeader(Tag.StudyDate, VR.DA, studyDate.length - 8)
+      .expectValueChunk(studyDate.drop(8))
+      .expectHeader(Tag.PatientName, VR.PN, patientNameJohnDoe.length - 8)
+      .expectValueChunk(patientNameJohnDoe.drop(8))
+      .expectSequence(Tag.AbstractPriorCodeSequence)
+      .expectSequenceDelimitation()
+      .expectDicomComplete()
+  }
+
+  it should "insert attributes between a sequence attribute and a normal attribute" in {
+    val bytes = sequence(Tag.DerivationCodeSequence) ++ sequenceEnd ++ patientID
+
+    val source = Source.single(bytes)
+      .via(new DicomParseFlow())
+      .via(modifyFlow(TagModification.contains(TagPath.fromTag(Tag.PatientName), _ => patientNameJohnDoe.drop(8), insert = true)))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectSequence(Tag.DerivationCodeSequence)
+      .expectSequenceDelimitation()
+      .expectHeader(Tag.PatientName, VR.PN, patientNameJohnDoe.length - 8)
+      .expectValueChunk(patientNameJohnDoe.drop(8))
+      .expectHeader(Tag.PatientID, VR.LO, patientID.length - 8)
+      .expectValueChunk(patientID.drop(8))
+      .expectDicomComplete()
+  }
+
+  it should "insert attributes between two sequence attributes" in {
+    val bytes = sequence(Tag.DerivationCodeSequence) ++ sequenceEnd ++ sequence(Tag.AbstractPriorCodeSequence) ++ sequenceEnd
+
+    val source = Source.single(bytes)
+      .via(new DicomParseFlow())
+      .via(modifyFlow(TagModification.contains(TagPath.fromTag(Tag.PatientName), _ => patientNameJohnDoe.drop(8), insert = true)))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectSequence(Tag.DerivationCodeSequence)
+      .expectSequenceDelimitation()
+      .expectHeader(Tag.PatientName, VR.PN, patientNameJohnDoe.length - 8)
+      .expectValueChunk(patientNameJohnDoe.drop(8))
+      .expectSequence(Tag.AbstractPriorCodeSequence)
+      .expectSequenceDelimitation()
+      .expectDicomComplete()
+  }
+
   it should "modify, not insert, when 'insert' attributes are already present" in {
     val bytes = studyDate ++ patientNameJohnDoe
 
