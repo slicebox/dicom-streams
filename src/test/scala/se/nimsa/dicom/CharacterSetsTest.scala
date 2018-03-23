@@ -15,22 +15,6 @@ class CharacterSetsTest extends TestKit(ActorSystem("CharacterSetsSpec")) with F
 
   override def afterAll(): Unit = system.terminate()
 
-  /*
-  @BeforeClass def readFiles(): Unit = {
-    arab = readFile("SCSARAB")
-    french = readFile("SCSFREN")
-    german = readFile("SCSGERM")
-    greek = readFile("SCSGREEK")
-    japan1 = readFile("SCSH31")
-    japan2 = readFile("SCSH32")
-    hebrew = readFile("SCSHBRW")
-    korea = readFile("SCSI2")
-    russian = readFile("SCSRUSS")
-    china1 = readFile("SCSX1")
-    china2 = readFile("SCSX2")
-  }
-*/
-
   "Parsing a DICOM file" should "parse an Arab name correctly" in {
     val nameCodePoints = Array[Int]('ق', 'ب', 'ا', 'ن', 'ي', '^', 'ل', 'ن', 'ز', 'ا', 'ر')
     val nameBytes = ByteString(0xE2, 0xC8, 0xC7, 0xE6, 0xEA, 0x5E, 0xE4, 0xE6, 0xD2, 0xC7, 0xD1)
