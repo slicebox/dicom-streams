@@ -16,6 +16,8 @@
 
 package se.nimsa
 
+import java.nio.{ByteBuffer, ByteOrder}
+
 import akka.util.ByteString
 import se.nimsa.dicom.VR.VR
 
@@ -58,6 +60,8 @@ package object dicom {
   def intToBytes(i: Int, bigEndian: Boolean): ByteString = if (bigEndian) intToBytesBE(i) else intToBytesLE(i)
   def intToBytesBE(i: Int): ByteString = ByteString((i >> 24).toByte, (i >> 16).toByte, (i >> 8).toByte, i.toByte)
   def intToBytesLE(i: Int): ByteString = ByteString(i.toByte, (i >> 8).toByte, (i >> 16).toByte, (i >> 24).toByte)
+  def doubleToBytes(d: Double, bigEndian: Boolean): ByteString = ByteString(ByteBuffer.wrap(new Array[Byte](8)).order(if (bigEndian) ByteOrder.BIG_ENDIAN else ByteOrder.LITTLE_ENDIAN).putDouble(d).array)
+  //  def longTo4Bytes(i: Long, bigEndian: Boolean): ByteString = if (bigEndian) longTo4BytesBE(i) else longTo4BytesLE(i)
   //  def longTo4Bytes(i: Long, bigEndian: Boolean): ByteString = if (bigEndian) longTo4BytesBE(i) else longTo4BytesLE(i)
   //  def longTo4BytesBE(i: Long): ByteString = ByteString((i >> 24).toByte, (i >> 16).toByte, (i >> 8).toByte, i.toByte)
   //  def longTo4BytesLE(i: Long): ByteString = ByteString(i.toByte, (i >> 8).toByte, (i >> 16).toByte, (i >> 24).toByte)

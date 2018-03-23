@@ -12,7 +12,7 @@ class DicomParsingTest extends FlatSpecLike with Matchers {
   import se.nimsa.dicom.TestData._
   
   "DicomParsing" should "parse headers for explicit VR little endian" in {
-    val bytes = patientNameJohnDoe
+    val bytes = patientNameJohnDoe()
     val maybeHeader = readHeaderExplicitVR(bytes, assumeBigEndian = false)
     maybeHeader.isDefined shouldBe true
     val (tag, vr, headerLength, length) = maybeHeader.get
@@ -23,7 +23,7 @@ class DicomParsingTest extends FlatSpecLike with Matchers {
   }
 
   it should "parse headers for explicit VR big endian" in {
-    val bytes = patientNameJohnDoeBE
+    val bytes = patientNameJohnDoe(bigEndian = true)
     val maybeHeader = readHeaderExplicitVR(bytes, assumeBigEndian = true)
     maybeHeader.isDefined shouldBe true
     val (tag, vr, headerLength, length) = maybeHeader.get
@@ -34,7 +34,7 @@ class DicomParsingTest extends FlatSpecLike with Matchers {
   }
 
   it should "parse headers for implicit VR little endian" in {
-    val bytes = patientNameJohnDoeImplicit
+    val bytes = patientNameJohnDoeImplicit()
     val maybeHeader = readHeaderImplicitVR(bytes)
     maybeHeader.isDefined shouldBe true
     val (tag, vr, headerLength, length) = maybeHeader.get
