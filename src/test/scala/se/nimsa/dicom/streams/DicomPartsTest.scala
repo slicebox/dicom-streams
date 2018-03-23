@@ -30,8 +30,8 @@ class DicomPartsTest extends FlatSpecLike with Matchers {
   }
 
   it should "should return a new header with modified length for implicitVR, LE" in {
-    val (tag, vr, _, length) = DicomParsing.readHeaderImplicitVR(patientNameJohnDoeImplicit()).get
-    val header = DicomHeader(tag, vr, length, isFmi = false, bigEndian = false, explicitVR = false, patientNameJohnDoeImplicit().take(8))
+    val (tag, vr, _, length) = DicomParsing.readHeaderImplicitVR(patientNameJohnDoeImplicit).get
+    val header = DicomHeader(tag, vr, length, isFmi = false, bigEndian = false, explicitVR = false, patientNameJohnDoeImplicit.take(8))
     val updatedHeader = header.withUpdatedLength(5)
 
     updatedHeader.length shouldEqual 5
@@ -49,7 +49,7 @@ class DicomPartsTest extends FlatSpecLike with Matchers {
   it should "create a valid implicit VR little endian byte sequence representation when constructed without explicit bytes" in {
     val (tag, vr, _, length) = DicomParsing.readHeaderExplicitVR(patientNameJohnDoe(), assumeBigEndian = false).get
     val bytes = DicomHeader(tag, vr, length, isFmi = false, bigEndian = false, explicitVR = false).bytes
-    bytes shouldBe patientNameJohnDoeImplicit().take(8)
+    bytes shouldBe patientNameJohnDoeImplicit.take(8)
   }
 
   it should "create a valid explicit VR big endian byte sequence representation when constructed without explicit bytes" in {

@@ -13,7 +13,7 @@ object TestData {
   // File Meta Information Version
   val fmiVersion: ByteString = tagToBytesLE(0x00020001) ++ ByteString('O', 'B', 0x00, 0x00) ++ intToBytesLE(0x00000002) ++ ByteString(0x00, 0x01)
   // (not conforming to standard)
-  val fmiVersionImplicitLE: ByteString = tagToBytesLE(0x00020001) ++ intToBytesLE(0x00000002) ++ ByteString(0x00, 0x01)
+  val fmiVersionImplicit: ByteString = tagToBytesLE(0x00020001) ++ intToBytesLE(0x00000002) ++ ByteString(0x00, 0x01)
 
   val mediaStorageSOPClassUID: ByteString = tagToBytesLE(0x00020002) ++ ByteString("UI") ++ shortToBytesLE(0x001A) ++ ByteString(UID.CTImageStorage) ++ pad0
   def sopClassUID(bigEndian: Boolean = false): ByteString = tagToBytes(0x00080016, bigEndian) ++ ByteString("UI") ++ shortToBytes(0x001A, bigEndian) ++ ByteString(UID.CTImageStorage) ++ pad0
@@ -31,10 +31,10 @@ object TestData {
   val tsuidImplicit: ByteString = tagToBytesLE(0x00020010) ++ ByteString("UI") ++ shortToBytesLE(0x0012) ++ ByteString(UID.ImplicitVRLittleEndian) ++ pad0
   val tsuidDeflatedExplicitLE: ByteString = tagToBytesLE(0x00020010) ++ ByteString("UI") ++ shortToBytesLE(0x0016) ++ ByteString(UID.DeflatedExplicitVRLittleEndian)
   // (not conforming to standard)
-  val tsuidExplicitLEImplicitLE: ByteString = tagToBytesLE(0x00020010) ++ intToBytesLE(0x00000014) ++ ByteString(UID.ExplicitVRLittleEndian) ++ pad0
+  val tsuidExplicitLEImplicit: ByteString = tagToBytesLE(0x00020010) ++ intToBytesLE(0x00000014) ++ ByteString(UID.ExplicitVRLittleEndian) ++ pad0
 
   def patientNameJohnDoe(bigEndian: Boolean = false): ByteString = tagToBytes(0x00100010, bigEndian) ++ ByteString("PN") ++ shortToBytes(0x0008, bigEndian) ++ ByteString("John^Doe")
-  def patientNameJohnDoeImplicit(bigEndian: Boolean = false): ByteString = tagToBytes(0x00100010, bigEndian) ++ intToBytes(0x00000008, bigEndian) ++ ByteString("John^Doe")
+  val patientNameJohnDoeImplicit: ByteString = tagToBytesLE(0x00100010) ++ intToBytesLE(0x00000008) ++ ByteString("John^Doe")
   def emptyPatientName(bigEndian: Boolean = false): ByteString = tagToBytes(0x00100010, bigEndian) ++ ByteString("PN") ++ shortToBytes(0x0000, bigEndian)
 
   def patientID(bigEndian: Boolean = false): ByteString = tagToBytes(0x00100020, bigEndian) ++ ByteString("LO") ++ shortToBytes(0x0008, bigEndian) ++ ByteString("12345678")

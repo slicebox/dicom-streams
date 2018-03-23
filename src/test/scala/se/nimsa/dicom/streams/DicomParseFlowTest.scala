@@ -319,7 +319,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "read DICOM files with implicit VR little endian transfer syntax" in {
-    val bytes = preamble ++ fmiGroupLength(tsuidImplicit) ++ tsuidImplicit ++ patientNameJohnDoeImplicit()
+    val bytes = preamble ++ fmiGroupLength(tsuidImplicit) ++ tsuidImplicit ++ patientNameJohnDoeImplicit
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow())
@@ -385,7 +385,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "accept meta information encoded with implicit VR" in {
-    val bytes = preamble ++ tsuidExplicitLEImplicitLE ++ patientNameJohnDoe()
+    val bytes = preamble ++ tsuidExplicitLEImplicit ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow())

@@ -197,7 +197,7 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
   it should "be able to parse dicom file meta information with wrong transfer syntax" in {
     val contexts = Seq(ValidationContext(UID.CTImageStorage, UID.ExplicitVRLittleEndian))
 
-    val bytes = preamble ++ fmiVersionImplicitLE ++ mediaStorageSOPClassUIDImplicitLE ++ tsuidExplicitLEImplicitLE
+    val bytes = preamble ++ fmiVersionImplicit ++ mediaStorageSOPClassUIDImplicitLE ++ tsuidExplicitLEImplicit
 
     val moreThan512Bytes = bytes ++ ByteString.fromArray(new Array[Byte](1024))
 

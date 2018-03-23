@@ -598,7 +598,7 @@ object DicomFlows {
     * @return the associated DicomPart Flow
     */
   def toExplicitVrLittleEndianFlow: Flow[DicomPart, DicomPart, NotUsed] = modifyFlow(
-    TagModification.contains(TagPath.fromTag(Tag.TransferSyntaxUID), _ => ByteString(UID.ExplicitVRLittleEndian), insert = false))
+    TagModification.contains(TagPath.fromTag(Tag.TransferSyntaxUID), _ => padToEvenLength(ByteString(UID.ExplicitVRLittleEndian), VR.UI), insert = false))
     .via(fmiGroupLengthFlow)
     .statefulMapConcat {
 

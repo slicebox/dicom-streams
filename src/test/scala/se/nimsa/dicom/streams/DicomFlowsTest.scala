@@ -872,7 +872,24 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectDicomComplete()
   }
 
-  "The explicit VR little endian flow" should "convert big endian data to little endian" in {
+  it should "not change a file already encoded with ISO_IR 192 (UTF-8)" in {
+    val specificCharacterSet = tagToBytesLE(Tag.SpecificCharacterSet) ++ ByteString("CS") ++ shortToBytesLE(0x000A) ++ ByteString("ISO_IR 192")
+    val patientName = tagToBytesLE(Tag.PatientName) ++ ByteString("PN") ++ shortToBytesLE(0x000C) ++ ByteString("ABC^ÅÖ^ﾔ")
+    val bytes = specificCharacterSet ++ patientName
+
+    val source = Source.single(bytes)
+      .via(parseFlow)
+      .via(toUtf8Flow)
+      .map(_.bytes)
+      .reduce(_ ++ _)
+
+    source.runWith(TestSink.probe[ByteString])
+      .request(1)
+      .expectNextChainingPF { case newBytes => newBytes shouldBe bytes }
+      .expectComplete()
+  }
+
+  "The explicit VR little endian flow" should "convert explicit VR big endian to explicit VR little endian" in {
     val bigEndian = true
     val bytes = preamble ++ fmiGroupLength(tsuidExplicitBE) ++ tsuidExplicitBE ++ patientNameJohnDoe(bigEndian) ++
       rows(bigEndian) ++ dataPointRows(bigEndian) ++ apexPosition(bigEndian) ++
@@ -889,7 +906,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectHeader(Tag.FileMetaInformationGroupLength)
       .expectValueChunk()
       .expectHeader(Tag.TransferSyntaxUID)
-      .expectValueChunk(ByteString(UID.ExplicitVRLittleEndian))
+      .expectValueChunk(tsuidExplicitLE.drop(8))
       .expectHeader(Tag.PatientName)
       .expectValueChunk(patientNameJohnDoe().drop(8))
       .expectHeader(Tag.Rows)
@@ -910,5 +927,40 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectFragmentsDelimitation()
       .expectDicomComplete()
   }
+
+  it should "convert implicit VR little endian to explicit VR little endian" in {
+    val bytes = patientNameJohnDoeImplicit
+
+    val source = Source.single(bytes)
+      .via(parseFlow)
+      .via(toExplicitVrLittleEndianFlow)
+      .map(_.bytes)
+      .reduce(_ ++ _)
+
+    source.runWith(TestSink.probe[ByteString])
+      .request(1)
+      .expectNextChainingPF { case newBytes: ByteString => newBytes shouldBe patientNameJohnDoe() }
+      .expectComplete()
+  }
+  it should "not change a file already encoded with explicit VR little endian" in {
+    val bigEndian = false
+    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe(bigEndian) ++
+      rows(bigEndian) ++ dataPointRows(bigEndian) ++ apexPosition(bigEndian) ++
+      sequence(Tag.DerivationCodeSequence, bigEndian) ++ item(bigEndian) ++ studyDate(bigEndian) ++
+      itemEnd(bigEndian) ++ sequenceEnd(bigEndian) ++ pixeDataFragments(bigEndian) ++ fragment(1000, bigEndian) ++
+      (1 to 500).map(_.toShort).map(shortToBytesLE).reduce(_ ++ _) ++ fragmentsEnd(bigEndian)
+
+    val source = Source.single(bytes)
+      .via(parseFlow)
+      .via(toExplicitVrLittleEndianFlow)
+      .map(_.bytes)
+      .reduce(_ ++ _)
+
+    source.runWith(TestSink.probe[ByteString])
+      .request(1)
+      .expectNextChainingPF { case newBytes: ByteString => newBytes shouldBe bytes }
+      .expectComplete()
+  }
+
 }
 

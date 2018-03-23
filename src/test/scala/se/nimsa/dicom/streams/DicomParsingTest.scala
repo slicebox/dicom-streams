@@ -34,7 +34,7 @@ class DicomParsingTest extends FlatSpecLike with Matchers {
   }
 
   it should "parse headers for implicit VR little endian" in {
-    val bytes = patientNameJohnDoeImplicit()
+    val bytes = patientNameJohnDoeImplicit
     val maybeHeader = readHeaderImplicitVR(bytes)
     maybeHeader.isDefined shouldBe true
     val (tag, vr, headerLength, length) = maybeHeader.get
