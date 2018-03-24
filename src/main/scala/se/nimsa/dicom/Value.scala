@@ -6,6 +6,9 @@ import java.util.Date
 import akka.util.ByteString
 import se.nimsa.dicom.VR.VR
 
+/**
+  * Utility methods for parsing DICOM attribute value bytes to strings, numbers, dates, etc.
+  */
 object Value {
 
   final lazy val multiValueDelimiter = "\\"

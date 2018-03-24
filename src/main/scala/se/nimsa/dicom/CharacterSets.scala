@@ -5,6 +5,12 @@ import java.nio.charset.{Charset, StandardCharsets}
 import akka.util.ByteString
 import se.nimsa.dicom.VR.VR
 
+/**
+  * Class for decoding DICOM character data according to one or more character sets as specified by the
+  * SpecificCharacterSet attribute.
+  *
+  * @param charsetArray character sets
+  */
 class CharacterSets(val charsetArray: Seq[String]) {
 
   import CharacterSets._
@@ -51,7 +57,7 @@ class CharacterSets(val charsetArray: Seq[String]) {
           key = (key << 8) + (b(cur) & 0xff)
           cur += 1
         }
-        charset = Option(escToCharset(key)).getOrElse{
+        charset = Option(escToCharset(key)).getOrElse {
           // decode invalid ESC sequence as chars
           val byteCount = if ((key & 0xff0000) != 0) 4 else 3 // if second msb of key is set then 4 otherwise 3
           sb.append(new String(b.toArray, cur - byteCount, byteCount, charset.charset))
@@ -68,7 +74,7 @@ class CharacterSets(val charsetArray: Seq[String]) {
 
 object CharacterSets {
 
-  val charsetsMap = Map(
+  private val charsetsMap = Map(
     // Single-Byte Character Sets Without Code Extensions
     "ISO_IR 100" -> CharsetObj("ISO-8859-1"),
     "ISO_IR 101" -> CharsetObj("ISO-8859-2"),
@@ -105,7 +111,7 @@ object CharacterSets {
     "GBK" -> CharsetObj("GBK", -1, None)
   )
 
-  val escToCharset: Map[Int, CharsetObj] = {
+  private val escToCharset: Map[Int, CharsetObj] = {
     val map = charsetsMap.values
       .filter(_.hasEscapeSeq)
       .map(co => co.escapeSequence.get.foldLeft(0)((i, b) => (i << 8) + (b & 0xff)) -> co)
