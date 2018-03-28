@@ -57,6 +57,7 @@ object TestUtils {
       .request(1)
       .expectNextChainingPF {
         case chunk: DicomValueChunk if chunk.bytes == bytes => true
+        case chunk: DicomValueChunk => throw new RuntimeException(s"Expected DicomValueChunk with bytes = $bytes, got $chunk with bytes ${chunk.bytes}")
         case p => throw new RuntimeException(s"Expected DicomValueChunk with bytes = $bytes, got $p")
       }
 

@@ -49,14 +49,14 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
   }
 
   it should "accept a file with no preamble and which starts with an attribute header" in {
-    val bytes = patientNameJohnDoe
+    val bytes = patientNameJohnDoe()
 
     val source = Source.single(bytes)
       .via(validateFlow)
 
     source.runWith(TestSink.probe[ByteString])
       .request(1)
-      .expectNext(patientNameJohnDoe)
+      .expectNext(patientNameJohnDoe())
       .expectComplete()
   }
 
@@ -91,12 +91,7 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
   "The DICOM validation flow with contexts" should "buffer first 512 bytes" in {
 
     val contexts = Seq(ValidationContext(UID.CTImageStorage, UID.ExplicitVRLittleEndian))
-    val bytes = preamble ++
-      fmiGroupLength(tsuidExplicitLE) ++
-      fmiVersion ++
-      mediaStorageSOPClassUID ++
-      mediaStorageSOPInstanceUID ++
-      tsuidExplicitLE ++
+    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ fmiVersion ++ mediaStorageSOPClassUID ++ mediaStorageSOPInstanceUID ++ tsuidExplicitLE ++
       ByteString.fromArray(new Array[Byte](1024))
 
     val source = Source.single(bytes)
@@ -114,12 +109,7 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
   it should "accept dicom data that corresponds to the given contexts" in {
 
     val contexts = Seq(ValidationContext(UID.CTImageStorage, UID.ExplicitVRLittleEndian))
-    val bytes = preamble ++
-      fmiGroupLength(tsuidExplicitLE) ++
-      fmiVersion ++
-      mediaStorageSOPClassUID ++
-      mediaStorageSOPInstanceUID ++
-      tsuidExplicitLE
+    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ fmiVersion ++ mediaStorageSOPClassUID ++ mediaStorageSOPInstanceUID ++ tsuidExplicitLE
 
     val moreThan512Bytes = bytes ++ ByteString.fromArray(new Array[Byte](1024))
 
@@ -150,12 +140,7 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
   it should "not accept dicom data that does not correspond to the given contexts" in {
 
     val contexts = Seq(ValidationContext(UID.CTImageStorage, "1.2.840.10008.1.2.2"))
-    val bytes = preamble ++
-      fmiGroupLength(tsuidExplicitLE) ++
-      fmiVersion ++
-      mediaStorageSOPClassUID ++
-      mediaStorageSOPInstanceUID ++
-      tsuidExplicitLE
+    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ fmiVersion ++ mediaStorageSOPClassUID ++ mediaStorageSOPInstanceUID ++ tsuidExplicitLE
 
     val moreThan512Bytes = bytes ++ ByteString.fromArray(new Array[Byte](1024))
 
@@ -183,10 +168,7 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
   it should "be able to parse dicom file meta information with missing mandatory fields" in {
 
     val contexts = Seq(ValidationContext(UID.CTImageStorage, UID.ExplicitVRLittleEndian))
-    val bytes = preamble ++
-      fmiVersion ++
-      mediaStorageSOPClassUID ++
-      tsuidExplicitLE
+    val bytes = preamble ++ fmiVersion ++ mediaStorageSOPClassUID ++ tsuidExplicitLE
 
     val moreThan512Bytes = bytes ++ ByteString.fromArray(new Array[Byte](1024))
 
@@ -215,10 +197,7 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
   it should "be able to parse dicom file meta information with wrong transfer syntax" in {
     val contexts = Seq(ValidationContext(UID.CTImageStorage, UID.ExplicitVRLittleEndian))
 
-    val bytes = preamble ++
-      fmiVersionImplicitLE ++
-      mediaStorageSOPClassUIDImplicitLE ++
-      tsuidExplicitLEImplicitLE
+    val bytes = preamble ++ fmiVersionImplicit ++ mediaStorageSOPClassUIDImplicitLE ++ tsuidExplicitLEImplicit
 
     val moreThan512Bytes = bytes ++ ByteString.fromArray(new Array[Byte](1024))
 
@@ -245,20 +224,20 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
   }
 
   it should "accept a file with no preamble and which starts with an attribute header if no context is given" in {
-    val bytes = patientNameJohnDoe
+    val bytes = patientNameJohnDoe()
 
     val source = Source.single(bytes)
       .via(validateFlow)
 
     source.runWith(TestSink.probe[ByteString])
       .request(1)
-      .expectNext(patientNameJohnDoe)
+      .expectNext(patientNameJohnDoe())
       .expectComplete()
   }
 
   it should "not accept a file with no preamble and no SOPCLassUID if a context is given" in {
     val contexts = Seq(ValidationContext(UID.CTImageStorage, UID.ExplicitVRLittleEndian))
-    val bytes = instanceCreatorUID
+    val bytes = instanceCreatorUID()
 
     val moreThan512Bytes = bytes ++ ByteString.fromArray(new Array[Byte](1024))
 
@@ -281,8 +260,7 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
 
   it should "not accept a file with no preamble and wrong order of DICOM fields if a context is given" in {
     val contexts = Seq(ValidationContext(UID.CTImageStorage, UID.ExplicitVRLittleEndian))
-    val bytes = patientNameJohnDoe ++
-      sopClassUID
+    val bytes = patientNameJohnDoe() ++ sopClassUID()
 
     val moreThan512Bytes = bytes ++ ByteString.fromArray(new Array[Byte](1024))
 
@@ -305,9 +283,7 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
 
   it should "not accept a file with no preamble and SOPClassUID if not corrseponding to the given context" in {
     val contexts = Seq(ValidationContext(UID.CTImageStorage, "1.2.840.10008.1.2.2"))
-    val bytes = instanceCreatorUID ++
-      sopClassUID ++
-      patientNameJohnDoe
+    val bytes = instanceCreatorUID() ++ sopClassUID() ++ patientNameJohnDoe()
 
     val moreThan512Bytes = bytes ++ ByteString.fromArray(new Array[Byte](1024))
 
@@ -330,9 +306,7 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
 
   it should "accept a file with no preamble and SOPClassUID if corrseponding to the given context" in {
     val contexts = Seq(ValidationContext(UID.CTImageStorage, UID.ExplicitVRLittleEndian))
-    val bytes = instanceCreatorUID ++
-      sopClassUID ++
-      patientNameJohnDoe
+    val bytes = instanceCreatorUID() ++ sopClassUID() ++ patientNameJohnDoe()
 
     val moreThan512Bytes = bytes ++ ByteString.fromArray(new Array[Byte](1024))
 

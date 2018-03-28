@@ -8,8 +8,8 @@ class DicomPartsTest extends FlatSpecLike with Matchers {
   import DicomParts._
 
   "DicomHeader" should "should return a new header with modified length for explicitVR, LE" in {
-    val (tag, vr, _, length) = DicomParsing.readHeaderExplicitVR(patientNameJohnDoe, assumeBigEndian = false).get
-    val header = DicomHeader(tag, vr, length, isFmi = false, bigEndian = false, explicitVR = true, patientNameJohnDoe.take(8))
+    val (tag, vr, _, length) = DicomParsing.readHeaderExplicitVR(patientNameJohnDoe(), assumeBigEndian = false).get
+    val header = DicomHeader(tag, vr, length, isFmi = false, bigEndian = false, explicitVR = true, patientNameJohnDoe().take(8))
     val updatedHeader = header.withUpdatedLength(5)
 
     updatedHeader.length shouldEqual 5
@@ -19,8 +19,8 @@ class DicomPartsTest extends FlatSpecLike with Matchers {
   }
 
   it should "should return a new header with modified length for explicitVR, BE" in {
-    val (tag, vr, _, length) = DicomParsing.readHeaderExplicitVR(patientNameJohnDoeBE, assumeBigEndian = true).get
-    val header = DicomHeader(tag, vr, length, isFmi = false, bigEndian = true, explicitVR = true, patientNameJohnDoeBE.take(8))
+    val (tag, vr, _, length) = DicomParsing.readHeaderExplicitVR(patientNameJohnDoe(bigEndian = true), assumeBigEndian = true).get
+    val header = DicomHeader(tag, vr, length, isFmi = false, bigEndian = true, explicitVR = true, patientNameJohnDoe(bigEndian = true).take(8))
     val updatedHeader = header.withUpdatedLength(5)
 
     updatedHeader.length shouldEqual 5
@@ -41,20 +41,20 @@ class DicomPartsTest extends FlatSpecLike with Matchers {
   }
 
   it should "create a valid explicit VR little endian byte sequence representation when constructed without explicit bytes" in {
-    val (tag, vr, _, length) = DicomParsing.readHeaderExplicitVR(patientNameJohnDoe, assumeBigEndian = false).get
+    val (tag, vr, _, length) = DicomParsing.readHeaderExplicitVR(patientNameJohnDoe(), assumeBigEndian = false).get
     val bytes = DicomHeader(tag, vr, length, isFmi = false, bigEndian = false, explicitVR = true).bytes
-    bytes shouldBe patientNameJohnDoe.take(8)
+    bytes shouldBe patientNameJohnDoe().take(8)
   }
 
   it should "create a valid implicit VR little endian byte sequence representation when constructed without explicit bytes" in {
-    val (tag, vr, _, length) = DicomParsing.readHeaderExplicitVR(patientNameJohnDoe, assumeBigEndian = false).get
+    val (tag, vr, _, length) = DicomParsing.readHeaderExplicitVR(patientNameJohnDoe(), assumeBigEndian = false).get
     val bytes = DicomHeader(tag, vr, length, isFmi = false, bigEndian = false, explicitVR = false).bytes
     bytes shouldBe patientNameJohnDoeImplicit.take(8)
   }
 
   it should "create a valid explicit VR big endian byte sequence representation when constructed without explicit bytes" in {
-    val (tag, vr, _, length) = DicomParsing.readHeaderExplicitVR(patientNameJohnDoe, assumeBigEndian = false).get
+    val (tag, vr, _, length) = DicomParsing.readHeaderExplicitVR(patientNameJohnDoe(), assumeBigEndian = false).get
     val bytes = DicomHeader(tag, vr, length, isFmi = false, bigEndian = true, explicitVR = true).bytes
-    bytes shouldBe patientNameJohnDoeBE.take(8)
+    bytes shouldBe patientNameJohnDoe(bigEndian = true).take(8)
   }
 }

@@ -4,7 +4,7 @@ import DicomSourceGenerators._
 name := "dicom-streams"
 version := "0.1-SNAPSHOT"
 organization := "se.nimsa"
-scalaVersion := "2.12.4"
+scalaVersion := "2.12.5"
 scalacOptions := Seq("-encoding", "UTF-8", "-Xlint", "-deprecation", "-unchecked", "-feature", "-target:jvm-1.8")
 scalacOptions in (Compile, doc) ++= Seq(
   "-no-link-warnings" // Suppresses problems with Scaladoc @throws links

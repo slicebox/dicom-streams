@@ -48,22 +48,25 @@ object DicomParts {
 
   case class DicomPreamble(bytes: ByteString) extends DicomPart {
     def bigEndian = false
+    override def toString = s"DicomPreamble (${bytes.length} bytes)"
   }
 
   case class DicomHeader(tag: Int, vr: VR, length: Long, isFmi: Boolean, bigEndian: Boolean, explicitVR: Boolean, bytes: ByteString) extends DicomPart with TagPart with LengthPart {
 
-    def withUpdatedLength(newLength: Long): DicomHeader = {
+    def withUpdatedLength(newLength: Long): DicomHeader =
+      if (newLength == length)
+        this
+      else {
+        val updated = if ((bytes.size >= 8) && explicitVR && (vr.headerLength == 8)) { //explicit vr
+          bytes.take(6) ++ shortToBytes(newLength.toShort, bigEndian)
+        } else if ((bytes.size >= 12) && explicitVR && (vr.headerLength == 12)) { //explicit vr
+          bytes.take(8) ++ intToBytes(newLength.toInt, bigEndian)
+        } else { //implicit vr
+          bytes.take(4) ++ intToBytes(newLength.toInt, bigEndian)
+        }
 
-      val updated = if ((bytes.size >= 8) && explicitVR && (vr.headerLength == 8)) { //explicit vr
-        bytes.take(6) ++ shortToBytes(newLength.toShort, bigEndian)
-      } else if ((bytes.size >= 12) && explicitVR && (vr.headerLength == 12)) { //explicit vr
-        bytes.take(8) ++ intToBytes(newLength.toInt, bigEndian)
-      } else { //implicit vr
-        bytes.take(4) ++ intToBytes(newLength.toInt, bigEndian)
+        DicomHeader(tag, vr, newLength, isFmi, bigEndian, explicitVR, updated)
       }
-
-      DicomHeader(tag, vr, newLength, isFmi, bigEndian, explicitVR, updated)
-    }
 
     override def toString = s"DicomHeader ${tagToString(tag)} ${if (isFmi) "(meta) " else ""}$vr ${if (!explicitVR) "(implicit) " else ""}length = ${bytes.length} value length = $length ${if (bigEndian) "(big endian) " else ""}$bytes"
   }
@@ -135,6 +138,8 @@ object DicomParts {
     def bigEndian: Boolean = header.bigEndian
 
     def asDicomParts: Seq[DicomPart] = header +: valueChunks
+
+    override def toString = s"DicomAttribute header=$header, value chunks=${valueBytes.toList}"
   }
 
   case object DicomStartMarker extends DicomPart {
@@ -147,9 +152,11 @@ object DicomParts {
     def bytes: ByteString = ByteString.empty
   }
 
-  case class DicomAttributes(attributes: Seq[DicomAttribute]) extends DicomPart {
+  case class DicomAttributes(tag: String, attributes: Seq[DicomAttribute]) extends DicomPart {
     def bigEndian: Boolean = attributes.headOption.exists(_.bigEndian)
     def bytes: ByteString = attributes.map(_.bytes).reduce(_ ++ _)
+
+    override def toString = s"DicomAttributes tag=$tag attributes=${attributes.toList}"
   }
 
 }

@@ -23,7 +23,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   override def afterAll(): Unit = system.terminate()
 
   "A DICOM flow" should "produce a preamble, FMI tags and attribute tags for a complete DICOM file" in {
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe
+    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow())
@@ -40,7 +40,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "read files without preamble but with FMI" in {
-    val bytes = fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe
+    val bytes = fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow())
@@ -56,7 +56,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "read a file with neither FMI nor preamble" in {
-    val bytes = patientNameJohnDoe
+    val bytes = patientNameJohnDoe()
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow())
@@ -79,7 +79,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "output a warning message when non-meta information is included in the header" in {
-    val bytes = fmiGroupLength(tsuidExplicitLE, studyDate) ++ tsuidExplicitLE ++ studyDate
+    val bytes = fmiGroupLength(tsuidExplicitLE, studyDate()) ++ tsuidExplicitLE ++ studyDate()
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow())
@@ -107,7 +107,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
 
   it should "skip very long (and obviously erroneous) transfer syntaxes (see warning log message)" in {
     val malformedTsuid = tsuidExplicitLE.take(6) ++ ByteString(20, 8) ++ tsuidExplicitLE.takeRight(20) ++ ByteString.fromArray(new Array[Byte](2048))
-    val bytes = fmiGroupLength(malformedTsuid) ++ malformedTsuid ++ patientNameJohnDoe
+    val bytes = fmiGroupLength(malformedTsuid) ++ malformedTsuid ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow())
@@ -123,7 +123,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "fail reading a truncated DICOM file" in {
-    val bytes = patientNameJohnDoe.dropRight(2)
+    val bytes = patientNameJohnDoe().dropRight(2)
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow())
@@ -134,7 +134,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "inflate deflated datasets" in {
-    val bytes = fmiGroupLength(tsuidDeflatedExplicitLE) ++ tsuidDeflatedExplicitLE ++ deflate(patientNameJohnDoe ++ studyDate)
+    val bytes = fmiGroupLength(tsuidDeflatedExplicitLE) ++ tsuidDeflatedExplicitLE ++ deflate(patientNameJohnDoe() ++ studyDate())
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow())
@@ -152,7 +152,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "inflate gzip deflated datasets (with warning message)" in {
-    val bytes = fmiGroupLength(tsuidDeflatedExplicitLE) ++ tsuidDeflatedExplicitLE ++ deflate(patientNameJohnDoe ++ studyDate, gzip = true)
+    val bytes = fmiGroupLength(tsuidDeflatedExplicitLE) ++ tsuidDeflatedExplicitLE ++ deflate(patientNameJohnDoe() ++ studyDate(), gzip = true)
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow())
@@ -170,7 +170,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "pass through deflated data when asked not to inflate" in {
-    val bytes = fmiGroupLength(tsuidDeflatedExplicitLE) ++ tsuidDeflatedExplicitLE ++ deflate(patientNameJohnDoe ++ studyDate)
+    val bytes = fmiGroupLength(tsuidDeflatedExplicitLE) ++ tsuidDeflatedExplicitLE ++ deflate(patientNameJohnDoe() ++ studyDate())
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow(inflate = false))
@@ -185,7 +185,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "read DICOM data with fragments" in {
-    val bytes = pixeDataFragments ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragment(4) ++ ByteString(5, 6, 7, 8) ++ fragmentsEnd
+    val bytes = pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragment(4) ++ ByteString(5, 6, 7, 8) ++ fragmentsEnd()
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow())
@@ -201,7 +201,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "issue a warning when a fragments delimitation tag has nonzero length" in {
-    val bytes = pixeDataFragments ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragment(4) ++ ByteString(5, 6, 7, 8) ++ sequenceEndNonZeroLength
+    val bytes = pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragment(4) ++ ByteString(5, 6, 7, 8) ++ sequenceEndNonZeroLength()
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow())
@@ -217,7 +217,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "parse a tag which is not an item, item data nor fragments delimitation inside fragments as unknown" in {
-    val bytes = pixeDataFragments ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ studyDate ++ fragment(4) ++ ByteString(5, 6, 7, 8) ++ fragmentsEnd
+    val bytes = pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ studyDate() ++ fragment(4) ++ ByteString(5, 6, 7, 8) ++ fragmentsEnd()
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow())
@@ -234,7 +234,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "read DICOM data containing a sequence" in {
-    val bytes = sequence(Tag.DerivationCodeSequence) ++ item ++ patientNameJohnDoe ++ studyDate ++ itemEnd ++ sequenceEnd
+    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ studyDate() ++ itemEnd() ++ sequenceEnd()
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow())
@@ -252,7 +252,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "read DICOM data containing a sequence in a sequence" in {
-    val bytes = sequence(Tag.DerivationCodeSequence) ++ item ++ sequence(Tag.DerivationCodeSequence) ++ item ++ patientNameJohnDoe ++ itemEnd ++ sequenceEnd ++ studyDate ++ itemEnd ++ sequenceEnd
+    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemEnd() ++ sequenceEnd() ++ studyDate() ++ itemEnd() ++ sequenceEnd()
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow())
@@ -274,7 +274,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "read a valid DICOM file correctly when data chunks are very small" in {
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe
+    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
       .via(new Chunker(chunkSize = 1))
@@ -302,7 +302,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "read DICOM files with explicit VR big-endian transfer syntax" in {
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitBE) ++ tsuidExplicitBE ++ patientNameJohnDoeBE
+    val bytes = preamble ++ fmiGroupLength(tsuidExplicitBE) ++ tsuidExplicitBE ++ patientNameJohnDoe(bigEndian = true)
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow())
@@ -319,7 +319,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "read DICOM files with implicit VR little endian transfer syntax" in {
-    val bytes = preamble ++ fmiGroupLength(tsuidImplicitLE) ++ tsuidImplicitLE ++ patientNameJohnDoeImplicit
+    val bytes = preamble ++ fmiGroupLength(tsuidImplicit) ++ tsuidImplicit ++ patientNameJohnDoeImplicit
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow())
@@ -336,7 +336,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "stop reading data when a stop tag is reached" in {
-    val bytes = patientNameJohnDoe ++ studyDate
+    val bytes = patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow(stopTag = Some(Tag.StudyDate)))
@@ -348,7 +348,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "chunk value data according to max chunk size" in {
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe
+    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow(chunkSize = 5))
@@ -369,7 +369,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "chunk deflated data according to max chunk size" in {
-    val bytes = fmiGroupLength(tsuidDeflatedExplicitLE) ++ tsuidDeflatedExplicitLE ++ deflate(patientNameJohnDoe ++ studyDate)
+    val bytes = fmiGroupLength(tsuidDeflatedExplicitLE) ++ tsuidDeflatedExplicitLE ++ deflate(patientNameJohnDoe() ++ studyDate())
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow(chunkSize = 25, inflate = false))
@@ -385,7 +385,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "accept meta information encoded with implicit VR" in {
-    val bytes = preamble ++ tsuidExplicitLEImplicitLE ++ patientNameJohnDoe
+    val bytes = preamble ++ tsuidExplicitLEImplicit ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow())
@@ -413,7 +413,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "handle sequences and items of determinate length" in {
-    val bytes = studyDate ++ (sequence(Tag.DerivationCodeSequence, 8 + 18 + 16) ++ item(18 + 16) ++ studyDate ++ patientNameJohnDoe) ++ patientNameJohnDoe
+    val bytes = studyDate() ++ (sequence(Tag.DerivationCodeSequence, 8 + 18 + 16) ++ item(18 + 16) ++ studyDate() ++ patientNameJohnDoe()) ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow())
@@ -433,7 +433,7 @@ class DicomParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with Flat
   }
 
   it should "handle fragments with empty basic offset table (first item)" in {
-    val bytes = pixeDataFragments ++ fragment(0) ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragmentsEnd
+    val bytes = pixeDataFragments() ++ fragment(0) ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragmentsEnd()
 
     val source = Source.single(bytes)
       .via(new DicomParseFlow())

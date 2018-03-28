@@ -138,10 +138,10 @@ object DicomModifyFlow {
             latestTagPath = tagPath
             insertParts ::: modifyPart
 
-          case part: DicomSequence =>
+          case sequence: DicomSequence =>
             val insertParts = findInsertParts
             latestTagPath = tagPath
-            insertParts ::: part :: Nil
+            insertParts ::: sequence :: Nil
 
           case chunk: DicomValueChunk =>
             if (currentModification.isDefined && currentHeader.isDefined) {
