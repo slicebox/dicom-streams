@@ -7,6 +7,7 @@ import akka.util.ByteString
 import se.nimsa.dicom.streams.DicomParts._
 import se.nimsa.dicom._
 import se.nimsa.dicom.VR.VR
+import se.nimsa.dicom.streams.CollectFlow.DicomAttributes
 
 object TestUtils {
 
@@ -26,7 +27,7 @@ object TestUtils {
   case class TestPart(id: String) extends DicomPart {
     override def bigEndian: Boolean = false
     override def bytes: ByteString = ByteString.empty
-    override def toString = s"TestPart: $id"
+    override def toString = s"${getClass.getSimpleName}: $id"
   }
 
   type PartProbe = TestSubscriber.Probe[DicomPart]
@@ -150,20 +151,6 @@ object TestUtils {
       .expectNextChainingPF {
         case _: DicomDeflatedChunk => true
         case p => throw new RuntimeException(s"Expected DicomDeflatedChunk, got $p")
-      }
-
-    def expectAttribute(tag: Int, length: Int): PartProbe = probe
-      .request(1)
-      .expectNextChainingPF {
-        case a: DicomAttribute if a.header.tag == tag && a.valueBytes.length == length => true
-        case p => throw new RuntimeException(s"Expected DicomAttribute with tag = ${tagToString(tag)} and length = $length, got $p")
-      }
-
-    def expectFragmentData(length: Int): PartProbe = probe
-      .request(1)
-      .expectNextChainingPF {
-        case fragmentData: DicomFragment if fragmentData.bytes.length == length => true
-        case p => throw new RuntimeException(s"Expected DicomFragment with length = $length, got $p")
       }
 
     def expectDicomComplete(): PartProbe = probe

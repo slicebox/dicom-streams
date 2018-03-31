@@ -26,7 +26,7 @@ object DicomSourceGenerators {
   case class UID(uidValue: String, uidName: String, uidType: String, retired: Boolean)
 
   val nonAlphaNumeric = "[^a-zA-Z0-9_]"
-  val nonHex = "[^a-fA-F0-9]"
+  val nonHex = "[^a-fA-F0-9x]"
   val nonUID = "[^0-9.]"
 
   val attributes: Seq[Attribute] = {
@@ -72,9 +72,48 @@ object DicomSourceGenerators {
        |
        |object Tag {
        |
-       |${attributes.filter(_.keyword.nonEmpty).map(a => s"""  final val ${a.keyword} = 0x${a.tagString.replaceAll(nonHex, "").replaceAll("x", "0")}${if (a.retired) " // retired" else ""}""").mkString("\r\n")}
+       |${attributes.filter(_.keyword.nonEmpty).map(a => s"""  final val ${a.keyword} = 0x${a.tagString.replaceAll("x", "0").replaceAll(nonHex, "")}${if (a.retired) " // retired" else ""}""").mkString("\r\n")}
        |
        |}""".stripMargin
+
+  def generateKeyword(): String = {
+    val tagKeywordMappings = attributes
+      .filter(_.keyword.nonEmpty)
+      .filterNot(_.tagString.startsWith("(0028,04x"))
+      .map { a =>
+        val tag = s"0x${a.tagString.replaceAll("x", "0").replaceAll(nonHex, "")}"
+        val keyword = a.keyword
+        (tag, keyword)
+      }
+      .sortBy(_._1)
+
+    s"""package se.nimsa.dicom
+       |
+       |import scala.annotation.switch
+       |
+       |object Keyword {
+       |
+       |  def valueOf(tag: Int): String = tag match {
+       |    case t if (t & 0x0000FFFF) == 0 && (t & 0xFFFD0000) != 0 => "GroupLength"
+       |    case t if (tag & 0x00010000) != 0 =>
+       |      if ((tag & 0x0000FF00) == 0 && (tag & 0x000000F0) != 0) "PrivateCreatorID" else ""
+       |    case t if (tag & 0xFFFFFF00) == Tag.SourceImageIDs => "SourceImageIDs"
+       |    case t =>
+       |      val t2: Int =
+       |        if ((tag & 0xFFE00000) == 0x50000000 || (tag & 0xFFE00000) == 0x60000000)
+       |          tag & 0xFFE0FFFF
+       |        else if ((tag & 0xFF000000) == 0x7F000000 && (tag & 0xFFFF0000) != 0x7FE00000)
+       |          tag & 0xFF00FFFF
+       |        else
+       |          tag
+       |
+       |      (t2: @switch) match {
+       |${tagKeywordMappings.map(a => s"""        case ${a._1} => "${a._2}"""").mkString("\r\n")}
+       |      }
+       |  }
+       |
+       |}""".stripMargin
+  }
 
   def generateUID(): String = {
     val pairs = uids
@@ -105,10 +144,10 @@ object DicomSourceGenerators {
 
     val tagVrMappings = attributes
       .filter(_.keyword.nonEmpty)
+      .filterNot(_.tagString.startsWith("(0028,04x"))
       .map { a =>
-        val tag = s"0x${a.tagString.replaceAll(nonHex, "")}"
+        val tag = s"0x${a.tagString.replaceAll("x", "0").replaceAll(nonHex, "")}"
         val vr = a.vr match {
-          case s if s == "CS" && a.keyword != "SourceImageIDs" => s
           case s if s.contains("OW") => "OW"
           case s if s.contains("SS") => "SS"
           case s => s
@@ -116,7 +155,6 @@ object DicomSourceGenerators {
         (tag, vr)
       }
       .filter(_._2.length == 2)
-      .filter(_._1.length == 10)
       .sortBy(_._1)
       .splitAt(split)
 
@@ -130,8 +168,12 @@ object DicomSourceGenerators {
        |object Dictionary {
        |
        |  def vrOf(tag: Int): VR = tag match {
-       |    case t if (t & 0x0000FFFF) == 0 => VR.UL
-       |    case t if (t & 0x00010000) != 0 => if ((tag & 0x0000FF00) == 0 && (tag & 0x000000F0) != 0) VR.LO else VR.UN
+       |    case t if (t & 0x0000FFFF) == 0 => VR.UL // group length
+       |    case t if (t & 0x00010000) != 0 => // private creator ID
+       |      if ((tag & 0x0000FF00) == 0 && (tag & 0x000000F0) != 0)
+       |        VR.LO // private creator data element
+       |      else
+       |        VR.UN // private tag
        |    case t if (t & 0xFFFFFF00) == Tag.SourceImageIDs => VR.CS
        |    case t =>
        |      val t2 =

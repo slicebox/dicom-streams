@@ -17,7 +17,7 @@
 package se.nimsa.dicom.streams
 
 import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
-import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
+import akka.stream.{FlowShape, Inlet, Outlet}
 import akka.util.ByteString
 import se.nimsa.dicom.Tag
 import se.nimsa.dicom.streams.DicomFlows.ValidationContext
@@ -29,12 +29,12 @@ import se.nimsa.dicom.streams.DicomParsing.{Info, _}
   *
   * @param contexts supported MediaStorageSOPClassUID, TransferSynatxUID combinations
   */
-class DicomValidateFlow(contexts: Option[Seq[ValidationContext]], drainIncoming: Boolean) extends GraphStage[FlowShape[ByteString, ByteString]] {
+class ValidateFlow(contexts: Option[Seq[ValidationContext]], drainIncoming: Boolean) extends GraphStage[FlowShape[ByteString, ByteString]] {
   val in: Inlet[ByteString] = Inlet[ByteString]("DicomValidateFlow.in")
   val out: Outlet[ByteString] = Outlet[ByteString]("DicomValidateFlow.out")
   override val shape: FlowShape[ByteString, ByteString] = FlowShape.of(in, out)
 
-  override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
+  override def createLogic(inheritedAttributes: akka.stream.Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     var buffer: ByteString = ByteString.empty
     var isValidated: Option[Boolean] = None
     var failException: Option[Throwable] = None

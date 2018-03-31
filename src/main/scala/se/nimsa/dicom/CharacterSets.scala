@@ -4,6 +4,7 @@ import java.nio.charset.{Charset, StandardCharsets}
 
 import akka.util.ByteString
 import se.nimsa.dicom.VR.VR
+import se.nimsa.dicom.Value.ByteStringExtension
 
 /**
   * Class for decoding DICOM character data according to one or more character sets as specified by the
@@ -70,6 +71,8 @@ class CharacterSets(val charsetArray: Seq[String]) {
       sb.append(new String(b.toArray, off, cur - off, charset.charset))
     sb.toString
   }
+
+  override def toString: String = s"${getClass.getSimpleName} [${specifiedCharsets.map(_.charset.toString).mkString(",")}]"
 }
 
 object CharacterSets {
@@ -126,10 +129,12 @@ object CharacterSets {
   val defaultCharsetObj = new CharsetObj(defaultCharset, 1, None)
   val defaultOnly = new CharacterSets(Array[String](""))
 
-  def apply(specificCharacterSetValue: ByteString): CharacterSets = {
-    val s = Value.toStrings(VR.CS, CharacterSets.defaultOnly, specificCharacterSetValue)
+  def apply(specificCharacterSetValue: Value): CharacterSets = {
+    val s = specificCharacterSetValue.toStrings(VR.CS, CharacterSets.defaultOnly)
     if (s.isEmpty || s.length == 1 && s.head.isEmpty) defaultOnly else new CharacterSets(s)
   }
+
+  def apply(specificCharacterSetBytes: ByteString): CharacterSets = apply(specificCharacterSetBytes.toValue)
 
   def isVrAffectedBySpecificCharacterSet(vr: VR): Boolean =
     vr match {

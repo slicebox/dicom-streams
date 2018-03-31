@@ -10,75 +10,28 @@ import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import se.nimsa.dicom._
+import se.nimsa.dicom.TestData._
+import se.nimsa.dicom.streams.DicomParts._
+import se.nimsa.dicom.streams.ParseFlow._
+import se.nimsa.dicom.streams.DicomFlows._
+import se.nimsa.dicom.streams.ModifyFlow._
+import se.nimsa.dicom.streams.TestUtils._
 
 import scala.concurrent.ExecutionContextExecutor
 
 
 class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpecLike with Matchers with BeforeAndAfterAll {
 
-  import DicomFlows._
-  import DicomModifyFlow._
-  import DicomParseFlow._
-  import DicomParts._
-  import TestUtils._
-  import se.nimsa.dicom.TestData._
-
   implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val ec: ExecutionContextExecutor = system.dispatcher
 
   override def afterAll(): Unit = system.terminate()
 
-  "A DICOM attributes flow" should "combine headers and value chunks into attributes" in {
-    val bytes = patientNameJohnDoe() ++ studyDate()
-
-    val source = Source.single(bytes)
-      .via(new DicomParseFlow())
-      .via(attributeFlow)
-
-    source.runWith(TestSink.probe[DicomPart])
-      .expectAttribute(Tag.PatientName, 8)
-      .expectAttribute(Tag.StudyDate, 8)
-      .expectDicomComplete()
-  }
-
-  it should "combine items in fragments into fragment elements" in {
-    val bytes = pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragment(4) ++ ByteString(5, 6, 7, 8) ++ fragmentsEnd()
-
-    val source = Source.single(bytes)
-      .via(new DicomParseFlow())
-      .via(attributeFlow)
-
-    source.runWith(TestSink.probe[DicomPart])
-      .expectFragments()
-      .expectFragmentData(4)
-      .expectFragmentData(4)
-      .expectFragmentsDelimitation()
-      .expectDicomComplete()
-  }
-
-  it should "handle attributes and fragments of zero length" in {
-    val bytes = ByteString(8, 0, 32, 0, 68, 65, 0, 0) ++ patientNameJohnDoe() ++
-      pixeDataFragments() ++ fragment(0) ++ fragment(4) ++ ByteString(5, 6, 7, 8) ++ fragmentsEnd()
-
-    val source = Source.single(bytes)
-      .via(new DicomParseFlow())
-      .via(attributeFlow)
-
-    source.runWith(TestSink.probe[DicomPart])
-      .expectAttribute(Tag.StudyDate, 0)
-      .expectAttribute(Tag.PatientName, 8)
-      .expectFragments()
-      .expectFragmentData(0)
-      .expectFragmentData(4)
-      .expectFragmentsDelimitation()
-      .expectDicomComplete()
-  }
-
   "A print flow" should "not change incoming elements" in {
     val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
-      .via(new DicomParseFlow())
+      .via(new ParseFlow())
       .via(printFlow)
 
     source.runWith(TestSink.probe[DicomPart])
@@ -96,7 +49,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
-      .via(new DicomParseFlow())
+      .via(new ParseFlow())
       .via(whitelistFilter(Set(Tag.StudyDate)))
 
     source.runWith(TestSink.probe[DicomPart])
@@ -109,7 +62,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
-      .via(new DicomParseFlow())
+      .via(new ParseFlow())
       .via(whitelistFilter(Set(Tag.StudyDate)))
 
     source.runWith(TestSink.probe[DicomPart])
@@ -122,7 +75,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ studyDate() ++ itemEnd() ++ sequenceEnd()
 
     val source = Source.single(bytes)
-      .via(new DicomParseFlow())
+      .via(new ParseFlow())
       .via(whitelistFilter(Set(Tag.StudyDate)))
 
     source.runWith(TestSink.probe[DicomPart])
@@ -133,7 +86,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragment(4) ++ ByteString(5, 6, 7, 8) ++ fragmentsEnd()
 
     val source = Source.single(bytes)
-      .via(new DicomParseFlow())
+      .via(new ParseFlow())
       .via(whitelistFilter(Set.empty))
 
     source.runWith(TestSink.probe[DicomPart])
@@ -145,7 +98,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ groupLength ++ studyDate()
 
     val source = Source.single(bytes)
-      .via(new DicomParseFlow())
+      .via(new ParseFlow())
       .via(groupLengthDiscardFilter)
 
     source.runWith(TestSink.probe[DicomPart])
@@ -177,7 +130,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
-      .via(new DicomParseFlow())
+      .via(new ParseFlow())
       .via(fmiDiscardFilter)
 
     source.runWith(TestSink.probe[DicomPart])
@@ -221,7 +174,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = preamble ++ fmiGroupLength(fmiVersion, tsuidExplicitLE) ++ fmiVersion ++ tsuidExplicitLE ++ studyDate()
 
     val source = Source.single(bytes)
-      .via(new DicomParseFlow())
+      .via(new ParseFlow())
       .via(tagFilter(_ => false)(tagPath => !DicomParsing.isFileMetaInformation(tagPath.tag)))
 
     source.runWith(TestSink.probe[DicomPart])
@@ -233,7 +186,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   it should "filter elements matching the blacklist condition when testing with sample dicom files" in {
     val file = new File(getClass.getResource("CT0055.dcm").toURI)
     val source = FileIO.fromPath(file.toPath)
-      .via(new DicomParseFlow())
+      .via(new ParseFlow())
       .via(tagFilter(_ => false)(tagPath => !DicomParsing.isFileMetaInformation(tagPath.tag)))
 
     source.runWith(TestSink.probe[DicomPart])
@@ -267,7 +220,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(blacklistFilter(Set(TagPath.fromTag(Tag.StudyDate), TagPath.fromSequence(Tag.DerivationCodeSequence, 1))))
+      .via(blacklistFilter(Set(TagPath.fromTag(Tag.StudyDate), TagPath.fromSequence(Tag.DerivationCodeSequence).thenItem(1))))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectSequence(Tag.DerivationCodeSequence)
@@ -282,7 +235,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   it should "filter leave the dicom file unchanged when blacklist condition does not match any attribute" in {
     val file = new File(getClass.getResource("CT0055.dcm").toURI)
     val source = FileIO.fromPath(file.toPath)
-      .via(new DicomParseFlow())
+      .via(new ParseFlow())
       .via(tagFilter(_ => true)(tagPath => !DicomParsing.isPrivateAttribute(tagPath.tag)))
 
     source.runWith(TestSink.probe[DicomPart])
@@ -298,7 +251,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = preamble ++ fmiGroupLength(fmiVersion, tsuidExplicitLE) ++ fmiVersion ++ tsuidExplicitLE ++ patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
-      .via(new DicomParseFlow())
+      .via(new ParseFlow())
       .via(tagFilter(_ => false)(tagPath => groupNumber(tagPath.tag) >= 8))
 
     source.runWith(TestSink.probe[DicomPart])
@@ -325,13 +278,13 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
-      .via(new DicomParseFlow())
+      .via(new ParseFlow())
       .via(deflateDatasetFlow)
       .via(modifyFlow(
         TagModification.contains(TagPath.fromTag(Tag.FileMetaInformationGroupLength), _ => fmiGroupLength(tsuidDeflatedExplicitLE), insert = false),
         TagModification.contains(TagPath.fromTag(Tag.TransferSyntaxUID), _ => tsuidDeflatedExplicitLE.drop(8), insert = false)))
       .map(_.bytes)
-      .via(new DicomParseFlow())
+      .via(new ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.FileMetaInformationGroupLength)
@@ -349,7 +302,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
-      .via(new DicomParseFlow())
+      .via(new ParseFlow())
       .via(deflateDatasetFlow)
 
     source.runWith(TestSink.probe[DicomPart])
@@ -364,107 +317,11 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = ByteString.empty
 
     val source = Source.single(bytes)
-      .via(new DicomParseFlow())
+      .via(new ParseFlow())
       .via(deflateDatasetFlow)
 
     source.runWith(TestSink.probe[DicomPart])
       .expectDicomComplete()
-  }
-
-  "A collect attributes flow" should "first produce an attributes part followed by the input dicom parts" in {
-    val bytes = studyDate() ++ patientNameJohnDoe()
-    val tags = Set(Tag.StudyDate, Tag.PatientName)
-    val source = Source.single(bytes)
-      .via(parseFlow)
-      .via(collectAttributesFlow(tags, "tag"))
-
-    source.runWith(TestSink.probe[DicomPart])
-      .request(1)
-      .expectNextChainingPF {
-        case DicomAttributes(tag, attributes) =>
-          tag shouldBe "tag"
-          attributes should have length 2
-          attributes.head.header.tag shouldBe Tag.StudyDate
-          attributes(1).header.tag shouldBe Tag.PatientName
-      }
-      .expectHeader(Tag.StudyDate)
-      .expectValueChunk()
-      .expectHeader(Tag.PatientName)
-      .expectValueChunk()
-      .expectDicomComplete()
-  }
-
-  it should "produce an empty attributes part when stream is empty" in {
-    val bytes = ByteString.empty
-
-    val source = Source.single(bytes)
-      .via(parseFlow)
-      .via(collectAttributesFlow(Set.empty, "tag"))
-
-    source.runWith(TestSink.probe[DicomPart])
-      .request(1)
-      .expectNextChainingPF {
-        case DicomAttributes(_, attributes) => attributes shouldBe empty
-      }
-      .expectDicomComplete()
-  }
-
-  it should "produce an empty attributes part when no relevant attributes are present" in {
-    val bytes = patientNameJohnDoe() ++ studyDate()
-
-    val source = Source.single(bytes)
-      .via(parseFlow)
-      .via(collectAttributesFlow(Set(Tag.Modality, Tag.SeriesInstanceUID), "tag"))
-
-    source.runWith(TestSink.probe[DicomPart])
-      .request(1)
-      .expectNextChainingPF {
-        case DicomAttributes(_, attributes) => attributes shouldBe empty
-      }
-      .expectHeader(Tag.PatientName)
-      .expectValueChunk()
-      .expectHeader(Tag.StudyDate)
-      .expectValueChunk()
-      .expectDicomComplete()
-  }
-
-  it should "apply the stop tag appropriately" in {
-    val bytes = studyDate() ++ patientNameJohnDoe() ++ pixelData(2000)
-
-    val source = Source.single(bytes)
-      .via(new DicomParseFlow(chunkSize = 500))
-      .via(collectAttributesFlow(Set(Tag.StudyDate, Tag.PatientName), "tag", maxBufferSize = 1000))
-
-    source.runWith(TestSink.probe[DicomPart])
-      .request(1)
-      .expectNextChainingPF {
-        case DicomAttributes(tag, attributes) =>
-          tag shouldBe "tag"
-          attributes should have length 2
-          attributes.head.header.tag shouldBe Tag.StudyDate
-          attributes.last.header.tag shouldBe Tag.PatientName
-      }
-      .expectHeader(Tag.StudyDate)
-      .expectValueChunk()
-      .expectHeader(Tag.PatientName)
-      .expectValueChunk()
-      .expectHeader(Tag.PixelData)
-      .expectValueChunk()
-      .expectValueChunk()
-      .expectValueChunk()
-      .expectValueChunk()
-      .expectDicomComplete()
-  }
-
-  it should "fail if max buffer size is exceeded" in {
-    val bytes = studyDate() ++ patientNameJohnDoe() ++ pixelData(2000)
-
-    val source = Source.single(bytes)
-      .via(new DicomParseFlow(chunkSize = 500))
-      .via(collectAttributesFlow(_.tag == Tag.PatientName, _.tag > Tag.PixelData, "tag", maxBufferSize = 1000))
-
-    source.runWith(TestSink.probe[DicomPart])
-      .expectDicomError()
   }
 
   "The bulk data filter flow" should "remove pixel data" in {
@@ -889,6 +746,20 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectComplete()
   }
 
+  it should "leave and empty attribute empty" in {
+    val bytes = emptyPatientName()
+
+    val source = Source.single(bytes)
+      .via(parseFlow)
+      .via(toUtf8Flow)
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectHeader(Tag.SpecificCharacterSet)
+      .expectValueChunk()
+      .expectHeader(Tag.PatientName)
+      .expectDicomComplete()
+  }
+
   "The explicit VR little endian flow" should "convert explicit VR big endian to explicit VR little endian" in {
     val bigEndian = true
     val bytes = preamble ++ fmiGroupLength(tsuidExplicitBE) ++ tsuidExplicitBE ++ patientNameJohnDoe(bigEndian) ++
@@ -942,6 +813,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectNextChainingPF { case newBytes: ByteString => newBytes shouldBe patientNameJohnDoe() }
       .expectComplete()
   }
+
   it should "not change a file already encoded with explicit VR little endian" in {
     val bigEndian = false
     val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe(bigEndian) ++
@@ -962,5 +834,15 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectComplete()
   }
 
-}
+  it should "leave and empty attribute empty" in {
+    val bytes = emptyPatientName(bigEndian = true)
 
+    val source = Source.single(bytes)
+      .via(parseFlow)
+      .via(toExplicitVrLittleEndianFlow)
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectHeader(Tag.PatientName)
+      .expectDicomComplete()
+  }
+}

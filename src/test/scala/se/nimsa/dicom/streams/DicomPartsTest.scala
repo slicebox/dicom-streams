@@ -57,4 +57,5 @@ class DicomPartsTest extends FlatSpecLike with Matchers {
     val bytes = DicomHeader(tag, vr, length, isFmi = false, bigEndian = true, explicitVR = true).bytes
     bytes shouldBe patientNameJohnDoe(bigEndian = true).take(8)
   }
+
 }

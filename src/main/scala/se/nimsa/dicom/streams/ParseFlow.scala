@@ -38,7 +38,7 @@ import se.nimsa.dicom.streams.DicomParts._
   * @param stopTag   optional stop tag (exclusive) after which reading of incoming data bytes is stopped
   * @param inflate   indicates whether deflated DICOM data should be deflated and parsed or passed on as deflated data chunks.
   */
-class DicomParseFlow(chunkSize: Int = 8192, stopTag: Option[Int] = None, inflate: Boolean = true) extends ByteStringParser[DicomPart] with DicomParsing {
+class ParseFlow(chunkSize: Int = 8192, stopTag: Option[Int] = None, inflate: Boolean = true) extends ByteStringParser[DicomPart] with DicomParsing {
 
   import ByteStringParser._
 
@@ -287,7 +287,7 @@ class DicomParseFlow(chunkSize: Int = 8192, stopTag: Option[Int] = None, inflate
 
 }
 
-object DicomParseFlow {
+object ParseFlow {
 
-  val parseFlow = new DicomParseFlow()
+  val parseFlow = new ParseFlow()
 }

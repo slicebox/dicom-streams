@@ -19,11 +19,11 @@ package se.nimsa.dicom.streams
 import akka.NotUsed
 import akka.stream.scaladsl.Flow
 import akka.util.ByteString
-import se.nimsa.dicom.TagPath.{TagPathSequence, TagPathTag}
-import se.nimsa.dicom.{Dictionary, TagPath, VR}
+import se.nimsa.dicom.TagPath.{TagPathTag, TagPathTrunk}
 import se.nimsa.dicom.streams.DicomParts._
+import se.nimsa.dicom.{Dictionary, TagPath, VR}
 
-object DicomModifyFlow {
+object ModifyFlow {
 
   /**
     * Class used to specify modifications to individual attributes of a dataset
@@ -73,7 +73,7 @@ object DicomModifyFlow {
     * @return the modified flow of DICOM parts
     */
   def modifyFlow(modifications: TagModification*): Flow[DicomPart, DicomPart, NotUsed] =
-    DicomFlowFactory.create(new DeferToPartFlow with EndEvent with TagPathTracking {
+    DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with EndEvent[DicomPart] with TagPathTracking[DicomPart] {
 
       val sortedModifications: List[TagModification] = modifications.toList.sortWith((a, b) => a.tagPath < b.tagPath)
 
@@ -103,8 +103,8 @@ object DicomModifyFlow {
       def isBetween(tagToTest: TagPath, upperTag: TagPath, lowerTagMaybe: Option[TagPath]): Boolean =
         tagToTest < upperTag && lowerTagMaybe.forall(_ < tagToTest)
 
-      def isInDataset(tagToTest: TagPath, sequenceMaybe: Option[TagPathSequence]): Boolean =
-        sequenceMaybe.map(tagToTest.startsWithSubPath).getOrElse(tagToTest.isRoot)
+      def isInDataset(tagToTest: TagPath, trunkMaybe: Option[TagPathTrunk]): Boolean =
+        trunkMaybe.map(tagToTest.startsWithSubPath).getOrElse(tagToTest.isRoot)
 
       def findInsertParts: List[DicomPart] = sortedModifications
         .filter(_.insert)

@@ -12,7 +12,7 @@ import se.nimsa.dicom._
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContextExecutor}
 
-class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")) with FlatSpecLike with Matchers with BeforeAndAfterAll {
+class ValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")) with FlatSpecLike with Matchers with BeforeAndAfterAll {
 
   import se.nimsa.dicom.TestData._
   import se.nimsa.dicom.streams.DicomFlows._
@@ -342,7 +342,7 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
       })
 
     val f = bytesSource
-      .via(new DicomValidateFlow(None, drainIncoming = false))
+      .via(new ValidateFlow(None, drainIncoming = false))
       .runWith(Sink.ignore)
 
     Await.ready(f, 5.seconds)
@@ -364,7 +364,7 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
       })
 
     val f = bytesSource
-      .via(new DicomValidateFlow(None, drainIncoming = true))
+      .via(new ValidateFlow(None, drainIncoming = true))
       .map(bs => {
         nItemsEmitted += 1
         bs
