@@ -12,7 +12,7 @@ import se.nimsa.dicom._
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContextExecutor}
 
-class ValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")) with FlatSpecLike with Matchers with BeforeAndAfterAll {
+class ValidateFlowTest extends TestKit(ActorSystem("ValidateFlowSpec")) with FlatSpecLike with Matchers with BeforeAndAfterAll {
 
   import se.nimsa.dicom.TestData._
   import se.nimsa.dicom.streams.DicomFlows._
@@ -48,7 +48,7 @@ class ValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")) wit
       .expectComplete()
   }
 
-  it should "accept a file with no preamble and which starts with an attribute header" in {
+  it should "accept a file with no preamble and which starts with an element header" in {
     val bytes = patientNameJohnDoe()
 
     val source = Source.single(bytes)
@@ -60,7 +60,7 @@ class ValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")) wit
       .expectComplete()
   }
 
-  it should "not accept a file with a preamble followed by a corrupt attribute header" in {
+  it should "not accept a file with a preamble followed by a corrupt element header" in {
     val bytes = preamble ++ ByteString(1, 2, 3, 4, 5, 6, 7, 8, 9)
 
     val source = Source.single(bytes)
@@ -223,7 +223,7 @@ class ValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")) wit
       .expectComplete()
   }
 
-  it should "accept a file with no preamble and which starts with an attribute header if no context is given" in {
+  it should "accept a file with no preamble and which starts with an element header if no context is given" in {
     val bytes = patientNameJohnDoe()
 
     val source = Source.single(bytes)

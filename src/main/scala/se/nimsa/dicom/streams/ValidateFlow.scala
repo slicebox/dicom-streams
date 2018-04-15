@@ -17,7 +17,7 @@
 package se.nimsa.dicom.streams
 
 import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
-import akka.stream.{FlowShape, Inlet, Outlet}
+import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
 import akka.util.ByteString
 import se.nimsa.dicom.Tag
 import se.nimsa.dicom.streams.DicomFlows.ValidationContext
@@ -34,7 +34,7 @@ class ValidateFlow(contexts: Option[Seq[ValidationContext]], drainIncoming: Bool
   val out: Outlet[ByteString] = Outlet[ByteString]("DicomValidateFlow.out")
   override val shape: FlowShape[ByteString, ByteString] = FlowShape.of(in, out)
 
-  override def createLogic(inheritedAttributes: akka.stream.Attributes): GraphStageLogic = new GraphStageLogic(shape) {
+  override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     var buffer: ByteString = ByteString.empty
     var isValidated: Option[Boolean] = None
     var failException: Option[Throwable] = None
@@ -62,18 +62,16 @@ class ValidateFlow(contexts: Option[Seq[ValidationContext]], drainIncoming: Bool
                     validateFileMetaInformation(buffer.drop(dicomPreambleLength), info, upstreamHasFinished = false)
                   } else
                     setValidated()
-                else {
+                else
                   setFailed(new DicomStreamException("Not a DICOM stream"), upstreamHasFinished = false)
-                }
               else if (DicomParsing.isHeader(buffer))
                 if (contexts.isDefined) {
                   val info = DicomParsing.dicomInfo(buffer).get
                   validateSOPClassUID(buffer, info, upstreamHasFinished = false)
                 } else
                   setValidated()
-              else {
+              else
                 setFailed(new DicomStreamException("Not a DICOM stream"), upstreamHasFinished = false)
-              }
             else
               pull(in)
           case Some(true) =>
@@ -117,12 +115,12 @@ class ValidateFlow(contexts: Option[Seq[ValidationContext]], drainIncoming: Bool
         val (failed, tailData) = findAndValidateField(data, info, "MediaStorageSOPClassUID", (tag: Int) => tag == Tag.MediaStorageSOPClassUID, (tag: Int) => (tag & 0xFFFF0000) > 0x00020000, upstreamHasFinished)
         if (!failed) {
           currentData = tailData
-          val mscu = DicomParsing.parseUIDAttribute(currentData, info.explicitVR, info.bigEndian)
+          val mscu = DicomParsing.parseUIDElement(currentData, info.explicitVR, info.bigEndian)
 
           val (nextFailed, nextTailData) = findAndValidateField(currentData, info, "TransferSyntaxUID", (tag: Int) => tag == Tag.TransferSyntaxUID, (tag: Int) => (tag & 0xFFFF0000) > 0x00020000, upstreamHasFinished)
           if (!nextFailed) {
             currentData = nextTailData
-            val tsuid = DicomParsing.parseUIDAttribute(currentData, info.explicitVR, info.bigEndian)
+            val tsuid = DicomParsing.parseUIDElement(currentData, info.explicitVR, info.bigEndian)
 
             val currentContext = ValidationContext(mscu.value.utf8String, tsuid.value.utf8String)
             if (contexts.get.contains(currentContext))
@@ -141,7 +139,7 @@ class ValidateFlow(contexts: Option[Seq[ValidationContext]], drainIncoming: Bool
 
         if (!failed) {
           // SOP CLass UID
-          val scuid = DicomParsing.parseUIDAttribute(tailData, info.explicitVR, info.bigEndian)
+          val scuid = DicomParsing.parseUIDElement(tailData, info.explicitVR, info.bigEndian)
 
           // transfer syntax: best guess
           val tsuid = info.assumedTransferSyntax

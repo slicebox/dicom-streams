@@ -8,7 +8,7 @@ import se.nimsa.dicom.Value.ByteStringExtension
 
 /**
   * Class for decoding DICOM character data according to one or more character sets as specified by the
-  * SpecificCharacterSet attribute.
+  * SpecificCharacterSet element.
   *
   * @param charsetArray character sets
   */

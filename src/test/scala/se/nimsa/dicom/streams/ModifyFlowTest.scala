@@ -11,7 +11,7 @@ import se.nimsa.dicom._
 
 import scala.concurrent.ExecutionContextExecutor
 
-class ModifyFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecLike with Matchers with BeforeAndAfterAll {
+class ModifyFlowTest extends TestKit(ActorSystem("ModifyFlowSpec")) with FlatSpecLike with Matchers with BeforeAndAfterAll {
 
   import ModifyFlow._
   import DicomParts._
@@ -23,7 +23,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpec
 
   override def afterAll(): Unit = system.terminate()
 
-  "The modify flow" should "modify the value of the specified attributes" in {
+  "The modify flow" should "modify the value of the specified elements" in {
     val bytes = studyDate() ++ patientNameJohnDoe()
 
     val mikeBytes = ByteString('M', 'i', 'k', 'e')
@@ -41,7 +41,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpec
       .expectDicomComplete()
   }
 
-  it should "not modify attributes in datasets other than the dataset the tag path points to" in {
+  it should "not modify elements in datasets other than the dataset the tag path points to" in {
     val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ studyDate() ++ itemEnd() ++ sequenceEnd()
 
     val mikeBytes = ByteString('M', 'i', 'k', 'e')
@@ -62,7 +62,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpec
       .expectDicomComplete()
   }
 
-  it should "insert attributes if not present" in {
+  it should "insert elements if not present" in {
     val bytes = patientNameJohnDoe()
 
     val source = Source.single(bytes)
@@ -77,7 +77,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpec
       .expectDicomComplete()
   }
 
-  it should "insert attributes if not present also at end of dataset" in {
+  it should "insert elements if not present also at end of dataset" in {
     val bytes = studyDate()
 
     val source = Source.single(bytes)
@@ -92,7 +92,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpec
       .expectDicomComplete()
   }
 
-  it should "insert attributes if not present also at end of dataset when last attribute is empty" in {
+  it should "insert elements if not present also at end of dataset when last element is empty" in {
     val bytes = tagToBytesLE(0x00080050) ++ ByteString("SH") ++ shortToBytesLE(0x0000)
 
     val source = Source.single(bytes)
@@ -106,7 +106,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpec
       .expectDicomComplete()
   }
 
-  it should "insert attributes between a normal attribute and a sequence attribute" in {
+  it should "insert elements between a normal attribute and a sequence" in {
     val bytes = studyDate() ++ sequence(Tag.AbstractPriorCodeSequence) ++ sequenceEnd()
 
     val source = Source.single(bytes)
@@ -123,7 +123,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpec
       .expectDicomComplete()
   }
 
-  it should "insert attributes between a sequence attribute and a normal attribute" in {
+  it should "insert elements between a sequence and a normal attribute" in {
     val bytes = sequence(Tag.DerivationCodeSequence) ++ sequenceEnd() ++ patientID()
 
     val source = Source.single(bytes)
@@ -140,7 +140,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpec
       .expectDicomComplete()
   }
 
-  it should "insert attributes between two sequence attributes" in {
+  it should "insert elements between two sequences" in {
     val bytes = sequence(Tag.DerivationCodeSequence) ++ sequenceEnd() ++ sequence(Tag.AbstractPriorCodeSequence) ++ sequenceEnd()
 
     val source = Source.single(bytes)
@@ -157,7 +157,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpec
       .expectDicomComplete()
   }
 
-  it should "modify, not insert, when 'insert' attributes are already present" in {
+  it should "modify, not insert, when 'insert' elements are already present" in {
     val bytes = studyDate() ++ patientNameJohnDoe()
 
     val mikeBytes = ByteString('M', 'i', 'k', 'e')
@@ -175,7 +175,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpec
       .expectDicomComplete()
   }
 
-  it should "insert all relevant attributes below the current tag number" in {
+  it should "insert all relevant elements below the current tag number" in {
     val bytes = patientNameJohnDoe()
 
     val source = Source.single(bytes)
@@ -194,7 +194,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpec
       .expectDicomComplete()
   }
 
-  it should "not insert attributes if dataset contains no attributes" in {
+  it should "not insert elements if dataset contains no elements" in {
     val source = Source.empty
       .via(new ParseFlow())
       .via(modifyFlow(TagModification.contains(TagPath.fromTag(Tag.SeriesDate), _ => studyDate().drop(8), insert = true)))
@@ -203,7 +203,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpec
       .expectDicomComplete()
   }
 
-  it should "insert attributes in sequences if sequence is present but attribute is not present" in {
+  it should "insert elements in sequences if sequence is present but element is not present" in {
     val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemEnd() ++ sequenceEnd()
 
     val source = Source.single(bytes)
@@ -223,7 +223,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpec
       .expectDicomComplete()
   }
 
-  it should "skip inserting attributes in missing sequences" in {
+  it should "skip inserting elements in missing sequences" in {
     val bytes = patientNameJohnDoe()
 
     val source = Source.single(bytes)
@@ -237,7 +237,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpec
       .expectDicomComplete()
   }
 
-  it should "not insert unknown attributes" in {
+  it should "not insert unknown elements" in {
     val bytes = patientNameJohnDoe()
 
     val source = Source.single(bytes)
@@ -251,7 +251,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpec
       .expectDicomError()
   }
 
-  it should "not insert sequence attributes" in {
+  it should "not insert sequences" in {
     val bytes = patientNameJohnDoe()
 
     val source = Source.single(bytes)
@@ -263,7 +263,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpec
       .expectDicomError()
   }
 
-  it should "skip insert attributes pointing to datasets that does not exist" in {
+  it should "skip insert elements pointing to datasets that does not exist" in {
     val bytes = patientNameJohnDoe()
 
     val source = Source.single(bytes)
@@ -377,7 +377,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpec
       .expectDicomComplete()
   }
 
-  it should "correctly sort attributes with tag numbers exceeding the positive range of its signed integer representation" in {
+  it should "correctly sort elements with tag numbers exceeding the positive range of its signed integer representation" in {
     val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ ByteString(0xFF, 0xFF, 0xFF, 0xFF, 68, 65, 10, 0, 49, 56, 51, 49, 51, 56, 46, 55, 54, 53)
 
     val mikeBytes = ByteString('M', 'i', 'k', 'e')

@@ -26,7 +26,7 @@ import se.nimsa.dicom.{Dictionary, TagPath, VR}
 object ModifyFlow {
 
   /**
-    * Class used to specify modifications to individual attributes of a dataset
+    * Class used to specify modifications to individual elements of a dataset
     *
     * @param tagPath      tag path
     * @param matches      function used to determine if another tag path is matching the tag path of this modification
@@ -42,30 +42,30 @@ object ModifyFlow {
       * Modification that will modify dataset elements contained within its tag path. "Contained" means equals unless
       * item wildcards are used. E.g. if the modification tag path is (0008,9215)[*}.(0010,0010) the path
       * (0008,9215)[1].(0010,0010) will be contained in that path along with any other item indices. Useful for changing
-      * specific attributes in a dataset.
+      * specific elements in a dataset.
       */
     def contains(tagPath: TagPathTag, modification: ByteString => ByteString, insert: Boolean) =
       TagModification(tagPath, tagPath.hasSubPath, modification, insert)
 
     /**
       * Modification that will modify dataset elements where the corresponding tag path ends with the tag path of this
-      * modification. E.g. both the dataset attributes (0010,0010) and (0008,9215)[1].(0010,0010) will be modified if
-      * this tag path is (0010,0010). Useful for changing all instances of a certain attribute.
+      * modification. E.g. both the dataset elements (0010,0010) and (0008,9215)[1].(0010,0010) will be modified if
+      * this tag path is (0010,0010). Useful for changing all instances of a certain element.
       */
     def endsWith(tagPath: TagPathTag, modification: ByteString => ByteString, insert: Boolean) =
       TagModification(tagPath, _.endsWith(tagPath), modification, insert)
   }
 
   /**
-    * Modification flow for inserting or overwriting the values of specified attributes. When inserting a new attribute,
+    * Modification flow for inserting or overwriting the values of specified elements. When inserting a new element,
     * the corresponding modification function will be called with an empty `ByteString`. A modification is specified by
     * a tag path, a modification function from current value bytes to their replacement, and a flag specifying whether
-    * the attribute should be inserted if not present. Attributes are inserted only if they point to existing datasets.
+    * the element should be inserted if not present. Elements are inserted only if they point to existing datasets.
     * That means that sequences are never inserted, only modified. Insertion works according to the `TagPathTag#contains`
     * method, meaning that if sequence wildcards are used in modifications they will apply to all items in a sequence.
     *
     * Note that modified DICOM data may not be valid. This function does not ensure values are padded to even length and
-    * changing an attribute may lead to invalid group length attributes such as MediaStorageSOPInstanceUID. There are
+    * changing an element may lead to invalid group length elements such as MediaStorageSOPInstanceUID. There are
     * utility functions in `se.nimsa.ddcm4che.streams` for padding values and flows for adjusting group lengths.
     *
     * @param modifications Any number of `TagModification`s each specifying a tag path, a modification function, and
@@ -78,11 +78,11 @@ object ModifyFlow {
       val sortedModifications: List[TagModification] = modifications.toList.sortWith((a, b) => a.tagPath < b.tagPath)
 
       var currentModification: Option[TagModification] = None // current modification
-      var currentHeader: Option[DicomHeader] = None // header of current attribute being modified
+      var currentHeader: Option[DicomHeader] = None // header of current element being modified
       var latestTagPath: Option[TagPath] = None // last seen new tag path
-      var value: ByteString = ByteString.empty // value of current attribute being modified
-      var bigEndian = false // endianness of current attribute
-      var explicitVR = true // VR representation of current attribute
+      var value: ByteString = ByteString.empty // value of current element being modified
+      var bigEndian = false // endianness of current element
+      var explicitVR = true // VR representation of current element
 
       def updateSyntax(header: DicomHeader): Unit = {
         bigEndian = header.bigEndian
@@ -93,7 +93,7 @@ object ModifyFlow {
         val valueBytes = modification(ByteString.empty)
         val vr = Dictionary.vrOf(tagPath.tag)
         if (vr == VR.UN) throw new IllegalArgumentException("Tag is not present in dictionary, cannot determine value representation")
-        if (vr == VR.SQ) throw new IllegalArgumentException("Cannot insert sequence attributes")
+        if (vr == VR.SQ) throw new IllegalArgumentException("Cannot insert sequences")
         val isFmi = DicomParsing.isFileMetaInformation(tagPath.tag)
         val header = DicomHeader(tagPath.tag, vr, valueBytes.length, isFmi, bigEndian, explicitVR)
         val value = DicomValueChunk(bigEndian, valueBytes, last = true)

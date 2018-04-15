@@ -23,7 +23,7 @@ sealed trait TagPath {
   import TagPath._
 
   val tag: Int
-  val previous: Option[TagPath with TagPathTrunk]
+  val previous: Option[TagPathTrunk]
 
   /**
     * `true` if this tag path points to the root dataset, at depth 0
@@ -306,7 +306,7 @@ object TagPath {
     def thenSequence(tag: Int) = new TagPathSequence(tag, Some(this))
 
     /**
-      * Create a path to sequence attribute
+      * Create a path to a sequence
       *
       * @param tag tag number
       * @return the tag path
@@ -314,7 +314,7 @@ object TagPath {
     def thenSequenceStart(tag: Int) = new TagPathSequenceStart(tag, Some(this))
 
     /**
-      * Create a path to sequence delimitation attribute
+      * Create a path to a sequence delimitation
       *
       * @param tag tag number
       * @return the tag path
@@ -353,7 +353,7 @@ object TagPath {
   }
 
   /**
-    * A tag path that points to a non-sequence attribute
+    * A tag path that points to a non-sequence element
     *
     * @param tag      the tag number
     * @param previous a link to the part of this tag part to the left of this tag
@@ -374,7 +374,7 @@ object TagPath {
   class TagPathSequence(val tag: Int, val previous: Option[TagPathTrunk with TagSequenceBuilding]) extends TagPathTrunk with ItemBuilding with SequenceKind
 
   /**
-    * A tag path that points to a sequence attribute, marking the start of a sequence
+    * A tag path that points to a sequence, marking the start of a sequence
     *
     * @param tag      the sequence tag number
     * @param previous a link to the part of this tag part to the left of this tag
@@ -385,7 +385,7 @@ object TagPath {
   }
 
   /**
-    * A tag path that points to a sequence delimitation attribute, marking the end of a sequence
+    * A tag path that points to a sequence delimitation, marking the end of a sequence
     *
     * @param tag      the sequence tag number
     * @param previous a link to the part of this tag part to the left of this tag
@@ -417,7 +417,7 @@ object TagPath {
   class TagPathItems private[TagPath](val tag: Int, val previous: Option[TagPathSequence]) extends TagPathTrunk with TagSequenceBuilding with ItemKind
 
   /**
-    * A tag path that points to an item attribute, marking the start of an item
+    * A tag path that points to an item, marking the start of an item
     *
     * @param tag      the sequence tag number
     * @param previous a link to the part of this tag part to the left of this tag
@@ -432,7 +432,7 @@ object TagPath {
   }
 
   /**
-    * A tag path that points to an item delimitation attribute, marking the end of an item
+    * A tag path that points to an item delimitation, marking the end of an item
     *
     * @param tag      the sequence tag number
     * @param previous a link to the part of this tag part to the left of this tag
@@ -461,7 +461,7 @@ object TagPath {
   def fromSequence(tag: Int) = new TagPathSequence(tag, None)
 
   /**
-    * Create a path to sequence attribute
+    * Create a path to sequence
     *
     * @param tag tag number
     * @return the tag path
@@ -469,7 +469,7 @@ object TagPath {
   def fromSequenceStart(tag: Int) = new TagPathSequenceStart(tag, None)
 
   /**
-    * Create a path to sequence delimitation attribute
+    * Create a path to sequence delimitation
     *
     * @param tag tag number
     * @return the tag path

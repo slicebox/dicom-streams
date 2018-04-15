@@ -185,7 +185,7 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
       .expectDicomComplete()
   }
 
-  it should "handle empty attributes in sequences" in {
+  it should "handle empty elements in sequences" in {
     val bytes =
       sequence(Tag.DerivationCodeSequence, 44) ++ item(36) ++ emptyPatientName() ++
         sequence(Tag.DerivationCodeSequence, 16) ++ item(8) ++ emptyPatientName()

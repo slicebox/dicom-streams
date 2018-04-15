@@ -11,7 +11,7 @@ import se.nimsa.dicom._
 
 import scala.concurrent.ExecutionContextExecutor
 
-class ParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecLike with Matchers with BeforeAndAfterAll {
+class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecLike with Matchers with BeforeAndAfterAll {
 
   import DicomParts._
   import TestUtils._
@@ -22,7 +22,7 @@ class ParseFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
 
   override def afterAll(): Unit = system.terminate()
 
-  "A DICOM flow" should "produce a preamble, FMI tags and attribute tags for a complete DICOM file" in {
+  "A DICOM flow" should "produce a preamble, FMI tags and dataset tags for a complete DICOM file" in {
     val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)

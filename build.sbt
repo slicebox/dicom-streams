@@ -40,7 +40,7 @@ sourceGenerators in Compile += Def.task {
   IO.write(keywordFile, generateKeyword())
   IO.write(uidFile, generateUID())
   IO.write(dictionaryFile, generateDictionary())
-  Seq(tagFile, uidFile, dictionaryFile)
+  Seq(tagFile, keywordFile, uidFile, dictionaryFile)
 }.taskValue
 
 // for automatic license stub generation

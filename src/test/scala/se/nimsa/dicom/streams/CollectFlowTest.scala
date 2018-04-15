@@ -7,35 +7,37 @@ import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
-import se.nimsa.dicom.{Tag, VR}
-import se.nimsa.dicom.TestData.patientNameJohnDoe
+import se.nimsa.dicom.TestData._
+import se.nimsa.dicom.streams.CollectFlow._
+import se.nimsa.dicom.streams.DicomParts.{DicomHeader, DicomPart, DicomValueChunk}
 import se.nimsa.dicom.streams.ParseFlow.parseFlow
-import se.nimsa.dicom.streams.DicomParts.{DicomHeader, DicomValueChunk}
+import se.nimsa.dicom.streams.TestUtils._
+import se.nimsa.dicom.{Tag, VR}
 
 import scala.concurrent.ExecutionContextExecutor
 
-class CollectFlowTest extends TestKit(ActorSystem("DicomCollectFlowSpec")) with FlatSpecLike with Matchers with BeforeAndAfterAll {
+class CollectFlowTest extends TestKit(ActorSystem("CollectFlowSpec")) with FlatSpecLike with Matchers with BeforeAndAfterAll {
 
   implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val ec: ExecutionContextExecutor = system.dispatcher
 
   override def afterAll(): Unit = system.terminate()
 
-  "A collect attributes flow" should "first produce an attributes part followed by the input dicom parts" in {
+  "A collect elements flow" should "first produce an elements part followed by the input dicom parts" in {
     val bytes = studyDate() ++ patientNameJohnDoe()
     val tags = Set(Tag.StudyDate, Tag.PatientName)
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(collectAttributesFlow(tags, "tag"))
+      .via(collectFlow(tags, "tag"))
 
     source.runWith(TestSink.probe[DicomPart])
       .request(1)
       .expectNextChainingPF {
-        case DicomAttributes(tag, attributes) =>
+        case CollectedElements(tag, _, elements) =>
           tag shouldBe "tag"
-          attributes should have length 2
-          attributes.head.header.tag shouldBe Tag.StudyDate
-          attributes(1).header.tag shouldBe Tag.PatientName
+          elements should have length 2
+          elements.head.header.tag shouldBe Tag.StudyDate
+          elements(1).header.tag shouldBe Tag.PatientName
       }
       .expectHeader(Tag.StudyDate)
       .expectValueChunk()
@@ -44,32 +46,32 @@ class CollectFlowTest extends TestKit(ActorSystem("DicomCollectFlowSpec")) with 
       .expectDicomComplete()
   }
 
-  it should "produce an empty attributes part when stream is empty" in {
+  it should "produce an empty elements part when stream is empty" in {
     val bytes = ByteString.empty
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(collectAttributesFlow(Set.empty, "tag"))
+      .via(collectFlow(Set.empty, "tag"))
 
     source.runWith(TestSink.probe[DicomPart])
       .request(1)
       .expectNextChainingPF {
-        case DicomAttributes(_, attributes) => attributes shouldBe empty
+        case CollectedElements(_, _, elements) => elements shouldBe empty
       }
       .expectDicomComplete()
   }
 
-  it should "produce an empty attributes part when no relevant attributes are present" in {
+  it should "produce an empty elements part when no relevant data elements are present" in {
     val bytes = patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(collectAttributesFlow(Set(Tag.Modality, Tag.SeriesInstanceUID), "tag"))
+      .via(collectFlow(Set(Tag.Modality, Tag.SeriesInstanceUID), "tag"))
 
     source.runWith(TestSink.probe[DicomPart])
       .request(1)
       .expectNextChainingPF {
-        case DicomAttributes(_, attributes) => attributes shouldBe empty
+        case CollectedElements(_, _, elements) => elements shouldBe empty
       }
       .expectHeader(Tag.PatientName)
       .expectValueChunk()
@@ -83,16 +85,16 @@ class CollectFlowTest extends TestKit(ActorSystem("DicomCollectFlowSpec")) with 
 
     val source = Source.single(bytes)
       .via(new ParseFlow(chunkSize = 500))
-      .via(collectAttributesFlow(Set(Tag.StudyDate, Tag.PatientName), "tag", maxBufferSize = 1000))
+      .via(collectFlow(Set(Tag.StudyDate, Tag.PatientName), "tag", maxBufferSize = 1000))
 
     source.runWith(TestSink.probe[DicomPart])
       .request(1)
       .expectNextChainingPF {
-        case DicomAttributes(tag, attributes) =>
+        case CollectedElements(tag, _, elements) =>
           tag shouldBe "tag"
-          attributes should have length 2
-          attributes.head.header.tag shouldBe Tag.StudyDate
-          attributes.last.header.tag shouldBe Tag.PatientName
+          elements should have length 2
+          elements.head.header.tag shouldBe Tag.StudyDate
+          elements.last.header.tag shouldBe Tag.PatientName
       }
       .expectHeader(Tag.StudyDate)
       .expectValueChunk()
@@ -111,14 +113,14 @@ class CollectFlowTest extends TestKit(ActorSystem("DicomCollectFlowSpec")) with 
 
     val source = Source.single(bytes)
       .via(new ParseFlow(chunkSize = 500))
-      .via(collectAttributesFlow(_.tag == Tag.PatientName, _.tag > Tag.PixelData, "tag", maxBufferSize = 1000))
+      .via(collectFlow(_.tag == Tag.PatientName, _.tag > Tag.PixelData, "tag", maxBufferSize = 1000))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectDicomError()
   }
 
-  "DicomAttribute" should "update its value bytes" in {
-    val updated = DicomAttribute(
+  CollectedElement.getClass.getSimpleName should "update its value bytes" in {
+    val updated = CollectedElement(
       DicomHeader(Tag.PatientName, VR.PN, 8, isFmi = false, bigEndian = false, explicitVR = true),
       Seq(DicomValueChunk(bigEndian = false, patientNameJohnDoe().drop(8), last = true)))
       .withUpdatedValue(ByteString("ABC"))

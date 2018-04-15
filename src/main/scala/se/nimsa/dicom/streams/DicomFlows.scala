@@ -48,8 +48,8 @@ object DicomFlows {
   }
 
   /**
-    * Filter a stream of dicom parts such that all attributes except those with tags in the white list are discarded.
-    * Only attributes in the root dataset are considered. All other parts such as preamble are discarded.
+    * Filter a stream of dicom parts such that all elements except those with tags in the white list are discarded.
+    * Only elements in the root dataset are considered. All other parts such as preamble are discarded.
     *
     * Note that it is up to the user of this function to make sure the modified DICOM data is valid.
     *
@@ -60,7 +60,7 @@ object DicomFlows {
     tagFilter(_ => false)(currentPath => currentPath.isRoot && tagsWhitelist.contains(currentPath.tag))
 
   /**
-    * Filter a stream of dicom parts such that attributes with tag paths in the black list are discarded. Tag paths in
+    * Filter a stream of dicom parts such that elements with tag paths in the black list are discarded. Tag paths in
     * the blacklist are removed in the root dataset as well as any sequences, and entire sequences or items in sequences
     * can be removed.
     *
@@ -73,7 +73,7 @@ object DicomFlows {
     tagFilter(_ => true)(currentPath => !blacklistPaths.exists(currentPath.startsWithSuperPath))
 
   /**
-    * Filter a stream of dicom parts such that all attributes that are group length elements except
+    * Filter a stream of dicom parts such that all elements that are group length elements except
     * file meta information group length, will be discarded. Group Length (gggg,0000) Standard Data Elements
     * have been retired in the standard.
     *
@@ -128,7 +128,7 @@ object DicomFlows {
 
   /**
     * A flow which passes on the input bytes unchanged, but fails for non-DICOM files, determined by the first
-    * attribute found
+    * element found
     */
   val validateFlow: Flow[ByteString, ByteString, NotUsed] =
     Flow[ByteString].via(new ValidateFlow(None, drainIncoming = false))
@@ -143,7 +143,7 @@ object DicomFlows {
   /**
     * A flow which deflates the dataset but leaves the meta information intact. Useful when the dicom parsing in `DicomParseFlow`
     * has inflated a deflated (`1.2.840.10008.1.2.1.99 or 1.2.840.10008.1.2.4.95`) file, and analyzed and possibly transformed its
-    * attributes. At that stage, in order to maintain valid DICOM information, one can either change the transfer syntax to
+    * elements. At that stage, in order to maintain valid DICOM information, one can either change the transfer syntax to
     * an appropriate value for non-deflated data, or deflate the data again. This flow helps with the latter.
     *
     * @return the associated `DicomPart` `Flow`
@@ -207,7 +207,7 @@ object DicomFlows {
       }
 
   /**
-    * Remove attributes from stream that may contain large quantities of data (bulk data)
+    * Remove elements from stream that may contain large quantities of data (bulk data)
     *
     * Rules ported from [[https://github.com/dcm4che/dcm4che/blob/3.3.8/dcm4che-core/src/main/java/org/dcm4che3/io/BulkDataDescriptor.java#L58 dcm4che]].
     * Defined [[http://dicom.nema.org/medical/dicom/current/output/html/part04.html#table_Z.1-1 here in the DICOM standard]].
@@ -261,7 +261,7 @@ object DicomFlows {
       }
 
   /**
-    * Buffers all file meta information attributes and calculates their lengths, then emits the correct file meta
+    * Buffers all file meta information elements and calculates their lengths, then emits the correct file meta
     * information group length attribute followed by remaining FMI.
     */
   def fmiGroupLengthFlow: Flow[DicomPart, DicomPart, NotUsed] = Flow[DicomPart]
@@ -272,37 +272,48 @@ object DicomFlows {
 
       () =>
         var fmi = List.empty[DicomPart]
+        var firstHeader: Option[DicomHeader] = None
         var hasEmitted = false
 
       {
-        case fmiAttributes: DicomAttributes if fmiAttributes.tag == "fmigrouplength" =>
-          if (fmiAttributes.attributes.nonEmpty) {
-            val info = dicomInfo(fmiAttributes.attributes.head.header.bytes).getOrElse(Info(bigEndian = false, explicitVR = true, hasFmi = true))
-            val fmiAttributesNoLength = fmiAttributes.attributes.filter(_.header.tag != Tag.FileMetaInformationGroupLength)
-            val length = fmiAttributesNoLength.map(_.bytes.length).sum
+        case fmiElements: CollectedElements if fmiElements.tag == "fmigrouplength" =>
+          if (fmiElements.elements.nonEmpty) {
+            val info = dicomInfo(fmiElements.elements.head.header.bytes).getOrElse(Info(bigEndian = false, explicitVR = true, hasFmi = true))
+            val fmiElementsNoLength = fmiElements.elements.filter(_.header.tag != Tag.FileMetaInformationGroupLength)
+            val length = fmiElementsNoLength.map(_.bytes.length).sum
             val lengthBytes = tagToBytes(Tag.FileMetaInformationGroupLength, info.bigEndian) ++
               (if (info.explicitVR) ByteString("UL") ++ shortToBytes(4, info.bigEndian) else intToBytes(4, info.bigEndian))
             val lengthHeader = DicomHeader(Tag.FileMetaInformationGroupLength, VR.UL, 4, isFmi = true, info.bigEndian, info.explicitVR, lengthBytes)
             val lengthChunk = DicomValueChunk(info.bigEndian, intToBytes(length, info.bigEndian), last = true)
-            val fmiParts = fmiAttributesNoLength.toList.flatMap(attribute => attribute.header :: attribute.valueChunks.toList)
+            val fmiParts = fmiElementsNoLength.toList.flatMap(element => element.header :: element.valueChunks.toList)
             fmi = lengthHeader :: lengthChunk :: fmiParts
           }
           Nil
 
-        case preamble: DicomPreamble if hasEmitted => preamble :: Nil
-        case preamble: DicomPreamble if !hasEmitted =>
-          hasEmitted = true
-          preamble :: fmi
+        case preamble: DicomPreamble =>
+          if (hasEmitted)
+            preamble :: Nil
+          else {
+            hasEmitted = true
+            preamble :: fmi
+          }
 
-        case header: DicomHeader if hasEmitted => header :: Nil
-        case header: DicomHeader if !hasEmitted =>
-          hasEmitted = true
-          fmi ::: header :: Nil
+        case header: DicomHeader =>
+          if (firstHeader.isEmpty) firstHeader = Some(header)
+          if (hasEmitted)
+            header :: Nil
+          else {
+            hasEmitted = true
+            fmi ::: header :: Nil
+          }
 
-        case DicomEndMarker if hasEmitted => Nil
-        case DicomEndMarker if !hasEmitted =>
-          hasEmitted = true
-          fmi
+        case DicomEndMarker =>
+          if (hasEmitted)
+            Nil
+          else {
+            hasEmitted = true
+            fmi
+          }
 
         case part => part :: Nil
       }
@@ -315,7 +326,7 @@ object DicomFlows {
 
   /**
     * This flow guarantees that all `DicomHeader` parts are immediately followed by one or more `DicomValueChunk`s.
-    * Normally, an empty attribute consists of a `DicomHeader` only. To allow the flow to keep track of inserted parts,
+    * Normally, an empty element consists of a `DicomHeader` only. To allow the flow to keep track of inserted parts,
     * empty `DicomValueChunk`s are of the subtype `DicomValueChunkMarker`.
     */
   val guaranteedValueFlow: Flow[DicomPart, DicomPart, NotUsed] =
@@ -367,12 +378,12 @@ object DicomFlows {
 
   /**
     * Convert all string values to UTF-8 corresponding to the DICOM character set ISO_IR 192. First collects the
-    * SpecificCharacterSet attribute. Any subsequent attributes of VR type LO, LT, PN, SH, ST or UT will be decoded
+    * SpecificCharacterSet element. Any subsequent elements of VR type LO, LT, PN, SH, ST or UT will be decoded
     * using the character set(s) of the dataset, and replaced by a value encoded using UTF-8.
     *
-    * Changing attribute values will change and update the length of individual attributes, but does not update group
-    * length attributes and sequences and items with specified length. The recommended approach is to remove group
-    * length attributes and make sure sequences and items have undefined length using appropriate flows.
+    * Changing element values will change and update the length of individual elements, but does not update group
+    * length elements and sequences and items with specified length. The recommended approach is to remove group
+    * length elements and make sure sequences and items have undefined length using appropriate flows.
     *
     * @return the associated DicomPart Flow
     */
@@ -387,8 +398,8 @@ object DicomFlows {
         var currentValue = ByteString.empty
 
       {
-        case attr: DicomAttributes if attr.tag == "toutf8" =>
-          characterSets = attr.attributes.headOption.map(a => CharacterSets(a.valueBytes)).getOrElse(characterSets)
+        case attr: CollectedElements if attr.tag == "toutf8" =>
+          characterSets = attr.elements.headOption.map(a => CharacterSets(a.valueBytes)).getOrElse(characterSets)
           Nil
         case header: DicomHeader =>
           if (header.length > 0 && CharacterSets.isVrAffectedBySpecificCharacterSet(header.vr)) {
@@ -406,12 +417,12 @@ object DicomFlows {
               .map(h => characterSets.decode(h.vr, currentValue).getBytes(utf8Charset))
               .map(ByteString.apply)
             val newLength = newValue.map(_.length)
-            val newAttribute = for {
+            val newElement = for {
               h <- currentHeader
               v <- newValue
               l <- newLength
             } yield h.withUpdatedLength(l) :: DicomValueChunk(h.bigEndian, v, last = true) :: Nil
-            newAttribute.getOrElse(Nil)
+            newElement.getOrElse(Nil)
           } else Nil
         case p: DicomPart =>
           p :: Nil

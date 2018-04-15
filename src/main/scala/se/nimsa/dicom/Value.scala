@@ -31,7 +31,7 @@ class Value(val bytes: ByteString) {
 }
 
 /**
-  * Utility methods for parsing DICOM attribute value bytes to strings, numbers, dates, etc.
+  * Utility methods for parsing DICOM data element value bytes to strings, numbers, dates, etc.
   */
 object Value {
 

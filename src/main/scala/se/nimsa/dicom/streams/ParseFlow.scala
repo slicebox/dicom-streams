@@ -18,7 +18,7 @@ package se.nimsa.dicom.streams
 
 import java.util.zip.Inflater
 
-import akka.stream._
+import akka.stream.Attributes
 import akka.stream.stage._
 import akka.util.ByteString
 import se.nimsa.dicom.VR.VR
@@ -27,14 +27,14 @@ import se.nimsa.dicom.streams.DicomParts._
 
 /**s
   * Flow which ingests a stream of bytes and outputs a stream of DICOM data parts as specified by the <code>DicomPart</code>
-  * trait. Example DICOM parts are the preamble, headers (tag, VR, length), value chunks (the data in an attribute divided into chunks),
+  * trait. Example DICOM parts are the preamble, headers (tag, VR, length), value chunks (the data in an element divided into chunks),
   * items, sequences and fragments.
   *
   * This class is heavily and exclusively based on the dcm4che
   * <a href="https://github.com/dcm4che/dcm4che/blob/master/dcm4che-core/src/test/java/org/dcm4che3/io/DicomInputStreamTest.java">DicomInputStream</a>
   * class, but adapted to output streaming results using AKKA Streams.
   *
-  * @param chunkSize the maximum size of a DICOM attribute data chunk
+  * @param chunkSize the maximum size of a DICOM element data chunk
   * @param stopTag   optional stop tag (exclusive) after which reading of incoming data bytes is stopped
   * @param inflate   indicates whether deflated DICOM data should be deflated and parsed or passed on as deflated data chunks.
   */
@@ -95,7 +95,7 @@ class ParseFlow(chunkSize: Int = 8192, stopTag: Option[Int] = None, inflate: Boo
           log.warning("Missing or wrong File Meta Information Group Length (0002,0000)")
           ParseResult(None, toDatasetStep(ByteString(0, 0), state))
         } else {
-          // no meta attributes can lead to vr = null
+          // no meta elements can lead to vr = null
           val updatedVr = if (vr == VR.UN) Dictionary.vrOf(tag) else vr
           val bytes = reader.take(headerLength)
           val updatedPos = state.pos + headerLength + valueLength
@@ -194,7 +194,7 @@ class ParseFlow(chunkSize: Int = 8192, stopTag: Option[Int] = None, inflate: Boo
             ParseResult(Some(DicomFragmentsDelimitation(state.bigEndian, reader.take(headerLength))), InDatasetHeader(DatasetHeaderState(0, state.bigEndian, state.explicitVR), inflater))
 
           case _ =>
-            log.warning(s"Unexpected attribute (${tagToString(tag)}) in fragments with length=$valueLength")
+            log.warning(s"Unexpected element (${tagToString(tag)}) in fragments with length=$valueLength")
             ParseResult(Some(DicomUnknownPart(state.bigEndian, reader.take(headerLength + valueLength.toInt))), this)
         }
       }

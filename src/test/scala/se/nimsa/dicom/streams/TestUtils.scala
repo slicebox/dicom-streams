@@ -7,7 +7,7 @@ import akka.util.ByteString
 import se.nimsa.dicom.streams.DicomParts._
 import se.nimsa.dicom._
 import se.nimsa.dicom.VR.VR
-import se.nimsa.dicom.streams.CollectFlow.DicomAttributes
+import se.nimsa.dicom.streams.CollectFlow.CollectedElements
 
 object TestUtils {
 
@@ -161,11 +161,11 @@ object TestUtils {
       .request(1)
       .expectError()
 
-    def expectAttributesPart(attributesPart: DicomAttributes): PartProbe = probe
+    def expectElementsPart(elementsPart: CollectedElements): PartProbe = probe
       .request(1)
       .expectNextChainingPF {
-        case p: DicomAttributes if p == attributesPart => true
-        case p => throw new RuntimeException(s"Expected DicomAttributes with part = $attributesPart, got $p")
+        case p: CollectedElements if p == elementsPart => true
+        case p => throw new RuntimeException(s"Expected CollectedElements with part = $elementsPart, got $p")
       }
 
     def expectTestPart(id: String): PartProbe = probe

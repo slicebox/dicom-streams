@@ -52,7 +52,7 @@ class DicomParsingTest extends FlatSpecLike with Matchers {
 
   it should "parse a UID data element for explicit VR little endian" in {
     val bytes = mediaStorageSOPInstanceUID
-    val msuid = parseUIDAttribute(bytes, explicitVR = true, assumeBigEndian = false)
+    val msuid = parseUIDElement(bytes, explicitVR = true, assumeBigEndian = false)
     msuid.tag shouldBe Tag.MediaStorageSOPInstanceUID
     msuid.vr shouldBe VR.UI
     msuid.value.utf8String shouldEqual "1.2.276.0.7230010.3.1.4.1536491920.17152.1480884676.735"
@@ -60,7 +60,7 @@ class DicomParsingTest extends FlatSpecLike with Matchers {
 
   it should "parse a UID data element for implicit VR little endian" in {
     val bytes = mediaStorageSOPClassUIDImplicitLE
-    val msuid = parseUIDAttribute(bytes, explicitVR = false, assumeBigEndian = false)
+    val msuid = parseUIDElement(bytes, explicitVR = false, assumeBigEndian = false)
     msuid.tag shouldBe Tag.MediaStorageSOPClassUID
     msuid.vr shouldBe VR.UI
     msuid.value.utf8String shouldEqual UID.CTImageStorage

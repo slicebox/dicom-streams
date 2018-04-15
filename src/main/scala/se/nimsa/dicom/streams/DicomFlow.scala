@@ -156,8 +156,8 @@ trait EndEvent[Out] extends DicomFlow[Out] {
 object DicomValueChunkMarker extends DicomValueChunk(bigEndian = false, ByteString.empty, last = true)
 
 /**
-  * This mixin makes sure the `onValueChunk` event is called also for empty attributes. This special case requires
-  * special handling since empty attributes consist of a `DicomHeader`, but is not followed by a `DicomValueChunk`.
+  * This mixin makes sure the `onValueChunk` event is called also for empty elements. This special case requires
+  * special handling since empty elements consist of a `DicomHeader`, but is not followed by a `DicomValueChunk`.
   */
 trait GuaranteedValueEvent[Out] extends DicomFlow[Out] {
 

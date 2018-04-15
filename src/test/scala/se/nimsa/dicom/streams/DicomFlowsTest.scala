@@ -45,7 +45,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectDicomComplete()
   }
 
-  "The DICOM parts filter" should "block all attributes not on the white list" in {
+  "The DICOM parts filter" should "block all elements not on the white list" in {
     val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
@@ -71,7 +71,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectDicomComplete()
   }
 
-  it should "only apply to attributes in the root dataset" in {
+  it should "only apply to elements in the root dataset" in {
     val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ studyDate() ++ itemEnd() ++ sequenceEnd()
 
     val source = Source.single(bytes)
@@ -153,7 +153,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectHeader(Tag.ImageType)
   }
 
-  "The DICOM tag filter" should "filter attributes in sequences" in {
+  "The DICOM tag filter" should "filter elements in sequences" in {
     val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ studyDate() ++ patientNameJohnDoe() ++ itemEnd() ++ sequenceEnd()
 
     val source = Source.single(bytes)
@@ -232,11 +232,11 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectDicomComplete()
   }
 
-  it should "filter leave the dicom file unchanged when blacklist condition does not match any attribute" in {
+  it should "filter leave the dicom file unchanged when blacklist condition does not match any elements" in {
     val file = new File(getClass.getResource("CT0055.dcm").toURI)
     val source = FileIO.fromPath(file.toPath)
       .via(new ParseFlow())
-      .via(tagFilter(_ => true)(tagPath => !DicomParsing.isPrivateAttribute(tagPath.tag)))
+      .via(tagFilter(_ => true)(tagPath => !DicomParsing.isPrivate(tagPath.tag)))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectPreamble()
@@ -746,7 +746,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectComplete()
   }
 
-  it should "leave and empty attribute empty" in {
+  it should "leave and empty element empty" in {
     val bytes = emptyPatientName()
 
     val source = Source.single(bytes)
@@ -834,7 +834,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectComplete()
   }
 
-  it should "leave and empty attribute empty" in {
+  it should "leave and empty element empty" in {
     val bytes = emptyPatientName(bigEndian = true)
 
     val source = Source.single(bytes)

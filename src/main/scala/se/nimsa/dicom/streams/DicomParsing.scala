@@ -44,7 +44,7 @@ trait DicomParsing {
     }
   }
 
-  case class Attribute(tag: Int, vr: VR, length: Long, value: ByteString)
+  case class Element(tag: Int, vr: VR, length: Long, value: ByteString)
 
   def dicomInfo(data: ByteString): Option[Info] =
     dicomInfo(data, assumeBigEndian = false)
@@ -74,8 +74,8 @@ trait DicomParsing {
     }
   }
 
-  // parse dicom UID attribute from buffer
-  def parseUIDAttribute(data: ByteString, explicitVR: Boolean, assumeBigEndian: Boolean): Attribute = {
+  // parse dicom UID element from buffer
+  def parseUIDElement(data: ByteString, explicitVR: Boolean, assumeBigEndian: Boolean): Element = {
     def valueWithoutPadding(value: ByteString) =
       if (value.takeRight(1).contains(0.toByte)) {
         value.dropRight(1)
@@ -92,7 +92,7 @@ trait DicomParsing {
     val (tag, vr, headerLength, length) = maybeHeader
       .getOrElse(throw new DicomStreamException("Could not parse DICOM data element from stream."))
     val value = data.drop(headerLength).take(length.toInt)
-    Attribute(tag, vr, length, valueWithoutPadding(value))
+    Element(tag, vr, length, valueWithoutPadding(value))
   }
 
   def lengthToLong(length: Int): Long = if (length == -1) -1L else intToUnsignedLong(length)
@@ -175,7 +175,7 @@ trait DicomParsing {
 
   def isSequenceDelimiter(tag: Int): Boolean = groupNumber(tag) == 0xFFFE
   def isFileMetaInformation(tag: Int): Boolean = (tag & 0xFFFF0000) == 0x00020000
-  def isPrivateAttribute(tag: Int): Boolean = groupNumber(tag) % 2 == 1
+  def isPrivate(tag: Int): Boolean = groupNumber(tag) % 2 == 1
   def isGroupLength(tag: Int): Boolean = elementNumber(tag) == 0
 
   def isDeflated(transferSyntaxUid: String): Boolean = transferSyntaxUid == UID.DeflatedExplicitVRLittleEndian || transferSyntaxUid == UID.JPIPReferencedDeflate

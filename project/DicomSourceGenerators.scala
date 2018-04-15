@@ -21,7 +21,7 @@ object DicomSourceGenerators {
   val xml: Elem = XML.loadFile("project/part06.xml")
   val chapters: NodeSeq = xml \ "chapter"
 
-  case class Attribute(tagString: String, name: String, keyword: String, vr: String, vm: String, retired: Boolean)
+  case class Element(tagString: String, name: String, keyword: String, vr: String, vm: String, retired: Boolean)
 
   case class UID(uidValue: String, uidName: String, uidType: String, retired: Boolean)
 
@@ -29,7 +29,7 @@ object DicomSourceGenerators {
   val nonHex = "[^a-fA-F0-9x]"
   val nonUID = "[^0-9.]"
 
-  val attributes: Seq[Attribute] = {
+  val elements: Seq[Element] = {
     val meta = chapters
       .find(_ \@ "label" == "7")
       .map(_ \\ "tbody" \ "tr")
@@ -40,7 +40,7 @@ object DicomSourceGenerators {
 
     rows.map { row =>
       val cells = row \ "td"
-      Attribute(
+      Element(
         cells.head.text.trim,
         cells(1).text.trim,
         cells(2).text.trim.replaceAll(nonAlphaNumeric, ""),
@@ -72,12 +72,12 @@ object DicomSourceGenerators {
        |
        |object Tag {
        |
-       |${attributes.filter(_.keyword.nonEmpty).map(a => s"""  final val ${a.keyword} = 0x${a.tagString.replaceAll("x", "0").replaceAll(nonHex, "")}${if (a.retired) " // retired" else ""}""").mkString("\r\n")}
+       |${elements.filter(_.keyword.nonEmpty).map(a => s"""  final val ${a.keyword} = 0x${a.tagString.replaceAll("x", "0").replaceAll(nonHex, "")}${if (a.retired) " // retired" else ""}""").mkString("\r\n")}
        |
        |}""".stripMargin
 
   def generateKeyword(): String = {
-    val tagKeywordMappings = attributes
+    val tagKeywordMappings = elements
       .filter(_.keyword.nonEmpty)
       .filterNot(_.tagString.startsWith("(0028,04x"))
       .map { a =>
@@ -109,6 +109,7 @@ object DicomSourceGenerators {
        |
        |      (t2: @switch) match {
        |${tagKeywordMappings.map(a => s"""        case ${a._1} => "${a._2}"""").mkString("\r\n")}
+       |        case _ => ""
        |      }
        |  }
        |
@@ -142,7 +143,7 @@ object DicomSourceGenerators {
   def generateDictionary(): String = {
     val split = 2000
 
-    val tagVrMappings = attributes
+    val tagVrMappings = elements
       .filter(_.keyword.nonEmpty)
       .filterNot(_.tagString.startsWith("(0028,04x"))
       .map { a =>

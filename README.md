@@ -17,20 +17,20 @@ which provides a far more complete (albeit blocking and synchronous) implementat
 
 ### Usage
 
-The following example reads a DICOM file from disk, validates that it is a DICOM file, discards all private attributes
+The following example reads a DICOM file from disk, validates that it is a DICOM file, discards all private elements
 and writes it to a new file.
 
 ```scala
 FileIO.fromPath(Paths.get("source-file.dcm"))
   .via(validateFlow)
   .via(parseFlow)
-  .via(tagFilter(_ => true)(tagPath => tagPath.toList.map(_.tag).exists(isPrivateAttribute))) // no private attributes anywhere on tag path
+  .via(tagFilter(_ => true)(tagPath => tagPath.toList.map(_.tag).exists(isPrivate))) // no private elements anywhere on tag path
   .map(_.bytes)
   .runWith(FileIO.toPath(Paths.get("target-file.dcm")))
 ```
 
 Care should be taken when modifying DICOM data so that the resulting data is still valid. For instance, group length
-tags may need to be removed or updated after modifying attributes. Here is an example that modifies the `PatientName`
+tags may need to be removed or updated after modifying elements. Here is an example that modifies the `PatientName`
 and `SOPInstanceUID` attributes. To ensure the resulting data is valid, group length tags in the dataset are removed and
 the meta information group tag is updated.
 
@@ -40,7 +40,7 @@ val updatedSOPInstanceUID = padToEvenLength(ByteString(createUID()), VR.UI)
 FileIO.fromPath(Paths.get("source-file.dcm"))
   .via(validateFlow)
   .via(parseFlow)
-  .via(groupLengthDiscardFilter) // discard group length attributes in dataset
+  .via(groupLengthDiscardFilter) // discard group length elements in dataset
   .via(modifyFlow(
     TagModification.endsWith(TagPath.fromTag(Tag.PatientName), _ => padToEvenLength(ByteString("John Doe"), VR.PN), insert = false),
     TagModification.endsWith(TagPath.fromTag(Tag.MediaStorageSOPInstanceUID), _ => updatedSOPInstanceUID, insert = false),

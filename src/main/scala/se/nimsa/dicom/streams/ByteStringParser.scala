@@ -40,7 +40,7 @@ abstract class ByteStringParser[T] extends GraphStage[FlowShape[ByteString, T]] 
   protected val bytesIn: Inlet[ByteString] = Inlet[ByteString]("bytesIn")
   protected val objOut: Outlet[T] = Outlet[T]("objOut")
 
-  override def initialAttributes: akka.stream.Attributes = akka.stream.Attributes.name("ByteStringParser")
+  override def initialAttributes: Attributes = Attributes.name("ByteStringParser")
 
   final override val shape = FlowShape(bytesIn, objOut)
 
