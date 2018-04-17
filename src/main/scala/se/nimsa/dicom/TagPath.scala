@@ -23,7 +23,7 @@ sealed trait TagPath {
   import TagPath._
 
   val tag: Int
-  val previous: Option[TagPathTrunk]
+  val previous: Option[TagPathSequence]
 
   /**
     * `true` if this tag path points to the root dataset, at depth 0
@@ -34,7 +34,6 @@ sealed trait TagPath {
     @tailrec
     def toList(path: TagPath, tail: List[TagPath]): List[TagPath] =
       if (path.isRoot) path :: tail else toList(path.previous.get, path :: tail)
-
     toList(path = this, tail = Nil)
   }
 
@@ -42,10 +41,8 @@ sealed trait TagPath {
     * Test if this tag path is less than the input path, comparing their parts pairwise according to the following rules
     * (1) a is less than b if the a's tag number is less b's tag number
     * (2) a is less than b if tag numbers are equal and a's item index is less than b's item index
+    * (3) a is less than b if tag numbers are equal, a points to an item index and b points to all indices (wildcard)
     * otherwise a is greater than or equal b
-    *
-    * Wildcard item indices point to any index. Therefore (0008,9215)[*] < (0008,9215)[1] and (0008,9215)[1] < (0008,9215)[*]
-    * are both true.
     *
     * @param that the tag path to compare with
     * @return `true` if this tag path is less than the input path
@@ -53,22 +50,16 @@ sealed trait TagPath {
   def <(that: TagPath): Boolean = {
     val thisList = this.toList
     val thatList = that.toList
-    thisList.zip(thatList).foreach {
-      case (thisPath, thatPath) if thisPath.tag != thatPath.tag =>
-        return intToUnsignedLong(thisPath.tag) < intToUnsignedLong(thatPath.tag)
-      case (thisPath: TagPath with IndexedItemKind, thatPath: TagPath with IndexedItemKind) if thisPath.index != thatPath.index =>
-        return thisPath.index < thatPath.index
-      case (_: TagPathSequenceStart, _: TagPathSequenceStart) => // check next
-      case (_: TagPathSequenceEnd, _: TagPathSequenceEnd) => // check next
-      case (_: TagPathSequenceStart, _) => return true
-      case (_, _: TagPathSequenceStart) => return false
-      case (_: TagPathSequenceEnd, _) => return false
-      case (_, _: TagPathSequenceEnd) => return true
-      case (_: TagPath with IndexedItemKind, _: TagPathItems) => return true
-      case (_: TagPathItems, _: TagPath with IndexedItemKind) => return true
-      case _ => // tags and item numbers are equal, check next
-    }
-    thisList.length < thatList.length
+    thisList.zip(thatList)
+      .find {
+        case (thisPath, thatPath) if thisPath.tag != thatPath.tag =>
+          intToUnsignedLong(thisPath.tag) < intToUnsignedLong(thatPath.tag)
+        case (thisPath: TagPathSequenceItem, thatPath: TagPathSequenceItem) => thisPath.item < thatPath.item
+        case (_: TagPathSequenceItem, _: TagPathSequenceAny) => true
+        case (_, _) => false
+      }
+      .map(_ => true)
+      .getOrElse(thisList.length < thatList.length)
   }
 
   /**
@@ -85,12 +76,10 @@ sealed trait TagPath {
   override def equals(that: Any): Boolean = {
     def tagEquals(t1: TagPath, t2: TagPath) = t1.tag == t2.tag &&
       (t1.previous.isEmpty && t2.previous.isEmpty || t1.previous.flatMap(p => t2.previous.map(p.equals)).getOrElse(false))
-
     (this, that) match {
       case (t1: TagPathTag, t2: TagPathTag) => tagEquals(t1, t2)
-      case (t1: TagPath with SequenceKind, t2: TagPath with SequenceKind) => tagEquals(t1, t2)
-      case (t1: TagPathItems, t2: TagPathItems) => tagEquals(t1, t2)
-      case (t1: TagPath with IndexedItemKind, t2: TagPath with IndexedItemKind) => t1.index == t2.index && tagEquals(t1, t2)
+      case (s1: TagPathSequenceItem, s2: TagPathSequenceItem) => s1.item == s2.item && tagEquals(s1, s2)
+      case (s1: TagPathSequenceAny, s2: TagPathSequenceAny) => tagEquals(s1, s2)
       case _ => false
     }
   }
@@ -120,13 +109,11 @@ sealed trait TagPath {
   def hasSuperPath(that: TagPath): Boolean = {
     def tagEquals(t1: TagPath, t2: TagPath) = t1.tag == t2.tag &&
       (t1.previous.isEmpty && t2.previous.isEmpty || t1.previous.flatMap(p => t2.previous.map(p.hasSuperPath)).getOrElse(false))
-
     (this, that) match {
       case (t1: TagPathTag, t2: TagPathTag) => tagEquals(t1, t2)
-      case (t1: TagPathItems, t2: TagPathItems) => tagEquals(t1, t2)
-      case (t1: TagPath with SequenceKind, t2: TagPath with SequenceKind) => tagEquals(t1, t2)
-      case (t1: TagPath with IndexedItemKind, t2: TagPath with IndexedItemKind) => t1.index == t2.index && tagEquals(t1, t2)
-      case (t1: TagPath with IndexedItemKind, t2: TagPathItems) => tagEquals(t1, t2)
+      case (s1: TagPathSequenceItem, s2: TagPathSequenceItem) => s1.item == s2.item && tagEquals(s1, s2)
+      case (s1: TagPathSequenceItem, s2: TagPathSequenceAny) => tagEquals(s1, s2)
+      case (s1: TagPathSequenceAny, s2: TagPathSequenceAny) => tagEquals(s1, s2)
       case _ => false
     }
   }
@@ -147,16 +134,15 @@ sealed trait TagPath {
   def hasSubPath(that: TagPath): Boolean = that.hasSuperPath(this)
 
   private[TagPath] def startsWith(that: TagPath,
-                                  f1: (TagPath with IndexedItemKind, TagPathItems) => Boolean,
-                                  f2: (TagPathItems, TagPath with IndexedItemKind) => Boolean): Boolean = {
+                                  f1: (TagPathSequenceItem, TagPathSequenceAny) => Boolean,
+                                  f2: (TagPathSequenceAny, TagPathSequenceItem) => Boolean): Boolean = {
     if (this.depth >= that.depth)
       this.toList.zip(that.toList).forall {
-        case (thisSeq: TagPathItems, thatSeq: TagPathItems) => thisSeq.tag == thatSeq.tag
-        case (thisSeq: TagPath with IndexedItemKind, thatSeq: TagPathItems) => f1(thisSeq, thatSeq)
-        case (thisSeq: TagPathItems, thatSeq: TagPath with IndexedItemKind) => f2(thisSeq, thatSeq)
-        case (thisSeq: TagPathTag, thatSeq: TagPathTag) => thisSeq.tag == thatSeq.tag
-        case (thisSeq: TagPath with SequenceKind, thatSeq: TagPath with SequenceKind) => thisSeq.tag == thatSeq.tag
-        case (thisSeq: TagPath with IndexedItemKind, thatSeq: TagPath with IndexedItemKind) => thisSeq.index == thatSeq.index && thisSeq.tag == thatSeq.tag
+        case (thisSeq: TagPathSequenceAny, thatSeq: TagPathSequenceAny) => thisSeq.tag == thatSeq.tag
+        case (thisSeq: TagPathSequenceItem, thatSeq: TagPathSequenceAny) => f1(thisSeq, thatSeq)
+        case (thisSeq: TagPathSequenceAny, thatSeq: TagPathSequenceItem) => f2(thisSeq, thatSeq)
+        case (thisSeq: TagPathSequenceItem, thatSeq: TagPathSequenceItem) => thisSeq.tag == thatSeq.tag && thisSeq.item == thatSeq.item
+        case (thisTag: TagPathTag, thatTag: TagPathTag) => thisTag.tag == thatTag.tag
         case _ => false
       }
     else
@@ -187,15 +173,14 @@ sealed trait TagPath {
   def startsWithSuperPath(that: TagPath): Boolean = startsWith(that, (s1, s2) => s1.tag == s2.tag, (_, _) => false)
 
   private[TagPath] def endsWith(that: TagPath,
-                                f1: (TagPath with IndexedItemKind, TagPathItems) => Boolean,
-                                f2: (TagPathItems, TagPath with IndexedItemKind) => Boolean): Boolean = {
+                                f1: (TagPathSequenceItem, TagPathSequenceAny) => Boolean,
+                                f2: (TagPathSequenceAny, TagPathSequenceItem) => Boolean): Boolean = {
     val matches = (this, that) match {
-      case (thisSeq: TagPathItems, thatSeq: TagPathItems) => thisSeq.tag == thatSeq.tag
-      case (thisSeq: TagPath with IndexedItemKind, thatSeq: TagPathItems) => f1(thisSeq, thatSeq)
-      case (thisSeq: TagPathItems, thatSeq: TagPath with IndexedItemKind) => f2(thisSeq, thatSeq)
-      case (thisSeq: TagPathTag, thatSeq: TagPathTag) => thisSeq.tag == thatSeq.tag
-      case (thisSeq: TagPath with SequenceKind, thatSeq: TagPath with SequenceKind) => thisSeq.tag == thatSeq.tag
-      case (thisSeq: TagPath with IndexedItemKind, thatSeq: TagPath with IndexedItemKind) => thisSeq.index == thatSeq.index && thisSeq.tag == thatSeq.tag
+      case (thisSeq: TagPathSequenceAny, thatSeq: TagPathSequenceAny) => thisSeq.tag == thatSeq.tag
+      case (thisSeq: TagPathSequenceItem, thatSeq: TagPathSequenceAny) => f1(thisSeq, thatSeq)
+      case (thisSeq: TagPathSequenceAny, thatSeq: TagPathSequenceItem) => f2(thisSeq, thatSeq)
+      case (thisSeq: TagPathSequenceItem, thatSeq: TagPathSequenceItem) => thisSeq.tag == thatSeq.tag
+      case (thisTag: TagPathTag, thatTag: TagPathTag) => thisTag.tag == thatTag.tag
       case _ => false
     }
     (this.previous, that.previous) match {
@@ -240,54 +225,47 @@ sealed trait TagPath {
   def depth: Int = {
     @tailrec
     def depth(path: TagPath, d: Int): Int = if (path.isRoot) d else depth(path.previous.get, d + 1)
-
     depth(this, 0)
   }
 
   override def toString: String = {
     @tailrec
     def toTagPathString(path: TagPath, tail: String): String = {
-      val head = path match {
-        case _: TagPathItems => "[*]"
-        case s: TagPath with IndexedItemKind => s"[${s.index}]"
-        case p: TagPath => "." + tagToString(p.tag)
+      val itemIndexSuffix = path match {
+        case _: TagPathSequenceAny => "[*]"
+        case s: TagPathSequenceItem => s"[${s.item}]"
         case _ => ""
       }
+      val head = tagToString(path.tag) + itemIndexSuffix
       val part = head + tail
-      if (path.isRoot)
-        if (part.nonEmpty) part.substring(1) else part
-      else
-        toTagPathString(path.previous.get, part)
+      if (path.isRoot) part else toTagPathString(path.previous.get, "." + part)
     }
-
     toTagPathString(path = this, tail = "")
   }
 
   override def hashCode(): Int = this match {
-    case s: TagPath with IndexedItemKind => 31 * (31 * (31 * previous.map(_.hashCode()).getOrElse(0) + tag.hashCode()) * s.index.hashCode())
-    case _: TagPath => 31 * (31 * previous.map(_.hashCode()).getOrElse(0) + tag.hashCode())
+    case s: TagPathSequenceItem => 31 * (31 * (31 * previous.map(_.hashCode()).getOrElse(0) + tag.hashCode()) * s.item.hashCode())
+    case _ => 31 * (31 * previous.map(_.hashCode()).getOrElse(0) + tag.hashCode())
   }
 }
 
 object TagPath {
 
-  trait TagPathTrunk extends TagPath
+  /**
+    * A tag path that points to a non-sequence tag
+    *
+    * @param tag      the tag number
+    * @param previous a link to the part of this tag part to the left of this tag
+    */
+  class TagPathTag private[TagPath](val tag: Int, val previous: Option[TagPathSequence]) extends TagPath
 
-  trait SequenceKind {
-    this: TagPath =>
-  }
+  /**
+    * A tag path that points to a sequence
+    */
+  trait TagPathSequence extends TagPath {
 
-  trait ItemKind {
-    this: TagPath =>
-  }
-
-  trait IndexedItemKind {
-    this: TagPath =>
-    val index: Int
-  }
-
-  trait TagSequenceBuilding {
-    this: TagPathTrunk with TagSequenceBuilding =>
+    val tag: Int
+    val previous: Option[_ <: TagPathSequence]
 
     /**
       * Path to a specific tag
@@ -298,115 +276,22 @@ object TagPath {
     def thenTag(tag: Int) = new TagPathTag(tag, Some(this))
 
     /**
-      * Path to a sequence
+      * Path to all items in a sequence
       *
       * @param tag tag number
       * @return the tag path
       */
-    def thenSequence(tag: Int) = new TagPathSequence(tag, Some(this))
-
-    /**
-      * Create a path to a sequence
-      *
-      * @param tag tag number
-      * @return the tag path
-      */
-    def thenSequenceStart(tag: Int) = new TagPathSequenceStart(tag, Some(this))
-
-    /**
-      * Create a path to a sequence delimitation
-      *
-      * @param tag tag number
-      * @return the tag path
-      */
-    def thenSequenceEnd(tag: Int) = new TagPathSequenceEnd(tag, Some(this))
-  }
-
-  trait ItemBuilding {
-    this: TagPathSequence =>
+    def thenSequence(tag: Int) = new TagPathSequenceAny(tag, Some(this))
 
     /**
       * Path to a specific item within a sequence
       *
-      * @param index item index
+      * @param tag  tag number
+      * @param item item index
       * @return the tag path
       */
-    def thenItem(index: Int) = new TagPathItem(tag, index, Some(this))
-
-    def thenAnyItem() = new TagPathItems(tag, Some(this))
-
-    /**
-      * Path to the start of an item within a sequence
-      *
-      * @param index item index
-      * @return the tag path
-      */
-    def thenItemStart(index: Int) = new TagPathItemStart(tag, index, Some(this))
-
-    /**
-      * Path to the end of an item within a sequence
-      *
-      * @param index item index
-      * @return the tag path
-      */
-    def thenItemEnd(index: Int) = new TagPathItemEnd(tag, index, Some(this))
+    def thenSequence(tag: Int, item: Int) = new TagPathSequenceItem(tag, item, Some(this))
   }
-
-  /**
-    * A tag path that points to a non-sequence element
-    *
-    * @param tag      the tag number
-    * @param previous a link to the part of this tag part to the left of this tag
-    */
-  class TagPathTag private[TagPath](val tag: Int, val previous: Option[TagPathTrunk with TagSequenceBuilding]) extends TagPath {
-    def toTag(newTag: Int): TagPathTag = previous.map(_.thenTag(newTag)).getOrElse(TagPath.fromTag(newTag))
-    def toSequenceStart(newTag: Int): TagPathSequenceStart = previous.map(_.thenSequenceStart(newTag)).getOrElse(TagPath.fromSequenceStart(newTag))
-    def toItemEnd: TagPathItemEnd = previous.flatMap {
-      case s: TagPathItem => s.previous.map(_.thenItemEnd(s.index))
-      case s: TagPathItemStart => s.previous.map(_.thenItemEnd(s.index))
-      case _ => None
-    }.getOrElse(throw new IllegalStateException(s"Item is not part of sequence in path $this"))
-  }
-
-  /**
-    * A tag path that points to a sequence
-    */
-  class TagPathSequence(val tag: Int, val previous: Option[TagPathTrunk with TagSequenceBuilding]) extends TagPathTrunk with ItemBuilding with SequenceKind
-
-  /**
-    * A tag path that points to a sequence, marking the start of a sequence
-    *
-    * @param tag      the sequence tag number
-    * @param previous a link to the part of this tag part to the left of this tag
-    */
-  class TagPathSequenceStart private[TagPath](val tag: Int, val previous: Option[TagPathTrunk with TagSequenceBuilding]) extends TagPath with SequenceKind {
-    def toSequenceThenItemStart(index: Int): TagPathItemStart = previous.map(_.thenSequence(tag)).getOrElse(fromSequence(tag)).thenItemStart(index)
-    def toSequenceEnd: TagPathSequenceEnd = previous.map(_.thenSequenceEnd(tag)).getOrElse(fromSequenceEnd(tag))
-  }
-
-  /**
-    * A tag path that points to a sequence delimitation, marking the end of a sequence
-    *
-    * @param tag      the sequence tag number
-    * @param previous a link to the part of this tag part to the left of this tag
-    */
-  class TagPathSequenceEnd private[TagPath](val tag: Int, val previous: Option[TagPathTrunk with TagSequenceBuilding]) extends TagPath with SequenceKind {
-    def toTag(newTag: Int): TagPathTag = previous.map(_.thenTag(newTag)).getOrElse(fromTag(newTag))
-    def toSequenceStart(newTag: Int): TagPathSequenceStart = previous.map(_.thenSequenceStart(newTag)).getOrElse(fromSequenceStart(newTag))
-    def toItemEnd: TagPathItemEnd = previous.flatMap {
-      case s: TagPathItem => s.previous.map(_.thenItemEnd(s.index))
-      case _ => None
-    }.getOrElse(throw new IllegalStateException(s"Item is not part of sequence in path $this"))
-  }
-
-  /**
-    * A tag path that points to an item in a sequence
-    *
-    * @param tag      the sequence tag number
-    * @param index    defines the item index in the sequence
-    * @param previous a link to the part of this tag part to the left of this tag
-    */
-  class TagPathItem private[TagPath](val tag: Int, val index: Int, val previous: Option[TagPathSequence]) extends TagPathTrunk with TagSequenceBuilding with IndexedItemKind with ItemKind
 
   /**
     * A tag path that points to all items of a sequence
@@ -414,35 +299,16 @@ object TagPath {
     * @param tag      the sequence tag number
     * @param previous a link to the part of this tag part to the left of this tag
     */
-  class TagPathItems private[TagPath](val tag: Int, val previous: Option[TagPathSequence]) extends TagPathTrunk with TagSequenceBuilding with ItemKind
+  class TagPathSequenceAny private[TagPath](val tag: Int, val previous: Option[_ <: TagPathSequence]) extends TagPathSequence
 
   /**
-    * A tag path that points to an item, marking the start of an item
+    * A tag path that points to an item in a sequence
     *
     * @param tag      the sequence tag number
+    * @param item     defines the item index in the sequence
     * @param previous a link to the part of this tag part to the left of this tag
     */
-  class TagPathItemStart private[TagPath](val tag: Int, val index: Int, val previous: Option[TagPathSequence]) extends TagPath with IndexedItemKind with ItemKind {
-    def toItemThenTag(newTag: Int): TagPathTag = previous.map(_.thenItem(index).thenTag(newTag))
-      .getOrElse(throw new IllegalStateException(s"Item is not part of sequence in path $this"))
-    def toItemThenSequenceStart(newTag: Int): TagPathSequenceStart = previous.map(_.thenItem(index).thenSequenceStart(newTag))
-      .getOrElse(throw new IllegalStateException(s"Item is not part of sequence in path $this"))
-    def toItemEnd: TagPathItemEnd = previous.map(_.thenItemEnd(index))
-      .getOrElse(throw new IllegalStateException(s"Item is not part of sequence in path $this"))
-  }
-
-  /**
-    * A tag path that points to an item delimitation, marking the end of an item
-    *
-    * @param tag      the sequence tag number
-    * @param previous a link to the part of this tag part to the left of this tag
-    */
-  class TagPathItemEnd private[TagPath](val tag: Int, val index: Int, val previous: Option[TagPathSequence]) extends TagPath with IndexedItemKind with ItemKind {
-    def toItemStart(newIndex: Int): TagPathItemStart = previous.map(_.thenItemStart(newIndex))
-      .getOrElse(throw new IllegalStateException(s"Item is not part of sequence in path $this"))
-    def toSequenceEnd: TagPathSequenceEnd = previous.flatMap(s => s.previous.map(_.thenSequenceEnd(s.tag)))
-      .getOrElse(fromSequenceEnd(tag))
-  }
+  class TagPathSequenceItem private[TagPath](val tag: Int, val item: Int, val previous: Option[_ <: TagPathSequence]) extends TagPathSequence
 
   /**
     * Create a path to a specific tag
@@ -458,23 +324,16 @@ object TagPath {
     * @param tag tag number
     * @return the tag path
     */
-  def fromSequence(tag: Int) = new TagPathSequence(tag, None)
+  def fromSequence(tag: Int) = new TagPathSequenceAny(tag, None)
 
   /**
-    * Create a path to sequence
+    * Create a path to a specific item within a sequence
     *
-    * @param tag tag number
+    * @param tag  tag number
+    * @param item item index
     * @return the tag path
     */
-  def fromSequenceStart(tag: Int) = new TagPathSequenceStart(tag, None)
-
-  /**
-    * Create a path to sequence delimitation
-    *
-    * @param tag tag number
-    * @return the tag path
-    */
-  def fromSequenceEnd(tag: Int) = new TagPathSequenceEnd(tag, None)
+  def fromSequence(tag: Int, item: Int) = new TagPathSequenceItem(tag, item, None)
 
   /**
     * Parse the string representation of a tag path into a tag path object.
@@ -485,22 +344,16 @@ object TagPath {
     */
   def parse(s: String): TagPath = {
     def isSeq(s: String) = s.length > 11
-
     def parseTagNumber(s: String) = Integer.parseInt(s.substring(1, 5) + s.substring(6, 10), 16)
-
     def parseIndex(s: String) = if (s.charAt(12) == '*') None else Some(Integer.parseInt(s.substring(12, s.length - 1)))
-
     def createTag(s: String) = TagPath.fromTag(parseTagNumber(s))
-
     def createSeq(s: String) = parseIndex(s)
-      .map(index => TagPath.fromSequence(parseTagNumber(s)).thenItem(index))
-      .getOrElse(TagPath.fromSequence(parseTagNumber(s)).thenAnyItem())
-
-    def addSeq(s: String, path: TagPathTrunk with TagSequenceBuilding) = parseIndex(s)
-      .map(index => path.thenSequence(parseTagNumber(s)).thenItem(index))
-      .getOrElse(path.thenSequence(parseTagNumber(s)).thenAnyItem())
-
-    def addTag(s: String, path: TagPathTrunk with TagSequenceBuilding) = path.thenTag(parseTagNumber(s))
+      .map(index => TagPath.fromSequence(parseTagNumber(s), index))
+      .getOrElse(TagPath.fromSequence(parseTagNumber(s)))
+    def addSeq(s: String, path: TagPathSequence) = parseIndex(s)
+      .map(index => path.thenSequence(parseTagNumber(s), index))
+      .getOrElse(path.thenSequence(parseTagNumber(s)))
+    def addTag(s: String, path: TagPathSequence) = path.thenTag(parseTagNumber(s))
 
     val tags = if (s.indexOf('.') > 0) s.split("\\.").toList else List(s)
     val seqTags = if (tags.length > 1) tags.init else Nil // list of sequence tags, if any

@@ -250,66 +250,53 @@ trait GuaranteedDelimitationEvents[Out] extends DicomFlow[Out] {
 trait TagPathTracking[Out] extends DicomFlow[Out] with GuaranteedValueEvent[Out] with GuaranteedDelimitationEvents[Out] {
 
   protected var tagPath: Option[TagPath] = None
-
-  def fail(event: String): TagPath = throw new DicomStreamException(s"Invalid tag path in $event event: $tagPath")
+  protected var inFragments = false
 
   abstract override def onHeader(part: DicomHeader): List[Out] = {
     tagPath = tagPath.map {
-      case t: TagPathTag => t.toTag(part.tag)
-      case i: TagPathItemStart => i.toItemThenTag(part.tag)
-      case s: TagPathSequenceEnd => s.toTag(part.tag)
-      case _: TagPath => fail("header")
+      case t: TagPathSequenceItem => t.thenTag(part.tag)
+      case t => t.previous.map(_.thenTag(part.tag)).getOrElse(TagPath.fromTag(part.tag))
     }.orElse(Some(TagPath.fromTag(part.tag)))
     super.onHeader(part)
   }
 
+  abstract override def onFragmentsStart(part: DicomFragments): List[Out] = {
+    inFragments = true
+    tagPath = tagPath.map {
+      case t: TagPathSequenceItem => t.thenTag(part.tag)
+      case t => t.previous.map(_.thenTag(part.tag)).getOrElse(TagPath.fromTag(part.tag))
+    }.orElse(Some(TagPath.fromTag(part.tag)))
+    super.onFragmentsStart(part)
+  }
+
+  abstract override def onFragmentsEnd(part: DicomFragmentsDelimitation): List[Out] = {
+    inFragments = false
+    super.onFragmentsEnd(part)
+  }
+
   abstract override def onSequenceStart(part: DicomSequence): List[Out] = {
     tagPath = tagPath.map {
-      case t: TagPathTag => t.toSequenceStart(part.tag)
-      case s: TagPathItemStart => s.toItemThenSequenceStart(part.tag)
-      case s: TagPathSequenceEnd => s.toSequenceStart(part.tag)
-      case _: TagPath => fail("sequence start")
-    }.orElse(Some(TagPath.fromSequenceStart(part.tag)))
+      case t: TagPathSequenceItem => t.thenSequence(t.tag)
+      case t => t.previous.map(_.thenSequence(part.tag)).getOrElse(TagPath.fromSequence(part.tag))
+    }.orElse(Some(TagPath.fromSequence(part.tag)))
     super.onSequenceStart(part)
   }
 
   abstract override def onSequenceEnd(part: DicomSequenceDelimitation): List[Out] = {
-    tagPath = tagPath.map {
-      case s: TagPathSequenceStart => s.toSequenceEnd
-      case i: TagPathItemEnd => i.toSequenceEnd
-      case _: TagPath => fail("sequence end")
-    }
+    tagPath = tagPath.map(t => t.previous.map(_.thenSequence(t.tag)).getOrElse(TagPath.fromSequence(t.tag)))
     super.onSequenceEnd(part)
   }
 
   abstract override def onSequenceItemStart(part: DicomSequenceItem): List[Out] = {
-    tagPath = tagPath.map {
-      case s: TagPathSequenceStart => s.toSequenceThenItemStart(part.index)
-      case i: TagPathItemEnd => i.toItemStart(part.index)
-      case _: TagPath => fail("item start")
-    }
+    tagPath = tagPath.map(t => t.previous.map(_.thenSequence(t.tag, part.index)).getOrElse(TagPath.fromSequence(t.tag, part.index)))
     super.onSequenceItemStart(part)
   }
 
   abstract override def onSequenceItemEnd(part: DicomSequenceItemDelimitation): List[Out] = {
-    tagPath = tagPath.map {
-      case t: TagPathTag => t.toItemEnd
-      case s: TagPathSequenceEnd => s.toItemEnd
-      case i: TagPathItemStart => i.toItemEnd
-      case _: TagPath => fail("item end")
-    }
+    tagPath = tagPath.flatMap(_.previous)
     super.onSequenceItemEnd(part)
   }
 
-  abstract override def onFragmentsStart(part: DicomFragments): List[Out] = {
-    tagPath = tagPath.map {
-      case t: TagPathTag => t.toTag(part.tag)
-      case i: TagPathItemStart => i.toItemThenTag(part.tag)
-      case s: TagPathSequenceEnd => s.toTag(part.tag)
-      case _: TagPath => fail("header")
-    }.orElse(Some(TagPath.fromTag(part.tag)))
-    super.onFragmentsStart(part)
-  }
 }
 
 /**

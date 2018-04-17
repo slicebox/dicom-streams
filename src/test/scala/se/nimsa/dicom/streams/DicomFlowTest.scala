@@ -299,23 +299,26 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
 
     var expectedPaths = List(
       None, // preamble
-      Some(TagPath.fromTag(Tag.FileMetaInformationGroupLength)), Some(TagPath.fromTag(Tag.FileMetaInformationGroupLength)), // FMI group length header, then value
-      Some(TagPath.fromTag(Tag.TransferSyntaxUID)), Some(TagPath.fromTag(Tag.TransferSyntaxUID)), // Transfer syntax header, then value
-      Some(TagPath.fromTag(Tag.PatientName)), Some(TagPath.fromTag(Tag.PatientName)), // Patient name header, then value
-      Some(TagPath.fromSequenceStart(Tag.DerivationCodeSequence)), // sequence start
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence).thenItemStart(1)), // item start
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence).thenItem(1).thenTag(Tag.StudyDate)), // study date header
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence).thenItem(1).thenTag(Tag.StudyDate)), // study date value
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence).thenItemEnd(1)), // item end
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence).thenItemStart(2)), // item start
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence).thenItem(2).thenSequenceStart(Tag.DerivationCodeSequence)), // sequence start
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence).thenItem(2).thenSequence(Tag.DerivationCodeSequence).thenItemStart(1)), // item start
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence).thenItem(2).thenSequence(Tag.DerivationCodeSequence).thenItem(1).thenTag(Tag.StudyDate)), // Study date header
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence).thenItem(2).thenSequence(Tag.DerivationCodeSequence).thenItem(1).thenTag(Tag.StudyDate)), // Study date value
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence).thenItem(2).thenSequence(Tag.DerivationCodeSequence).thenItemEnd(1)), //  item end (inserted)
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence).thenItem(2).thenSequenceEnd(Tag.DerivationCodeSequence)), // sequence end (inserted)
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence).thenItemEnd(2)), // item end
-      Some(TagPath.fromSequenceEnd(Tag.DerivationCodeSequence)), // sequence end
+      Some(TagPath.fromTag(Tag.FileMetaInformationGroupLength)), // FMI group length header, then value
+      Some(TagPath.fromTag(Tag.FileMetaInformationGroupLength)),
+      Some(TagPath.fromTag(Tag.TransferSyntaxUID)), // Transfer syntax header, then value
+      Some(TagPath.fromTag(Tag.TransferSyntaxUID)),
+      Some(TagPath.fromTag(Tag.PatientName)), // Patient name header, then value
+      Some(TagPath.fromTag(Tag.PatientName)),
+      Some(TagPath.fromSequence(Tag.DerivationCodeSequence)), // sequence start
+      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 1)), // item start
+      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.StudyDate)), // study date header
+      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.StudyDate)), // study date value
+      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 1)), // item end
+      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2)), // item start
+      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenSequence(Tag.DerivationCodeSequence)), // sequence start
+      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenSequence(Tag.DerivationCodeSequence, 1)), // item start
+      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.StudyDate)), // Study date header
+      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.StudyDate)), // Study date value
+      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenSequence(Tag.DerivationCodeSequence, 1)), //  item end (inserted)
+      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenSequence(Tag.DerivationCodeSequence)), // sequence end (inserted)
+      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2)), // item end
+      Some(TagPath.fromSequence(Tag.DerivationCodeSequence)), // sequence end
       Some(TagPath.fromTag(Tag.PixelData)), // fragments start
       Some(TagPath.fromTag(Tag.PixelData)), // item start
       Some(TagPath.fromTag(Tag.PixelData)), // fragment data

@@ -19,7 +19,7 @@ package se.nimsa.dicom.streams
 import akka.NotUsed
 import akka.stream.scaladsl.Flow
 import akka.util.ByteString
-import se.nimsa.dicom.TagPath.{TagPathTag, TagPathTrunk}
+import se.nimsa.dicom.TagPath.{TagPathSequence, TagPathTag}
 import se.nimsa.dicom.streams.DicomParts._
 import se.nimsa.dicom.{Dictionary, TagPath, VR}
 
@@ -103,8 +103,8 @@ object ModifyFlow {
       def isBetween(tagToTest: TagPath, upperTag: TagPath, lowerTagMaybe: Option[TagPath]): Boolean =
         tagToTest < upperTag && lowerTagMaybe.forall(_ < tagToTest)
 
-      def isInDataset(tagToTest: TagPath, trunkMaybe: Option[TagPathTrunk]): Boolean =
-        trunkMaybe.map(tagToTest.startsWithSubPath).getOrElse(tagToTest.isRoot)
+      def isInDataset(tagToTest: TagPath, sequenceMaybe: Option[TagPathSequence]): Boolean =
+        sequenceMaybe.map(tagToTest.startsWithSubPath).getOrElse(tagToTest.isRoot)
 
       def findInsertParts: List[DicomPart] = sortedModifications
         .filter(_.insert)
@@ -123,8 +123,7 @@ object ModifyFlow {
           } else {
             val newValue = tagModification.modification(ByteString.empty)
             val newHeader = header.withUpdatedLength(newValue.length)
-            val chunkOrNot = if (newValue.nonEmpty) DicomValueChunk(bigEndian, newValue, last = true) :: Nil else Nil
-            newHeader :: chunkOrNot
+            newHeader :: DicomValueChunk(bigEndian, newValue, last = true) :: Nil
           }
         }
         .getOrElse(header :: Nil)
@@ -151,8 +150,7 @@ object ModifyFlow {
                 val newHeader = currentHeader.get.withUpdatedLength(newValue.length)
                 currentModification = None
                 currentHeader = None
-                val chunkOrNot = if (newValue.nonEmpty) DicomValueChunk(bigEndian, newValue, last = true) :: Nil else Nil
-                newHeader :: chunkOrNot
+                newHeader :: DicomValueChunk(bigEndian, newValue, last = true) :: Nil
               } else
                 Nil
             } else

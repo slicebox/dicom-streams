@@ -77,6 +77,8 @@ object DicomSourceGenerators {
        |}""".stripMargin
 
   def generateKeyword(): String = {
+    val split = 2000
+
     val tagKeywordMappings = elements
       .filter(_.keyword.nonEmpty)
       .filterNot(_.tagString.startsWith("(0028,04x"))
@@ -86,6 +88,9 @@ object DicomSourceGenerators {
         (tag, keyword)
       }
       .sortBy(_._1)
+      .splitAt(split)
+
+    val splitValue = tagKeywordMappings._2.head._1
 
     s"""package se.nimsa.dicom
        |
@@ -106,11 +111,17 @@ object DicomSourceGenerators {
        |          tag & 0xFF00FFFF
        |        else
        |          tag
+       |      if (t2 < $splitValue) valueOfLow(t2) else valueOfHigh(t2)
+       |  }
        |
-       |      (t2: @switch) match {
-       |${tagKeywordMappings.map(a => s"""        case ${a._1} => "${a._2}"""").mkString("\r\n")}
-       |        case _ => ""
-       |      }
+       |  private def valueOfLow(tag: Int) = (tag: @switch) match {
+       |${tagKeywordMappings._1.map(p => s"""    case ${p._1} => "${p._2}"""").mkString("\r\n")}
+       |    case _ => ""
+       |  }
+       |
+       |  private def valueOfHigh(tag: Int) = (tag: @switch) match {
+       |${tagKeywordMappings._2.map(p => s"""    case ${p._1} => "${p._2}"""").mkString("\r\n")}
+       |    case _ => ""
        |  }
        |
        |}""".stripMargin

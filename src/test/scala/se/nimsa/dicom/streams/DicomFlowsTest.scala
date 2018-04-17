@@ -220,7 +220,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(blacklistFilter(Set(TagPath.fromTag(Tag.StudyDate), TagPath.fromSequence(Tag.DerivationCodeSequence).thenItem(1))))
+      .via(blacklistFilter(Set(TagPath.fromTag(Tag.StudyDate), TagPath.fromSequence(Tag.DerivationCodeSequence, 1))))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectSequence(Tag.DerivationCodeSequence)
