@@ -11,6 +11,8 @@ class Value(val bytes: ByteString) {
 
   def toStrings(vr: VR, characterSets: CharacterSets): Seq[String] = if (bytes.isEmpty) Seq.empty else split(characterSets.decode(vr, bytes))
   def toSingleString(vr: VR, characterSets: CharacterSets): String = characterSets.decode(vr, bytes)
+  def toStrings: Seq[String] = toStrings(VR.CS, CharacterSets.defaultOnly)
+  def toSingleString: String = toSingleString(VR.CS, CharacterSets.defaultOnly)
   def toLongs: Seq[Long] = if (bytes.isEmpty) Seq.empty[Long] else split(bytesToString).flatMap(stringToLong)
   def toLong: Option[Long] = toLongs.headOption
   def toInts: Seq[Int] = if (bytes.isEmpty) Seq.empty else split(bytesToString).flatMap(stringToInt)

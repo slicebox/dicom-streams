@@ -18,15 +18,7 @@ case class Elements(characterSets: CharacterSets, elements: List[Element]) {
 
 object Elements {
 
-  sealed trait Element {
-    val tagPath: TagPath
-    val length: Long
-    val value: Value
-    val bigEndian: Boolean
-  }
-
-  case class ValueElement(tagPath: TagPath, bigEndian: Boolean, vr: VR, explicitVR: Boolean, length: Long, value: Value) extends Element
-  case class FragmentElement(tagPath: TagPath, bigEndian: Boolean, index: Int, length: Long, value: Value) extends Element
+  case class Element(tagPath: TagPath, bigEndian: Boolean, vr: VR, explicitVR: Boolean, length: Long, value: Value)
 
 }
 

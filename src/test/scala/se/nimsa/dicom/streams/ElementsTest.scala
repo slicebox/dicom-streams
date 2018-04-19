@@ -18,9 +18,9 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
 
   override def afterAll(): Unit = system.terminate()
 
-  val studyDate = ValueElement(TagPath.fromTag(Tag.StudyDate), bigEndian = false, VR.DA, explicitVR = true, length = 8, ByteString(20041230).toValue)
-  val patientName = ValueElement(TagPath.fromTag(Tag.PatientName), bigEndian = false, VR.PN, explicitVR = true, length = 8, ByteString("John^Doe").toValue)
-  val sequencePatientID = ValueElement(TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientID), bigEndian = false, VR.LO, explicitVR = true, length = 8, ByteString("12345678").toValue)
+  val studyDate = Element(TagPath.fromTag(Tag.StudyDate), bigEndian = false, VR.DA, explicitVR = true, length = 8, ByteString(20041230).toValue)
+  val patientName = Element(TagPath.fromTag(Tag.PatientName), bigEndian = false, VR.PN, explicitVR = true, length = 8, ByteString("John^Doe").toValue)
+  val sequencePatientID = Element(TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientID), bigEndian = false, VR.LO, explicitVR = true, length = 8, ByteString("12345678").toValue)
   val attr = Elements(CharacterSets.defaultOnly, List(studyDate, sequencePatientID, patientName))
 
   "Elements" should "return an existing tag" in {

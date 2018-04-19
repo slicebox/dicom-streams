@@ -13,15 +13,20 @@ object ElementFolds {
 
   def elementsFlow: Flow[DicomPart, Element, NotUsed] =
     DicomFlowFactory.create(new DeferToPartFlow[Element] with TagPathTracking[Element] {
-      var currentValue: Option[ValueElement] = None
-      var currentFragment: Option[FragmentElement] = None
+      var currentValue: Option[Element] = None
+      var currentFragment: Option[Element] = None
 
       override def onPart(part: DicomPart): List[Element] = part match {
         case header: DicomHeader =>
-          currentValue = tagPath.map(tp => ValueElement(tp, header.bigEndian, header.vr, header.explicitVR, header.length, Value.empty))
+          currentValue = tagPath.map(tp => Element(tp, header.bigEndian, header.vr, header.explicitVR, header.length, Value.empty))
+          Nil
+        case fragments: DicomFragments =>
+          currentFragment = tagPath.map(tp => Element(tp, fragments.bigEndian, fragments.vr, explicitVR = true, fragments.length, Value.empty))
           Nil
         case fragmentsItem: DicomFragmentsItem =>
-          currentFragment = tagPath.map(tp => FragmentElement(tp, fragmentsItem.bigEndian, fragmentsItem.index, fragmentsItem.length, Value.empty))
+          currentFragment = tagPath
+            .flatMap(tp => currentFragment
+              .map(fragment => fragment.copy(tagPath = tp, length = fragmentsItem.length, value = Value.empty)))
           Nil
         case valueChunk: DicomValueChunk if currentFragment.isDefined =>
           currentFragment = currentFragment.map(f => f.copy(value = f.value ++ valueChunk.bytes.toValue))
@@ -41,10 +46,10 @@ object ElementFolds {
   val elementsSink: Sink[Element, Future[Elements]] = Flow[Element]
     .fold(Elements(CharacterSets.defaultOnly, List.empty)) { (elements, element) =>
       element match {
-        case v: ValueElement if v.tagPath == TagPath.fromTag(Tag.SpecificCharacterSet) =>
-          Elements(CharacterSets(v.value), elements.elements :+ v)
-        case a: Element =>
-          elements.copy(elements = elements.elements :+ a)
+        case e if e.tagPath == TagPath.fromTag(Tag.SpecificCharacterSet) =>
+          Elements(CharacterSets(e.value), elements.elements :+ e)
+        case e =>
+          elements.copy(elements = elements.elements :+ e)
       }
     }
     .toMat(Sink.head)(Keep.right)
