@@ -1,9 +1,7 @@
 package se.nimsa.dicom.streams
 
 import se.nimsa.dicom.TagPath.TagPathSequence
-import se.nimsa.dicom.VR.VR
-import se.nimsa.dicom.streams.Elements._
-import se.nimsa.dicom.{CharacterSets, TagPath, Value}
+import se.nimsa.dicom._
 
 case class Elements(characterSets: CharacterSets, elements: List[Element]) {
   def apply(tagPath: TagPath): Option[Element] = elements.find(_.tagPath == tagPath)
@@ -17,8 +15,6 @@ case class Elements(characterSets: CharacterSets, elements: List[Element]) {
 }
 
 object Elements {
-
-  case class Element(tagPath: TagPath, bigEndian: Boolean, vr: VR, explicitVR: Boolean, length: Long, value: Value)
 
 }
 

@@ -16,4 +16,6 @@
 
 package se.nimsa.dicom.streams
 
-class DicomStreamException(message: String) extends RuntimeException(message)
+class DicomStreamException(message: String, t: Throwable) extends RuntimeException(message, t) {
+  def this(message: String) = this(message, null)
+}

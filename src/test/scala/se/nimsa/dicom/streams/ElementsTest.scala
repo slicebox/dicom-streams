@@ -5,9 +5,7 @@ import akka.stream.ActorMaterializer
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{AsyncFlatSpecLike, BeforeAndAfterAll, Matchers}
-import se.nimsa.dicom.Value.ByteStringExtension
-import se.nimsa.dicom.streams.Elements._
-import se.nimsa.dicom.{CharacterSets, Tag, TagPath, VR}
+import se.nimsa.dicom._
 
 import scala.concurrent.ExecutionContextExecutor
 
@@ -18,9 +16,9 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
 
   override def afterAll(): Unit = system.terminate()
 
-  val studyDate = Element(TagPath.fromTag(Tag.StudyDate), bigEndian = false, VR.DA, explicitVR = true, length = 8, ByteString(20041230).toValue)
-  val patientName = Element(TagPath.fromTag(Tag.PatientName), bigEndian = false, VR.PN, explicitVR = true, length = 8, ByteString("John^Doe").toValue)
-  val sequencePatientID = Element(TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientID), bigEndian = false, VR.LO, explicitVR = true, length = 8, ByteString("12345678").toValue)
+  val studyDate = Element(TagPath.fromTag(Tag.StudyDate), bigEndian = false, VR.DA, explicitVR = true, length = 8, ByteString(20041230))
+  val patientName = Element(TagPath.fromTag(Tag.PatientName), bigEndian = false, VR.PN, explicitVR = true, length = 8, ByteString("John^Doe"))
+  val sequencePatientID = Element(TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientID), bigEndian = false, VR.LO, explicitVR = true, length = 8, ByteString("12345678"))
   val attr = Elements(CharacterSets.defaultOnly, List(studyDate, sequencePatientID, patientName))
 
   "Elements" should "return an existing tag" in {
