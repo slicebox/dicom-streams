@@ -21,7 +21,7 @@ import se.nimsa.dicom.ValueType.ValueType
 import scala.language.implicitConversions
 
 object VR extends Enumeration {
-  protected final case class Val(code: Int, headerLength: Int, paddingByte: Int, valueType: ValueType) extends super.Val
+  protected final case class Val(code: Int, headerLength: Int, paddingByte: Byte, valueType: ValueType) extends super.Val
   type VR = Val
   implicit def valueToVR(x: Value): VR = x.asInstanceOf[VR]
 

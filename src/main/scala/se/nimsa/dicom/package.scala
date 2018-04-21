@@ -29,6 +29,7 @@ package object dicom {
   def elementNumber(tag: Int): Int = tag & '\uffff'
 
   def intToUnsignedLong(i: Int): Long = i & 0xFFFFFFFFL
+  def shortToUnsignedInt(i: Short): Int = i & 0xFFFF
   def bytesToShort(bytes: ByteString, bigEndian: Boolean): Short = if (bigEndian) bytesToShortBE(bytes) else bytesToShortLE(bytes)
   def bytesToShortBE(bytes: ByteString): Short = ((bytes(0) << 8) + (bytes(1) & 255)).toShort
   def bytesToShortLE(bytes: ByteString): Short = ((bytes(1) << 8) + (bytes(0) & 255)).toShort

@@ -399,7 +399,7 @@ object DicomFlows {
 
       {
         case attr: CollectedElements if attr.tag == "toutf8" =>
-          characterSets = attr.elements.headOption.map(a => CharacterSets(a.valueBytes)).getOrElse(characterSets)
+          characterSets = attr.elements.headOption.map(a => CharacterSets(a.value)).getOrElse(characterSets)
           Nil
         case header: DicomHeader =>
           if (header.length > 0 && CharacterSets.isVrAffectedBySpecificCharacterSet(header.vr)) {

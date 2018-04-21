@@ -3,8 +3,9 @@ package se.nimsa.dicom.streams
 import akka.NotUsed
 import akka.stream.scaladsl.Flow
 import akka.util.ByteString
+import se.nimsa.dicom.VR.VR
+import se.nimsa.dicom._
 import se.nimsa.dicom.streams.DicomParts._
-import se.nimsa.dicom.{CharacterSets, Tag, TagPath, padToEvenLength}
 
 object CollectFlow {
 
@@ -12,22 +13,25 @@ object CollectFlow {
     def bytes: ByteString = valueChunks.map(_.bytes).fold(ByteString.empty)(_ ++ _)
   }
 
-  case class CollectedElement(header: DicomHeader, valueChunks: Seq[DicomValueChunk]) {
-    val tag: Int = header.tag
-    val length: Long = header.length
-    def valueBytes: ByteString = valueChunks.map(_.bytes).fold(ByteString.empty)(_ ++ _)
-    def bytes: ByteString = header.bytes ++ valueBytes
-    def bigEndian: Boolean = header.bigEndian
+  case class CollectedElement(tagPath: TagPath, header: DicomHeader, valueChunks: Seq[DicomValueChunk]) {
+    lazy val vr: VR = header.vr
+    lazy val explicitVR: Boolean = header.explicitVR
+    lazy val length: Long = header.length
+    lazy val bigEndian: Boolean = header.bigEndian
+    lazy val value: ByteString = valueChunks.map(_.bytes).fold(ByteString.empty)(_ ++ _)
+    lazy val bytes: ByteString = header.bytes ++ value
 
     def asDicomParts: Seq[DicomPart] = header +: valueChunks
+
+    def toElement: Element = Element(tagPath, bigEndian, vr, explicitVR, length, bytes)
 
     def withUpdatedValue(newValue: ByteString): CollectedElement = {
       val paddedValue = padToEvenLength(newValue, header.vr)
       val updatedHeader = header.withUpdatedLength(paddedValue.length)
-      CollectedElement(updatedHeader, Seq(DicomValueChunk(header.bigEndian, paddedValue, last = true)))
+      CollectedElement(tagPath, updatedHeader, Seq(DicomValueChunk(header.bigEndian, paddedValue, last = true)))
     }
 
-    override def toString = s"${getClass.getSimpleName} header=$header, value chunks=${valueBytes.toList}"
+    override def toString = s"${getClass.getSimpleName} header=$header, value chunks=${value.toList}"
   }
 
   case class CollectedElements(tag: String, characterSets: CharacterSets, elements: Seq[CollectedElement]) extends DicomPart {
@@ -49,7 +53,7 @@ object CollectFlow {
     *
     * @param tags          tag numbers of data elements to collect. Collection (and hence buffering) will end when the
     *                      stream moves past the highest tag number
-    * @param elementsTag a tag for the resulting CollectedElements to separate this from other such elements in the same
+    * @param elementsTag   a tag for the resulting CollectedElements to separate this from other such elements in the same
     *                      flow
     * @param maxBufferSize the maximum allowed size of the buffer (to avoid running out of memory). The flow will fail
     *                      if this limit is exceed. Set to 0 for an unlimited buffer size
@@ -77,13 +81,13 @@ object CollectFlow {
     *
     * @param tagCondition  function determining the condition(s) for which elements are collected
     * @param stopCondition function determining the condition for when collection should stop and elements are emitted
-    * @param elementsTag   a tag for the resulting CollectedElements to separate this from other such elements in the same
-    *                      flow
+    * @param label         a label for the resulting CollectedElements to separate this from other such elements in the
+    *                      same flow
     * @param maxBufferSize the maximum allowed size of the buffer (to avoid running out of memory). The flow will fail
     *                      if this limit is exceed. Set to 0 for an unlimited buffer size
     * @return A DicomPart Flow which will begin with a CollectedElements followed by the input parts
     */
-  def collectFlow(tagCondition: TagPath => Boolean, stopCondition: TagPath => Boolean, elementsTag: String, maxBufferSize: Int): Flow[DicomPart, DicomPart, NotUsed] =
+  def collectFlow(tagCondition: TagPath => Boolean, stopCondition: TagPath => Boolean, label: String, maxBufferSize: Int): Flow[DicomPart, DicomPart, NotUsed] =
     DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with TagPathTracking[DicomPart] with EndEvent[DicomPart] {
 
       var reachedEnd = false
@@ -94,7 +98,7 @@ object CollectFlow {
       var elements: List[CollectedElement] = Nil
 
       def elementsAndBuffer(): List[DicomPart] = {
-        val parts = CollectedElements(elementsTag, characterSets, elements) :: buffer
+        val parts = CollectedElements(label, characterSets, elements) :: buffer
 
         reachedEnd = true
         buffer = Nil
@@ -124,7 +128,7 @@ object CollectFlow {
               elementsAndBuffer()
 
             case header: DicomHeader if tagPath.exists(tagCondition) || header.tag == Tag.SpecificCharacterSet =>
-              currentElement = Some(CollectedElement(header, Seq.empty))
+              currentElement = tagPath.map(tp => CollectedElement(tp, header, Seq.empty))
               Nil
 
             case _: DicomHeader =>

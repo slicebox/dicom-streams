@@ -12,7 +12,7 @@ import se.nimsa.dicom.streams.CollectFlow._
 import se.nimsa.dicom.streams.DicomParts.{DicomHeader, DicomPart, DicomValueChunk}
 import se.nimsa.dicom.streams.ParseFlow.parseFlow
 import se.nimsa.dicom.streams.TestUtils._
-import se.nimsa.dicom.{Tag, VR}
+import se.nimsa.dicom.{Tag, TagPath, VR}
 
 import scala.concurrent.ExecutionContextExecutor
 
@@ -121,11 +121,12 @@ class CollectFlowTest extends TestKit(ActorSystem("CollectFlowSpec")) with FlatS
 
   CollectedElement.getClass.getSimpleName should "update its value bytes" in {
     val updated = CollectedElement(
+      TagPath.fromTag(Tag.PatientName),
       DicomHeader(Tag.PatientName, VR.PN, 8, isFmi = false, bigEndian = false, explicitVR = true),
       Seq(DicomValueChunk(bigEndian = false, patientNameJohnDoe().drop(8), last = true)))
       .withUpdatedValue(ByteString("ABC"))
     updated.length shouldBe 4
-    updated.valueBytes shouldBe ByteString("ABC ")
+    updated.value shouldBe ByteString("ABC ")
   }
 
 }
