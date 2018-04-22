@@ -28,8 +28,6 @@ package object dicom {
   def groupNumber(tag: Int): Int = tag >>> 16
   def elementNumber(tag: Int): Int = tag & '\uffff'
 
-  def intToUnsignedLong(i: Int): Long = i & 0xFFFFFFFFL
-  def shortToUnsignedInt(i: Short): Int = i & 0xFFFF
   def bytesToShort(bytes: ByteString, bigEndian: Boolean): Short = if (bigEndian) bytesToShortBE(bytes) else bytesToShortLE(bytes)
   def bytesToShortBE(bytes: ByteString): Short = ((bytes(0) << 8) + (bytes(1) & 255)).toShort
   def bytesToShortLE(bytes: ByteString): Short = ((bytes(1) << 8) + (bytes(0) & 255)).toShort
@@ -55,6 +53,7 @@ package object dicom {
   def bytesToInt(bytes: ByteString, bigEndian: Boolean): Int = if (bigEndian) bytesToIntBE(bytes) else bytesToIntLE(bytes)
   def bytesToIntBE(bytes: ByteString): Int = (bytes(0) << 24) + ((bytes(1) & 255) << 16) + ((bytes(2) & 255) << 8) + (bytes(3) & 255)
   def bytesToIntLE(bytes: ByteString): Int = (bytes(3) << 24) + ((bytes(2) & 255) << 16) + ((bytes(1) & 255) << 8) + (bytes(0) & 255)
+
   def shortToBytes(i: Short, bigEndian: Boolean): ByteString = if (bigEndian) shortToBytesBE(i) else shortToBytesLE(i)
   def shortToBytesBE(i: Short): ByteString = ByteString((i >> 8).toByte, i.toByte)
   def shortToBytesLE(i: Short): ByteString = ByteString(i.toByte, (i >> 8).toByte)
@@ -63,22 +62,23 @@ package object dicom {
   def intToBytesLE(i: Int): ByteString = ByteString(i.toByte, (i >> 8).toByte, (i >> 16).toByte, (i >> 24).toByte)
   def floatToBytes(f: Float, bigEndian: Boolean): ByteString = ByteString(ByteBuffer.wrap(new Array[Byte](4)).order(if (bigEndian) ByteOrder.BIG_ENDIAN else ByteOrder.LITTLE_ENDIAN).putFloat(f).array)
   def doubleToBytes(d: Double, bigEndian: Boolean): ByteString = ByteString(ByteBuffer.wrap(new Array[Byte](8)).order(if (bigEndian) ByteOrder.BIG_ENDIAN else ByteOrder.LITTLE_ENDIAN).putDouble(d).array)
-  //  def longTo4Bytes(i: Long, bigEndian: Boolean): ByteString = if (bigEndian) longTo4BytesBE(i) else longTo4BytesLE(i)
-  //  def longTo4Bytes(i: Long, bigEndian: Boolean): ByteString = if (bigEndian) longTo4BytesBE(i) else longTo4BytesLE(i)
-  //  def longTo4BytesBE(i: Long): ByteString = ByteString((i >> 24).toByte, (i >> 16).toByte, (i >> 8).toByte, i.toByte)
-  //  def longTo4BytesLE(i: Long): ByteString = ByteString(i.toByte, (i >> 8).toByte, (i >> 16).toByte, (i >> 24).toByte)
-  //  def longTo2Bytes(i: Long, bigEndian: Boolean): ByteString = if (bigEndian) longTo2BytesBE(i) else longTo2BytesLE(i)
-  //  def longTo2BytesBE(i: Long): ByteString = ByteString((i >> 8).toByte, i.toByte)
-  //  def longTo2BytesLE(i: Long): ByteString = ByteString(i.toByte, (i >> 8).toByte)
   def tagToBytes(tag: Int, bigEndian: Boolean): ByteString = if (bigEndian) tagToBytesBE(tag) else tagToBytesLE(tag)
   def tagToBytesBE(tag: Int): ByteString = intToBytesBE(tag)
   def tagToBytesLE(tag: Int): ByteString = ByteString((tag >> 16).toByte, (tag >> 24).toByte, tag.toByte, (tag >> 8).toByte)
+
+  def intToUnsignedLong(i: Int): Long = i & 0xFFFFFFFFL
+  def shortToUnsignedInt(i: Short): Int = i & 0xFFFF
+
   def tagToString(tag: Int): String = new String(Array('(',
     hexDigits(tag >>> 28), hexDigits(tag >>> 24 & 15), hexDigits(tag >>> 20 & 15), hexDigits(tag >>> 16 & 15), ',',
     hexDigits(tag >>> 12 & 15), hexDigits(tag >>> 8 & 15), hexDigits(tag >>> 4 & 15), hexDigits(tag >>> 0 & 15), ')'))
+  def byteToHexString(b: Byte) = new String(Array(hexDigits(b >>> 4 & 15), hexDigits(b >>> 0 & 15)))
+  def shortToHexString(s: Short): String = new String(Array(hexDigits(s >>> 12 & 15), hexDigits(s >>> 8 & 15), hexDigits(s >>> 4 & 15), hexDigits(s >>> 0 & 15)))
+  def intToHexString(i: Int, bigEndian: Boolean): String = new String(Array(
+    hexDigits(i >>> 28), hexDigits(i >>> 24 & 15), hexDigits(i >>> 20 & 15), hexDigits(i >>> 16 & 15),
+    hexDigits(i >>> 12 & 15), hexDigits(i >>> 8 & 15), hexDigits(i >>> 4 & 15), hexDigits(i >>> 0 & 15)))
 
   def padToEvenLength(bytes: ByteString, tag: Int): ByteString = padToEvenLength(bytes, Dictionary.vrOf(tag))
-
   def padToEvenLength(bytes: ByteString, vr: VR): ByteString = {
     val padding = if ((bytes.length & 1) != 0) ByteString(vr.paddingByte) else ByteString.empty
     bytes ++ padding

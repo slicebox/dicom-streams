@@ -1,6 +1,6 @@
 package se.nimsa.dicom
 
-import java.util.GregorianCalendar
+import java.time.{LocalDate, ZoneOffset, ZonedDateTime}
 
 import akka.util.ByteString
 import org.scalatest.{FlatSpec, Matchers}
@@ -34,7 +34,6 @@ class ElementTest extends FlatSpec with Matchers {
 
   it should "split and trim strings with multiple character set encodings" in {
     val nameBytes = ByteString(0x20, 0xD4, 0xCF, 0xC0, 0xDE, 0x5C, 0x20, 0xC0, 0xDB, 0xB3, 0x3D, 0x1B, 0x24, 0x42, 0x3B, 0x33, 0x45, 0x44, 0x1B, 0x28, 0x4A, 0x5C, 0x1B, 0x24, 0x42, 0x42, 0x40, 0x4F, 0x3A, 0x1B, 0x28, 0x4A, 0x3D, 0x1B, 0x24, 0x42, 0x24, 0x64, 0x24, 0x5E, 0x24, 0x40, 0x1B, 0x28, 0x4A, 0x5C, 0x20, 0x1B, 0x24, 0x42, 0x24, 0x3F, 0x24, 0x6D, 0x24, 0x26, 0x1B, 0x28, 0x4A)
-    println("hej")
     toElement(nameBytes, bigEndian = false, VR.SH).toStrings(new CharacterSets(Seq("ISO 2022 IR 13", "ISO 2022 IR 87"))) shouldBe Seq("ﾔﾏﾀﾞ", "ﾀﾛｳ=山田", "太郎=やまだ", "たろう")
   }
 
@@ -127,24 +126,62 @@ class ElementTest extends FlatSpec with Matchers {
   }
 
   it should "parse properly formatted date strings" in {
-    val date = new GregorianCalendar(2004, 2, 29, 0, 0, 0).getTime
+    val date = LocalDate.of(2004, 3, 29)
     toElement(ByteString("20040329\\2004.03.29"), bigEndian = false, VR.DA).toDates shouldBe Seq(date, date)
   }
 
   it should "ignore improperly formatted entries" in {
-    val date = new GregorianCalendar(2004, 2, 29, 0, 0, 0).getTime
+    val date = LocalDate.of(2004, 3, 29)
     toElement(ByteString("20040329\\one\\2004.03.29"), bigEndian = false, VR.DA).toDates shouldBe Seq(date, date)
     toElement(ByteString("one"), bigEndian = false, VR.DA).toDates shouldBe Seq.empty
   }
 
   it should "trim whitespace" in {
-    val date = new GregorianCalendar(2004, 2, 29, 0, 0, 0).getTime
+    val date = LocalDate.of(2004, 3, 29)
     toElement(ByteString(" 20040329 \\20040329 \\one\\2004.03.29  "), bigEndian = false, VR.DA).toDates shouldBe Seq(date, date, date)
   }
 
   "Parsing a single date string" should "return the first valid entry among multiple values" in {
-    val date = new GregorianCalendar(2004, 2, 29, 0, 0, 0).getTime
+    val date = LocalDate.of(2004, 3, 29)
     toElement(ByteString("one\\20040329\\20050401"), bigEndian = false, VR.DA).toDate shouldBe Some(date)
+  }
+
+  "Parsing date time strings" should "return empty sequence for empty byte string" in {
+    toElement(ByteString.empty, bigEndian = false, VR.DT).toDateTimes shouldBe Seq.empty
+  }
+
+  it should "parse partial date time strings" in {
+    val yyyy = ZonedDateTime.of(2004, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)
+    val yyyyMM = ZonedDateTime.of(2004, 3, 1, 0, 0, 0, 0, ZoneOffset.UTC)
+    val yyyyMMdd = ZonedDateTime.of(2004, 3, 29, 0, 0, 0, 0, ZoneOffset.UTC)
+    val yyyyMMddHH = ZonedDateTime.of(2004, 3, 29, 11, 0, 0, 0, ZoneOffset.UTC)
+    val yyyyMMddHHmm = ZonedDateTime.of(2004, 3, 29, 11, 59, 0, 0, ZoneOffset.UTC)
+    val yyyyMMddHHmmss = ZonedDateTime.of(2004, 3, 29, 11, 59, 35, 0, ZoneOffset.UTC)
+    val yyyyMMddHHmmssS = ZonedDateTime.of(2004, 3, 29, 11, 59, 35, 123456000, ZoneOffset.UTC)
+    toElement(
+      ByteString(
+        "2004\\200403\\20040329\\2004032911\\200403291159\\20040329115935\\20040329115935.123456\\20040329115935.123456+0000\\20040329115935.123456-0000"
+      ), bigEndian = false, VR.DT
+    ).toDateTimes shouldBe Seq(yyyy, yyyyMM, yyyyMMdd, yyyyMMddHH, yyyyMMddHHmm, yyyyMMddHHmmss, yyyyMMddHHmmssS, yyyyMMddHHmmssS, yyyyMMddHHmmssS)
+  }
+
+  it should "ignore improperly formatted entries" in {
+    toElement(ByteString("200\\20040\\2004032\\200403291\\20040329115\\2004032911593\\200403291159356\\20040329115935.12345\\20040329115935.1234567\\20040329115935.12345+000\\20040329115935.123456+00000"), bigEndian = false, VR.DT).toDateTimes shouldBe empty
+  }
+
+  it should "trim whitespace" in {
+    val dateTime = ZonedDateTime.of(2004, 3, 29, 5, 35, 59, 12345000, ZoneOffset.UTC)
+    toElement(ByteString(" 20040329053559.012345+0000 \\20040329053559.012345+0000 \\one\\20040329053559.012345+0000  "), bigEndian = false, VR.DT).toDateTimes shouldBe Seq(dateTime, dateTime, dateTime)
+  }
+
+  it should "parse time zones" in {
+    val dateTime = ZonedDateTime.of(2004, 3, 29, 5, 35, 59, 12345000, ZoneOffset.ofHours(3))
+    toElement(ByteString("20040329053559.012345+0300"), bigEndian = false, VR.DT).toDateTime shouldBe Some(dateTime)
+  }
+
+  "Parsing a single date time string" should "return the first valid entry among multiple values" in {
+    val dateTime = ZonedDateTime.of(2004, 3, 29, 5, 35, 59, 12345000, ZoneOffset.UTC)
+    toElement(ByteString("one\\20040329053559.012345+0000\\20050329053559.012345+0000"), bigEndian = false, VR.DT).toDateTime shouldBe Some(dateTime)
   }
 
 }

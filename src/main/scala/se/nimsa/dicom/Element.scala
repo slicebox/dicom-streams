@@ -1,7 +1,8 @@
 package se.nimsa.dicom
 
-import java.text.{ParsePosition, SimpleDateFormat}
-import java.util.Date
+import java.time.format.{DateTimeFormatter, DateTimeFormatterBuilder, SignStyle}
+import java.time.temporal.ChronoField._
+import java.time.{LocalDate, LocalDateTime, ZoneOffset, ZonedDateTime}
 
 import akka.util.ByteString
 import se.nimsa.dicom.VR._
@@ -13,13 +14,16 @@ case class Element(tagPath: TagPath, bigEndian: Boolean, vr: VR, explicitVR: Boo
   def toStrings(characterSets: CharacterSets): Seq[String] = if (value.isEmpty) Seq.empty else
     vr match {
       case AT => parseAT.map(tagToString)
-      case FL | OF => parseFL.map(_.toString)
-      case FD | OD => parseFD.map(_.toString)
+      case FL => parseFL.map(_.toString)
+      case FD => parseFD.map(_.toString)
       case SL => parseSL.map(_.toString)
       case SS => parseSS.map(_.toString)
       case UL => parseSL.map(Integer.toUnsignedString)
       case US => parseSS.map(java.lang.Short.toUnsignedInt).map(_.toString)
-      case OB | OW => Seq(trimToLength(value, length).map(byte => Integer.toHexString(byte.toInt)).mkString(" "))
+      case OB => Seq(trimToLength(value, length).map(byteToHexString).mkString(" "))
+      case OW => Seq(split(value, 2).map(bytesToShort(_, bigEndian)).map(shortToHexString).mkString(" "))
+      case OF => Seq(parseFL.mkString(" "))
+      case OD => Seq(parseFD.mkString(" "))
       case ST | LT | UT => Seq(trimPadding(characterSets.decode(vr, value), vr.paddingByte))
       case _ => split(characterSets.decode(vr, value)).map(trim)
     }
@@ -90,8 +94,15 @@ case class Element(tagPath: TagPath, bigEndian: Boolean, vr: VR, explicitVR: Boo
     case _ => Seq.empty
   }
 
-  def toDates: Seq[Date] = vr match {
-    case DA => parseDA // TODO TM, DT
+  def toDates: Seq[LocalDate] = vr match {
+    case DA => parseDA
+    case DT => parseDT.map(_.toLocalDate)
+    case _ => Seq.empty
+  }
+
+  def toDateTimes: Seq[ZonedDateTime] = vr match {
+    case DA => parseDA.map(_.atStartOfDay(ZoneOffset.UTC))
+    case DT => parseDT
     case _ => Seq.empty
   }
 
@@ -100,7 +111,8 @@ case class Element(tagPath: TagPath, bigEndian: Boolean, vr: VR, explicitVR: Boo
   def toLong: Option[Long] = toLongs.headOption
   def toFloat: Option[Float] = toFloats.headOption
   def toDouble: Option[Double] = toDoubles.headOption
-  def toDate: Option[Date] = toDates.headOption
+  def toDate: Option[LocalDate] = toDates.headOption
+  def toDateTime: Option[ZonedDateTime] = toDateTimes.headOption
 
   private def parseAT: Seq[Int] = split(value, 4).map(b => bytesToTag(b, bigEndian))
   private def parseSL: Seq[Int] = split(value, 4).map(bytesToInt(_, bigEndian))
@@ -109,13 +121,10 @@ case class Element(tagPath: TagPath, bigEndian: Boolean, vr: VR, explicitVR: Boo
   private def parseUS: Seq[Int] = parseSS.map(shortToUnsignedInt)
   private def parseFL: Seq[Float] = split(value, 4).map(bytesToFloat(_, bigEndian))
   private def parseFD: Seq[Double] = split(value, 8).map(bytesToDouble(_, bigEndian))
-  private def parseDS: Seq[Double] = split(value.utf8String).map(trim).flatMap(s => try Option(java.lang.Double.parseDouble(s)) catch {
-    case _: Throwable => None
-  })
-  private def parseIS: Seq[Long] = split(value.utf8String).map(trim).flatMap(s => try Option(java.lang.Long.parseLong(s)) catch {
-    case _: Throwable => None
-  })
-  private def parseDA: Seq[Date] = split(value.utf8String).flatMap(parseDate)
+  private def parseDS: Seq[Double] = split(value.utf8String).map(trim).flatMap(s => try Option(java.lang.Double.parseDouble(s)) catch { case _: Throwable => None })
+  private def parseIS: Seq[Long] = split(value.utf8String).map(trim).flatMap(s => try Option(java.lang.Long.parseLong(s)) catch { case _: Throwable => None })
+  private def parseDA: Seq[LocalDate] = split(value.utf8String).flatMap(parseDate)
+  private def parseDT: Seq[ZonedDateTime] = split(value.utf8String).flatMap(parseDateTime)
 
 }
 
@@ -124,28 +133,49 @@ object Element {
   final lazy val multiValueDelimiter = """\"""
   final lazy val multiValueDelimiterRegex = """\\"""
 
-  final lazy val dateFormat1: SimpleDateFormat = new SimpleDateFormat("yyyyMMdd")
-  final lazy val dateFormat2: SimpleDateFormat = new SimpleDateFormat("yyyy.MM.dd")
+  // date and time constants
+  final private lazy val dateFormat1 = DateTimeFormatter.ofPattern("yyyyMMdd")
+  final private lazy val dateFormat2 = DateTimeFormatter.ofPattern("yyyy.MM.dd")
+  final private lazy val dateTimeFormat2 = new DateTimeFormatterBuilder()
+    .appendValue(YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
+    .appendPattern("[MM[dd[HH[mm[ss[")
+    .appendFraction(MICRO_OF_SECOND, 6, 6, true)
+    .appendPattern("]]]]]]")
+    .parseDefaulting(MONTH_OF_YEAR, 1)
+    .parseDefaulting(DAY_OF_MONTH, 1)
+    .parseDefaulting(HOUR_OF_DAY, 0)
+    .parseDefaulting(MINUTE_OF_HOUR, 0)
+    .parseDefaulting(SECOND_OF_MINUTE, 0)
+    .parseDefaulting(MICRO_OF_SECOND, 0)
+    .toFormatter
+  final private lazy val dateTimeFormat1 = new DateTimeFormatterBuilder()
+    .append(dateTimeFormat2)
+    .appendPattern("[Z]")
+    .toFormatter
 
   case class ComponentGroup(alphabetic: String, ideographic: String, phonetic: String)
-
   case class PatientName(familyName: ComponentGroup, givenName: ComponentGroup, middleName: ComponentGroup, prefix: ComponentGroup, suffix: ComponentGroup)
 
-  def parseDate(s: String): Option[Date] = try {
-    val x = s.trim
-    val pos = new ParsePosition(0)
-    val d1 = dateFormat1.parse(x, pos)
-    if (pos.getIndex == x.length) Option(d1) else {
-      pos.setIndex(0)
-      val d2 = dateFormat2.parse(x, pos)
-      if (pos.getIndex == x.length) Option(d2) else None
+  def parseDate(s: String): Option[LocalDate] = {
+    val trimmed = s.trim
+    try Option(LocalDate.parse(trimmed, dateFormat1)).orElse(throw new Exception()) catch {
+      case _: Throwable => try Option(LocalDate.parse(trimmed, dateFormat2)) catch {
+          case _: Throwable => None
+      }
     }
-  } catch {
-    case _: Throwable => None
+  }
+
+  def parseDateTime(s: String): Option[ZonedDateTime] = {
+    val trimmed = s.trim
+    try Option(ZonedDateTime.parse(trimmed, dateTimeFormat1)) catch {
+      case _: Throwable => try Option(LocalDateTime.parse(trimmed, dateTimeFormat2).atZone(ZoneOffset.UTC)) catch {
+        case t: Throwable => None
+      }
+    }
   }
 
   def parsePatientName(value: String): Option[PatientName] = try {
-    def ensureLength(s: Seq[String], n: Int): Seq[String] = s ++ Seq.fill(math.max(0, n - s.length))("")
+    def ensureLength(s: Seq[String], n: Int) = s ++ Seq.fill(math.max(0, n - s.length))("")
 
     val comps = ensureLength(value.split("""\^"""), 5)
       .map(s => ensureLength(s.split("="), 3))
