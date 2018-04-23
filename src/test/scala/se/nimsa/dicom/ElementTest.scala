@@ -59,12 +59,52 @@ class ElementTest extends FlatSpec with Matchers {
     toElement(intToBytesLE(1234) ++ intToBytesLE(1234567890), bigEndian = false, VR.SL).toInts shouldBe Seq(1234, 1234567890)
   }
 
+  it should "return int values for all numerical VRs" in {
+    toElement(floatToBytes(math.Pi.toFloat, bigEndian = false), bigEndian = false, VR.FL).toInts shouldBe Seq(3)
+    toElement(doubleToBytes(math.Pi, bigEndian = false), bigEndian = false, VR.FD).toInts shouldBe Seq(3)
+    toElement(shortToBytes(-3, bigEndian = false), bigEndian = false, VR.SS).toInts shouldBe Seq(-3)
+    toElement(shortToBytes(-3, bigEndian = false), bigEndian = false, VR.US).toInts shouldBe Seq((1 << 16) - 3)
+    toElement(intToBytes(-3, bigEndian = false), bigEndian = false, VR.SL).toInts shouldBe Seq(-3)
+    toElement(intToBytes(-3, bigEndian = false), bigEndian = false, VR.UL).toInts shouldBe Seq(-3)
+    toElement(ByteString("3.1415"), bigEndian = false, VR.DS).toInts shouldBe Seq(3)
+    toElement(ByteString("-3"), bigEndian = false, VR.IS).toInts shouldBe Seq(-3)
+    toElement(ByteString("-3"), bigEndian = false, VR.AT).toInts shouldBe empty
+  }
+
   "Parsing a single int value" should "return the first entry among multiple values" in {
     toElement(intToBytesLE(1234) ++ intToBytesLE(1234567890), bigEndian = false, VR.SL).toInt shouldBe Some(1234)
   }
 
   it should "return None if no entry exists" in {
     toElement(ByteString.empty, bigEndian = false, VR.SL).toInt shouldBe None
+  }
+
+  "Parsing long values" should "return empty sequence for empty byte string" in {
+    toElement(ByteString.empty, bigEndian = false, VR.SL).toLongs shouldBe Seq.empty
+  }
+
+  it should "parse multiple long values" in {
+    toElement(intToBytesLE(1234) ++ intToBytesLE(1234567890), bigEndian = false, VR.SL).toLongs shouldBe Seq(1234L, 1234567890L)
+  }
+
+  it should "return long values for all numerical VRs" in {
+    toElement(floatToBytes(math.Pi.toFloat, bigEndian = false), bigEndian = false, VR.FL).toLongs shouldBe Seq(3L)
+    toElement(doubleToBytes(math.Pi, bigEndian = false), bigEndian = false, VR.FD).toLongs shouldBe Seq(3L)
+    toElement(shortToBytes(-3, bigEndian = false), bigEndian = false, VR.SS).toLongs shouldBe Seq(-3L)
+    toElement(shortToBytes(-3, bigEndian = false), bigEndian = false, VR.US).toLongs shouldBe Seq((1 << 16) - 3L)
+    toElement(intToBytes(-3, bigEndian = false), bigEndian = false, VR.SL).toLongs shouldBe Seq(-3L)
+    toElement(intToBytes(-3, bigEndian = false), bigEndian = false, VR.UL).toLongs shouldBe Seq((1L << 32) - 3L)
+    toElement(ByteString("3.1415"), bigEndian = false, VR.DS).toLongs shouldBe Seq(3L)
+    toElement(ByteString("-3"), bigEndian = false, VR.IS).toLongs shouldBe Seq(-3L)
+    toElement(ByteString("-3"), bigEndian = false, VR.AT).toLongs shouldBe empty
+  }
+
+  "Parsing a single long value" should "return the first entry among multiple values" in {
+    toElement(longToBytesLE(1234L) ++ longToBytesLE(1234567890L), bigEndian = false, VR.SL).toLong shouldBe Some(1234L)
+  }
+
+  it should "return None if no entry exists" in {
+    toElement(ByteString.empty, bigEndian = false, VR.SL).toLong shouldBe None
   }
 
   "Parsing short values" should "return empty sequence for empty byte string" in {
@@ -84,6 +124,7 @@ class ElementTest extends FlatSpec with Matchers {
     toElement(intToBytes(-3, bigEndian = false), bigEndian = false, VR.UL).toShorts shouldBe Seq(-3.toShort)
     toElement(ByteString("3.1415"), bigEndian = false, VR.DS).toShorts shouldBe Seq(3.toShort)
     toElement(ByteString("-3"), bigEndian = false, VR.IS).toShorts shouldBe Seq(-3.toShort)
+    toElement(ByteString("-3"), bigEndian = false, VR.AT).toShorts shouldBe empty
   }
 
   "Parsing a single short value" should "return the first entry among multiple values" in {
@@ -111,6 +152,7 @@ class ElementTest extends FlatSpec with Matchers {
     toElement(intToBytes(-3, bigEndian = false), bigEndian = false, VR.UL).toFloats shouldBe Seq(((1L << 32) - 3).toFloat)
     toElement(ByteString("3.1415"), bigEndian = false, VR.DS).toFloats shouldBe Seq(3.1415.toFloat)
     toElement(ByteString("-3"), bigEndian = false, VR.IS).toFloats shouldBe Seq(-3.toFloat)
+    toElement(ByteString("-3"), bigEndian = false, VR.AT).toFloats shouldBe empty
   }
 
   "Parsing a single float value" should "return the first entry among multiple values" in {
@@ -129,9 +171,17 @@ class ElementTest extends FlatSpec with Matchers {
     toElement(doubleToBytes(1234, bigEndian = false) ++ doubleToBytes(1.234, bigEndian = false), bigEndian = false, VR.FD).toDoubles shouldBe Seq(1234.0, 1.234)
   }
 
-//  it should "treat commas and dots as decimal separator" in {
-//    toElement(ByteString("1.2\\1,2"), bigEndian = false, VR.FD).toDoubles shouldBe Seq(1.2, 1.2)
-//  }
+  it should "return double values for all numerical VRs" in {
+    toElement(floatToBytes(math.Pi.toFloat, bigEndian = false), bigEndian = false, VR.FL).toDoubles shouldBe Seq(math.Pi.toFloat.toDouble)
+    toElement(doubleToBytes(math.Pi, bigEndian = false), bigEndian = false, VR.FD).toDoubles shouldBe Seq(math.Pi)
+    toElement(shortToBytes(-3, bigEndian = false), bigEndian = false, VR.SS).toDoubles shouldBe Seq(-3.0)
+    toElement(shortToBytes(-3, bigEndian = false), bigEndian = false, VR.US).toDoubles shouldBe Seq((1 << 16) - 3.0)
+    toElement(intToBytes(-3, bigEndian = false), bigEndian = false, VR.SL).toDoubles shouldBe Seq(-3.toFloat)
+    toElement(intToBytes(-3, bigEndian = false), bigEndian = false, VR.UL).toDoubles shouldBe Seq((1L << 32) - 3.0)
+    toElement(ByteString("3.1415"), bigEndian = false, VR.DS).toDoubles shouldBe Seq(3.1415)
+    toElement(ByteString("-3"), bigEndian = false, VR.IS).toDoubles shouldBe Seq(-3.0)
+    toElement(ByteString("-3"), bigEndian = false, VR.AT).toDoubles shouldBe empty
+  }
 
   "Parsing a single double value" should "return the first entry among multiple values" in {
     toElement(doubleToBytes(1234, bigEndian = false) ++ doubleToBytes(1.234, bigEndian = false), bigEndian = false, VR.FD).toDouble shouldBe Some(1234.0)
@@ -218,6 +268,14 @@ class ElementTest extends FlatSpec with Matchers {
 
   it should "format OB values" in {
     toElement(ByteString(Array(1,2,3,4,5,6,7,8).map(_.toByte)), bigEndian = false, VR.OB).toSingleString() shouldBe "01 02 03 04 05 06 07 08"
+  }
+
+  it should "format OF values" in {
+    toElement(intToBytesLE(java.lang.Float.floatToIntBits(1.2F)) ++ intToBytesLE(java.lang.Float.floatToIntBits(56.78F)), bigEndian = false, VR.OF).toSingleString() shouldBe "1.2 56.78"
+  }
+
+  it should "format OD values" in {
+    toElement(longToBytesLE(java.lang.Double.doubleToLongBits(1.2)) ++ longToBytesLE(java.lang.Double.doubleToLongBits(56.78)), bigEndian = false, VR.OD).toSingleString() shouldBe "1.2 56.78"
   }
 
   it should "format AT values" in {

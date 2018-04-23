@@ -187,7 +187,7 @@ object Element {
   case class ComponentGroup(alphabetic: String, ideographic: String, phonetic: String)
   case class PatientName(familyName: ComponentGroup, givenName: ComponentGroup, middleName: ComponentGroup, prefix: ComponentGroup, suffix: ComponentGroup)
 
-  def parsePatientName(value: String): Option[PatientName] = try {
+  def parsePatientName(value: String): Option[PatientName] = {
     def ensureLength(s: Seq[String], n: Int) = s ++ Seq.fill(math.max(0, n - s.length))("")
 
     val comps = ensureLength(value.split("""\^"""), 5)
@@ -195,8 +195,6 @@ object Element {
       .map(c => ComponentGroup(c.head, c(1), c(2)))
 
     Option(PatientName(comps.head, comps(1), comps(2), comps(3), comps(4)))
-  } catch {
-    case _: Throwable => None
   }
 
   private def split(bytes: ByteString, size: Int): Seq[ByteString] = bytes.grouped(size).filter(_.length == size).toSeq
