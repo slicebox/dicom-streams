@@ -78,12 +78,12 @@ class ElementTest extends FlatSpec with Matchers {
   it should "return short values for all numerical VRs" in {
     toElement(floatToBytes(math.Pi.toFloat, bigEndian = false), bigEndian = false, VR.FL).toShorts shouldBe Seq(3.toShort)
     toElement(doubleToBytes(math.Pi, bigEndian = false), bigEndian = false, VR.FD).toShorts shouldBe Seq(3.toShort)
-    toElement(doubleToBytes(math.Pi, bigEndian = false), bigEndian = false, VR.SL).toShorts shouldBe Seq(3.toShort)
     toElement(shortToBytes(-3, bigEndian = false), bigEndian = false, VR.SS).toShorts shouldBe Seq(-3.toShort)
-    toElement(shortToBytes(math.Pi, bigEndian = false), bigEndian = false, VR.UL).toShorts shouldBe Seq(3.toShort)
-    toElement(doubleToBytes(math.Pi, bigEndian = false), bigEndian = false, VR.US).toShorts shouldBe Seq(3.toShort)
-    toElement(doubleToBytes(math.Pi, bigEndian = false), bigEndian = false, VR.DS).toShorts shouldBe Seq(3.toShort)
-    toElement(doubleToBytes(math.Pi, bigEndian = false), bigEndian = false, VR.IS).toShorts shouldBe Seq(3.toShort)
+    toElement(shortToBytes(-3, bigEndian = false), bigEndian = false, VR.US).toShorts shouldBe Seq(-3.toShort)
+    toElement(intToBytes(-3, bigEndian = false), bigEndian = false, VR.SL).toShorts shouldBe Seq(-3.toShort)
+    toElement(intToBytes(-3, bigEndian = false), bigEndian = false, VR.UL).toShorts shouldBe Seq(-3.toShort)
+    toElement(ByteString("3.1415"), bigEndian = false, VR.DS).toShorts shouldBe Seq(3.toShort)
+    toElement(ByteString("-3"), bigEndian = false, VR.IS).toShorts shouldBe Seq(-3.toShort)
   }
 
   "Parsing a single short value" should "return the first entry among multiple values" in {
@@ -102,9 +102,16 @@ class ElementTest extends FlatSpec with Matchers {
     toElement(floatToBytes(1234F, bigEndian = false) ++ floatToBytes(1.234F, bigEndian = false), bigEndian = false, VR.FL).toFloats shouldBe Seq(1234F, 1.234F)
   }
 
-//  it should "treat commas and dots as decimal separator" in {
-//    toElement(ByteString("1.2\\1,2"), bigEndian = false, VR.FL).toFloats shouldBe Seq(1.2F, 1.2F)
-//  }
+  it should "return float values for all numerical VRs" in {
+    toElement(floatToBytes(math.Pi.toFloat, bigEndian = false), bigEndian = false, VR.FL).toFloats shouldBe Seq(math.Pi.toFloat)
+    toElement(doubleToBytes(math.Pi, bigEndian = false), bigEndian = false, VR.FD).toFloats shouldBe Seq(math.Pi.toFloat)
+    toElement(shortToBytes(-3, bigEndian = false), bigEndian = false, VR.SS).toFloats shouldBe Seq(-3.toFloat)
+    toElement(shortToBytes(-3, bigEndian = false), bigEndian = false, VR.US).toFloats shouldBe Seq(((1 << 16) - 3).toFloat)
+    toElement(intToBytes(-3, bigEndian = false), bigEndian = false, VR.SL).toFloats shouldBe Seq(-3.toFloat)
+    toElement(intToBytes(-3, bigEndian = false), bigEndian = false, VR.UL).toFloats shouldBe Seq(((1L << 32) - 3).toFloat)
+    toElement(ByteString("3.1415"), bigEndian = false, VR.DS).toFloats shouldBe Seq(3.1415.toFloat)
+    toElement(ByteString("-3"), bigEndian = false, VR.IS).toFloats shouldBe Seq(-3.toFloat)
+  }
 
   "Parsing a single float value" should "return the first entry among multiple values" in {
     toElement(floatToBytes(1234F, bigEndian = false) ++ floatToBytes(1.234F, bigEndian = false), bigEndian = false, VR.FL).toFloat shouldBe Some(1234F)
