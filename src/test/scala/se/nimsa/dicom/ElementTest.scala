@@ -75,6 +75,17 @@ class ElementTest extends FlatSpec with Matchers {
     toElement(shortToBytesLE(1234) ++ shortToBytesLE(12345), bigEndian = false, VR.SS).toShorts shouldBe Seq(1234.toShort, 12345.toShort)
   }
 
+  it should "return short values for all numerical VRs" in {
+    toElement(floatToBytes(math.Pi.toFloat, bigEndian = false), bigEndian = false, VR.FL).toShorts shouldBe Seq(3.toShort)
+    toElement(doubleToBytes(math.Pi, bigEndian = false), bigEndian = false, VR.FD).toShorts shouldBe Seq(3.toShort)
+    toElement(doubleToBytes(math.Pi, bigEndian = false), bigEndian = false, VR.SL).toShorts shouldBe Seq(3.toShort)
+    toElement(shortToBytes(-3, bigEndian = false), bigEndian = false, VR.SS).toShorts shouldBe Seq(-3.toShort)
+    toElement(shortToBytes(math.Pi, bigEndian = false), bigEndian = false, VR.UL).toShorts shouldBe Seq(3.toShort)
+    toElement(doubleToBytes(math.Pi, bigEndian = false), bigEndian = false, VR.US).toShorts shouldBe Seq(3.toShort)
+    toElement(doubleToBytes(math.Pi, bigEndian = false), bigEndian = false, VR.DS).toShorts shouldBe Seq(3.toShort)
+    toElement(doubleToBytes(math.Pi, bigEndian = false), bigEndian = false, VR.IS).toShorts shouldBe Seq(3.toShort)
+  }
+
   "Parsing a single short value" should "return the first entry among multiple values" in {
     toElement(shortToBytesLE(1234) ++ shortToBytesLE(12345), bigEndian = false, VR.SS).toShort shouldBe Some(1234.toShort)
   }
