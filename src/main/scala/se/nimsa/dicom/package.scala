@@ -34,9 +34,6 @@ package object dicom {
   def bytesToLong(bytes: ByteString, bigEndian: Boolean): Long = if (bigEndian) bytesToLongBE(bytes) else bytesToLongLE(bytes)
   def bytesToLongBE(bytes: ByteString): Long = (bytes(0).toLong << 56) + ((bytes(1) & 255).toLong << 48) + ((bytes(2) & 255).toLong << 40) + ((bytes(3) & 255).toLong << 32) + ((bytes(4) & 255).toLong << 24) + ((bytes(5) & 255) << 16).toLong + ((bytes(6) & 255) << 8).toLong + (bytes(7) & 255).toLong
   def bytesToLongLE(bytes: ByteString): Long = (bytes(7).toLong << 56) + ((bytes(6) & 255).toLong << 48) + ((bytes(5) & 255).toLong << 40) + ((bytes(4) & 255).toLong << 32) + ((bytes(3) & 255).toLong << 24) + ((bytes(2) & 255) << 16).toLong + ((bytes(1) & 255) << 8).toLong + (bytes(0) & 255).toLong
-  def bytes4ToLong(bytes: ByteString, bigEndian: Boolean): Long = if (bigEndian) bytes4ToLongBE(bytes) else bytes4ToLongLE(bytes)
-  def bytes4ToLongBE(bytes: ByteString): Long = (bytes(0).toLong << 56) + ((bytes(1) & 255).toLong << 48) + ((bytes(2) & 255).toLong << 40) + ((bytes(3) & 255).toLong << 32) + ((bytes(4) & 255).toLong << 24) + ((bytes(5) & 255) << 16).toLong + ((bytes(6) & 255) << 8).toLong + (bytes(7) & 255).toLong
-  def bytes4ToLongLE(bytes: ByteString): Long = (bytes(7).toLong << 56) + ((bytes(6) & 255).toLong << 48) + ((bytes(5) & 255).toLong << 40) + ((bytes(4) & 255).toLong << 32) + ((bytes(3) & 255).toLong << 24) + ((bytes(2) & 255) << 16).toLong + ((bytes(1) & 255) << 8).toLong + (bytes(0) & 255).toLong
   def bytesToDouble(bytes: ByteString, bigEndian: Boolean): Double = if (bigEndian) bytesToDoubleBE(bytes) else bytesToDoubleLE(bytes)
   def bytesToDoubleBE(bytes: ByteString): Double = java.lang.Double.longBitsToDouble(bytesToLongBE(bytes))
   def bytesToDoubleLE(bytes: ByteString): Double = java.lang.Double.longBitsToDouble(bytesToLongLE(bytes))

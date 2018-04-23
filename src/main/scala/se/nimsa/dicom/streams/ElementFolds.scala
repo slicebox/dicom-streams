@@ -27,13 +27,12 @@ object ElementFolds {
             .flatMap(tp => currentFragment
               .map(fragment => fragment.copy(tagPath = tp, length = fragmentsItem.length, value = ByteString.empty)))
           Nil
+        case _: DicomFragmentsDelimitation =>
+          currentFragment = None
+          Nil
         case valueChunk: DicomValueChunk if currentFragment.isDefined =>
           currentFragment = currentFragment.map(f => f.copy(value = f.value ++ valueChunk.bytes))
-          if (valueChunk.last) {
-            val result = currentFragment.map(_ :: Nil).getOrElse(Nil)
-            currentFragment = None
-            result
-          } else Nil
+          if (valueChunk.last) currentFragment.map(_ :: Nil).getOrElse(Nil) else Nil
         case valueChunk: DicomValueChunk =>
           currentValue = currentValue.map(d => d.copy(value = d.value ++ valueChunk.bytes))
           if (valueChunk.last) currentValue.map(_ :: Nil).getOrElse(Nil) else Nil

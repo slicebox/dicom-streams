@@ -22,7 +22,7 @@ case class Element(tagPath: TagPath, bigEndian: Boolean, vr: VR, explicitVR: Boo
       case SS => parseSS.map(_.toString)
       case UL => parseSL.map(Integer.toUnsignedString)
       case US => parseSS.map(java.lang.Short.toUnsignedInt).map(_.toString)
-      case OB => Seq(trimToLength(value, length).map(byteToHexString).mkString(" "))
+      case OB => Seq(value.map(byteToHexString).mkString(" "))
       case OW => Seq(split(value, 2).map(bytesToShort(_, bigEndian)).map(shortToHexString).mkString(" "))
       case OF => Seq(parseFL.mkString(" "))
       case OD => Seq(parseFD.mkString(" "))
@@ -200,7 +200,6 @@ object Element {
   private def split(bytes: ByteString, size: Int): Seq[ByteString] = bytes.grouped(size).filter(_.length == size).toSeq
   private def split(s: String): Seq[String] = s.split(multiValueDelimiterRegex)
 
-  private def trimToLength(bytes: ByteString, length: Long): ByteString = if (bytes.length < length) bytes.take(length.toInt) else bytes
   private def trim(s: String): String = s.trim
   private def trimPadding(s: String, paddingByte: Byte): String = {
     var index = s.length - 1

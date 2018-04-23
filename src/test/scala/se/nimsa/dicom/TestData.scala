@@ -33,6 +33,8 @@ object TestData {
   // (not conforming to standard)
   val tsuidExplicitLEImplicit: ByteString = tagToBytesLE(0x00020010) ++ intToBytesLE(0x00000014) ++ ByteString(UID.ExplicitVRLittleEndian) ++ pad0
 
+  def characterSetsJis(bigEndian: Boolean = false): ByteString = tagToBytes(0x00080005, bigEndian) ++ ByteString("CS") ++ shortToBytes(0x001E, bigEndian) ++ ByteString("ISO 2022 IR 13\\ISO 2022 IR 87 ")
+
   def patientNameJohnDoe(bigEndian: Boolean = false): ByteString = tagToBytes(0x00100010, bigEndian) ++ ByteString("PN") ++ shortToBytes(0x0008, bigEndian) ++ ByteString("John^Doe")
   val patientNameJohnDoeImplicit: ByteString = tagToBytesLE(0x00100010) ++ intToBytesLE(0x00000008) ++ ByteString("John^Doe")
   def emptyPatientName(bigEndian: Boolean = false): ByteString = tagToBytes(0x00100010, bigEndian) ++ ByteString("PN") ++ shortToBytes(0x0000, bigEndian)

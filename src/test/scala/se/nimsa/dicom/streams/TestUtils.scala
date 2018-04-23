@@ -161,7 +161,7 @@ object TestUtils {
       .request(1)
       .expectError()
 
-    def expectElementsPart(elementsPart: CollectedElements): PartProbe = probe
+    def expectCollectedElements(elementsPart: CollectedElements): PartProbe = probe
       .request(1)
       .expectNextChainingPF {
         case p: CollectedElements if p == elementsPart => true
@@ -174,6 +174,28 @@ object TestUtils {
         case a: TestPart if a.id == id => true
         case p => throw new RuntimeException(s"Expected TestPart with id = $id, got $p")
       }
+  }
+
+  type ElementProbe = TestSubscriber.Probe[Element]
+
+  implicit class DicomElementProbe(probe: ElementProbe) {
+    def expectElement(tagPath: TagPath): ElementProbe = probe
+      .request(1)
+      .expectNextChainingPF {
+        case e: Element if e.tagPath == tagPath => true
+        case p => throw new RuntimeException(s"Expected Element with tagPath $tagPath, got $p")
+      }
+
+    def expectElement(tagPath: TagPath, value: ByteString): ElementProbe = probe
+      .request(1)
+      .expectNextChainingPF {
+        case e: Element if e.tagPath == tagPath && e.value == value => true
+        case p => throw new RuntimeException(s"Expected Element with tagPath $tagPath and value $value, got $p")
+      }
+
+    def expectDicomComplete(): ElementProbe = probe
+      .request(1)
+      .expectComplete()
   }
 
 }

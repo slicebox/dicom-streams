@@ -9,19 +9,19 @@ import se.nimsa.dicom.VR.VR
   * Class for decoding DICOM character data according to one or more character sets as specified by the
   * SpecificCharacterSet element.
   *
-  * @param charsetArray character sets
+  * @param charsetNames character sets
   */
-class CharacterSets(val charsetArray: Seq[String]) {
+class CharacterSets(val charsetNames: Seq[String]) {
 
   import CharacterSets._
 
-  private val charsetExtensionsEnabled = charsetArray.length > 1
+  private val charsetExtensionsEnabled = charsetNames.length > 1
 
   private val specifiedCharsets =
-    (if (charsetArray.nonEmpty && charsetArray.head.isEmpty) // first item may be empty -> default charset
+    (if (charsetNames.nonEmpty && charsetNames.head.isEmpty) // first item may be empty -> default charset
       Seq(defaultCharsetObj)
     else
-      Seq.empty) ++ charsetArray.flatMap(s => charsetsMap.get(s))
+      Seq.empty) ++ charsetNames.flatMap(s => charsetsMap.get(s))
 
   private val getInitialCharset =
     if (specifiedCharsets.nonEmpty)
