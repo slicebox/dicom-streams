@@ -109,7 +109,7 @@ object DicomSourceGenerators {
   }
 
   def generateKeyword(): String = {
-    val split = 2000
+    val split = 2153
 
     val tagKeywordMappings = (commandElements ++ metaElements ++ directoryElements ++ dataElements)
       .filter(_.keyword.nonEmpty)
@@ -184,7 +184,7 @@ object DicomSourceGenerators {
   }
 
   def generateDictionary(): String = {
-    val split = 2000
+    val split = 2153
 
     val tagVrMappings = (commandElements ++ metaElements ++ directoryElements ++ dataElements)
       .filter(_.keyword.nonEmpty)
