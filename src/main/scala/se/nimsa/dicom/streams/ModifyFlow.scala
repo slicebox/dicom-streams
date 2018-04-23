@@ -157,7 +157,9 @@ object ModifyFlow {
             } else
               chunk :: Nil
 
-          case otherPart => otherPart :: Nil
+          case otherPart =>
+            latestTagPath = tagPath
+            otherPart :: Nil
         }
 
       override def onEnd(): List[DicomPart] =

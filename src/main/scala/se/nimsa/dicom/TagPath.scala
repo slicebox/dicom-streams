@@ -50,16 +50,15 @@ sealed trait TagPath {
   def <(that: TagPath): Boolean = {
     val thisList = this.toList
     val thatList = that.toList
-    thisList.zip(thatList)
-      .find {
-        case (thisPath, thatPath) if thisPath.tag != thatPath.tag =>
-          intToUnsignedLong(thisPath.tag) < intToUnsignedLong(thatPath.tag)
-        case (thisPath: TagPathSequenceItem, thatPath: TagPathSequenceItem) => thisPath.item < thatPath.item
-        case (_: TagPathSequenceItem, _: TagPathSequenceAny) => true
-        case (_, _) => false
-      }
-      .map(_ => true)
-      .getOrElse(thisList.length < thatList.length)
+
+    thisList.zip(thatList).foreach {
+      case (thisPath, thatPath) if thisPath.tag != thatPath.tag =>
+        return intToUnsignedLong(thisPath.tag) < intToUnsignedLong(thatPath.tag)
+      case (thisPath: TagPathSequenceItem, thatPath: TagPathSequenceItem) if thisPath.item != thatPath.item =>
+        return thisPath.item < thatPath.item
+      case _ => // tags and item numbers are equal, check next
+    }
+    thisList.length < thatList.length
   }
 
   /**

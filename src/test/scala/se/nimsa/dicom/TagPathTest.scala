@@ -80,11 +80,12 @@ class TagPathTest extends FlatSpec with Matchers {
     aPath < bPath shouldBe true
   }
 
-  it should "sort paths with equal tag number by item index, with index less than wildcard" in {
-    val aPath = TagPath.fromSequence(1).thenSequence(1).thenSequence(1).thenTag(2)
-    val bPath = TagPath.fromSequence(1).thenSequence(1, 3).thenSequence(1).thenTag(2)
+  it should "should not define an ordering when comparing item indices and wildcards" in {
+    val aPath = TagPath.fromSequence(1)
+    val bPath = TagPath.fromSequence(1, 1)
     aPath < bPath shouldBe false
-    bPath < aPath shouldBe true
+    bPath < aPath shouldBe false
+    aPath == bPath shouldBe false
   }
 
   "Two tag paths" should "be equal if they point to the same path" in {

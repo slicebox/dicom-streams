@@ -328,9 +328,6 @@ class ModifyFlowTest extends TestKit(ActorSystem("ModifyFlowSpec")) with FlatSpe
   it should "insert into all sequence items" in {
     val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemEnd() ++ item() ++ patientNameJohnDoe() ++ itemEnd() ++ sequenceEnd()
 
-    println()
-    println()
-
     val source = Source.single(bytes)
       .via(new ParseFlow())
       .via(modifyFlow(
@@ -353,6 +350,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("ModifyFlowSpec")) with FlatSpe
       .expectSequenceDelimitation()
       .expectDicomComplete()
   }
+
   it should "modify all sequence items" in {
     val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemEnd() ++ item() ++ patientNameJohnDoe() ++ itemEnd() ++ sequenceEnd()
 
