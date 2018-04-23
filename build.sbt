@@ -51,7 +51,7 @@ licenses += ("Apache-2.0", new URL("https://www.apache.org/licenses/LICENSE-2.0.
 
 // coverage
 
-coverageExcludedPackages := ".*\\.Tag.*;.*\\.UID.*;.*\\.Dictionary.*"
+coverageExcludedPackages := ".*\\.Tag.*;.*\\.UID.*;.*\\.Dictionary.*\\.Keyword.*"
 
 // publish
 publishMavenStyle := true
