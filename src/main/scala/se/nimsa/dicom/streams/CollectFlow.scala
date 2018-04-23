@@ -3,9 +3,8 @@ package se.nimsa.dicom.streams
 import akka.NotUsed
 import akka.stream.scaladsl.Flow
 import akka.util.ByteString
-import se.nimsa.dicom.VR.VR
+import se.nimsa.dicom.DicomParts._
 import se.nimsa.dicom._
-import se.nimsa.dicom.streams.DicomParts._
 
 object CollectFlow {
 
@@ -13,28 +12,7 @@ object CollectFlow {
     def bytes: ByteString = valueChunks.map(_.bytes).fold(ByteString.empty)(_ ++ _)
   }
 
-  case class CollectedElement(tagPath: TagPath, header: DicomHeader, valueChunks: Seq[DicomValueChunk]) {
-    lazy val vr: VR = header.vr
-    lazy val explicitVR: Boolean = header.explicitVR
-    lazy val length: Long = header.length
-    lazy val bigEndian: Boolean = header.bigEndian
-    lazy val value: ByteString = valueChunks.map(_.bytes).fold(ByteString.empty)(_ ++ _)
-    lazy val bytes: ByteString = header.bytes ++ value
-
-    def asDicomParts: Seq[DicomPart] = header +: valueChunks
-
-    def toElement: Element = Element(tagPath, bigEndian, vr, explicitVR, length, bytes)
-
-    def withUpdatedValue(newValue: ByteString): CollectedElement = {
-      val paddedValue = padToEvenLength(newValue, header.vr)
-      val updatedHeader = header.withUpdatedLength(paddedValue.length)
-      CollectedElement(tagPath, updatedHeader, Seq(DicomValueChunk(header.bigEndian, paddedValue, last = true)))
-    }
-
-    override def toString = s"${getClass.getSimpleName} header=$header, value chunks=${value.toList}"
-  }
-
-  case class CollectedElements(tag: String, characterSets: CharacterSets, elements: Seq[CollectedElement]) extends DicomPart {
+  case class CollectedElements(tag: String, characterSets: CharacterSets, elements: Seq[Element]) extends DicomPart {
     def bigEndian: Boolean = elements.headOption.exists(_.bigEndian)
     def bytes: ByteString = elements.map(_.bytes).reduce(_ ++ _)
 
@@ -92,10 +70,10 @@ object CollectFlow {
 
       var reachedEnd = false
       var currentBufferSize = 0
-      var currentElement: Option[CollectedElement] = None
+      var currentElement: Option[Element] = None
       var buffer: List[DicomPart] = Nil
       var characterSets: CharacterSets = CharacterSets.defaultOnly
-      var elements: List[CollectedElement] = Nil
+      var elements: List[Element] = Nil
 
       def elementsAndBuffer(): List[DicomPart] = {
         val parts = CollectedElements(label, characterSets, elements) :: buffer
@@ -128,7 +106,7 @@ object CollectFlow {
               elementsAndBuffer()
 
             case header: DicomHeader if tagPath.exists(tagCondition) || header.tag == Tag.SpecificCharacterSet =>
-              currentElement = tagPath.map(tp => CollectedElement(tp, header, Seq.empty))
+              currentElement = tagPath.map(tp => Element(tp, header.bigEndian, header.vr, header.explicitVR, header.length, ByteString.empty))
               Nil
 
             case _: DicomHeader =>
@@ -139,10 +117,10 @@ object CollectFlow {
 
               currentElement match {
                 case Some(element) =>
-                  val updatedElement = element.copy(valueChunks = element.valueChunks :+ valueChunk)
+                  val updatedElement = element.copy(value = element.value ++ valueChunk.bytes)
                   currentElement = Some(updatedElement)
                   if (valueChunk.last) {
-                    if (updatedElement.header.tag == Tag.SpecificCharacterSet)
+                    if (updatedElement.tagPath == TagPath.fromTag(Tag.SpecificCharacterSet))
                       characterSets = CharacterSets(updatedElement.bytes)
                     if (tagPath.exists(tagCondition))
                       elements = elements :+ updatedElement

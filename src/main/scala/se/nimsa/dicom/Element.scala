@@ -6,6 +6,8 @@ import java.time.temporal.ChronoField._
 
 import akka.util.ByteString
 import se.nimsa.dicom.VR._
+import se.nimsa.dicom.DicomParsing.isFileMetaInformation
+import DicomParts.DicomHeader
 
 case class Element(tagPath: TagPath, bigEndian: Boolean, vr: VR, explicitVR: Boolean, length: Long, value: ByteString) {
 
@@ -130,6 +132,14 @@ case class Element(tagPath: TagPath, bigEndian: Boolean, vr: VR, explicitVR: Boo
   private def parseDA: Seq[LocalDate] = split(value.utf8String).flatMap(parseDate)
   private def parseDT(zoneOffset: ZoneOffset): Seq[ZonedDateTime] = split(value.utf8String).flatMap(parseDateTime(_, zoneOffset))
   private def parsePN(characterSets: CharacterSets): Seq[PatientName] = split(characterSets.decode(VR.PN, value)).map(trimPadding(_, vr.paddingByte)).flatMap(parsePatientName)
+
+  def withUpdatedValue(newValue: ByteString): Element = {
+    val paddedValue = padToEvenLength(newValue, vr)
+    copy(length = paddedValue.length, value = paddedValue)
+  }
+
+  lazy val header: DicomHeader = DicomHeader(tagPath.tag, vr, length, isFileMetaInformation(tagPath.tag), bigEndian, explicitVR)
+  def bytes: ByteString = header.bytes ++ value
 }
 
 object Element {

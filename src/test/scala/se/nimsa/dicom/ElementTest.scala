@@ -5,6 +5,7 @@ import java.time.{LocalDate, ZoneOffset, ZonedDateTime}
 import akka.util.ByteString
 import org.scalatest.{FlatSpec, Matchers}
 import se.nimsa.dicom.Element.{ComponentGroup, PatientName}
+import se.nimsa.dicom.TestData.patientNameJohnDoe
 import se.nimsa.dicom.VR.VR
 
 class ElementTest extends FlatSpec with Matchers {
@@ -281,4 +282,12 @@ class ElementTest extends FlatSpec with Matchers {
       ComponentGroup("", "", ""),
       ComponentGroup("", "", "")))
   }
+
+  "An element" should "update its value bytes" in {
+    val updated = Element(TagPath.fromTag(Tag.PatientName), bigEndian = false, VR.PN, explicitVR = true, 8, patientNameJohnDoe().drop(8))
+      .withUpdatedValue(ByteString("ABC"))
+    updated.length shouldBe 4
+    updated.value shouldBe ByteString("ABC ")
+  }
+
 }

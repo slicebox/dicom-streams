@@ -1,10 +1,9 @@
-package se.nimsa.dicom.streams
+package se.nimsa.dicom
 
 import java.nio.ByteBuffer
 
 import akka.util.ByteString
 import org.scalatest.{FlatSpecLike, Matchers}
-import se.nimsa.dicom._
 
 class DicomParsingTest extends FlatSpecLike with Matchers {
 

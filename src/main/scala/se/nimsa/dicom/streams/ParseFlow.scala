@@ -23,7 +23,7 @@ import akka.stream.stage._
 import akka.util.ByteString
 import se.nimsa.dicom.VR.VR
 import se.nimsa.dicom._
-import se.nimsa.dicom.streams.DicomParts._
+import DicomParts._
 
 /**s
   * Flow which ingests a stream of bytes and outputs a stream of DICOM data parts as specified by the <code>DicomPart</code>

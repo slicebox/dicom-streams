@@ -7,12 +7,12 @@ import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
+import se.nimsa.dicom.DicomParts.DicomPart
+import se.nimsa.dicom.Tag
 import se.nimsa.dicom.TestData._
 import se.nimsa.dicom.streams.CollectFlow._
-import se.nimsa.dicom.streams.DicomParts.{DicomHeader, DicomPart, DicomValueChunk}
 import se.nimsa.dicom.streams.ParseFlow.parseFlow
 import se.nimsa.dicom.streams.TestUtils._
-import se.nimsa.dicom.{Tag, TagPath, VR}
 
 import scala.concurrent.ExecutionContextExecutor
 
@@ -117,16 +117,6 @@ class CollectFlowTest extends TestKit(ActorSystem("CollectFlowSpec")) with FlatS
 
     source.runWith(TestSink.probe[DicomPart])
       .expectDicomError()
-  }
-
-  CollectedElement.getClass.getSimpleName should "update its value bytes" in {
-    val updated = CollectedElement(
-      TagPath.fromTag(Tag.PatientName),
-      DicomHeader(Tag.PatientName, VR.PN, 8, isFmi = false, bigEndian = false, explicitVR = true),
-      Seq(DicomValueChunk(bigEndian = false, patientNameJohnDoe().drop(8), last = true)))
-      .withUpdatedValue(ByteString("ABC"))
-    updated.length shouldBe 4
-    updated.value shouldBe ByteString("ABC ")
   }
 
 }

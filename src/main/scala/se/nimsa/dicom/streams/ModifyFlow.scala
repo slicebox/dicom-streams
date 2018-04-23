@@ -19,8 +19,9 @@ package se.nimsa.dicom.streams
 import akka.NotUsed
 import akka.stream.scaladsl.Flow
 import akka.util.ByteString
+import se.nimsa.dicom.DicomParsing.isFileMetaInformation
+import se.nimsa.dicom.DicomParts._
 import se.nimsa.dicom.TagPath.{TagPathSequence, TagPathTag}
-import se.nimsa.dicom.streams.DicomParts._
 import se.nimsa.dicom.{Dictionary, TagPath, VR}
 
 object ModifyFlow {
@@ -94,7 +95,7 @@ object ModifyFlow {
         val vr = Dictionary.vrOf(tagPath.tag)
         if (vr == VR.UN) throw new IllegalArgumentException("Tag is not present in dictionary, cannot determine value representation")
         if (vr == VR.SQ) throw new IllegalArgumentException("Cannot insert sequences")
-        val isFmi = DicomParsing.isFileMetaInformation(tagPath.tag)
+        val isFmi = isFileMetaInformation(tagPath.tag)
         val header = DicomHeader(tagPath.tag, vr, valueBytes.length, isFmi, bigEndian, explicitVR)
         val value = DicomValueChunk(bigEndian, valueBytes, last = true)
         header :: value :: Nil

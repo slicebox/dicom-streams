@@ -11,7 +11,7 @@ import akka.util.ByteString
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import se.nimsa.dicom._
 import se.nimsa.dicom.TestData._
-import se.nimsa.dicom.streams.DicomParts._
+import DicomParts._
 import se.nimsa.dicom.streams.ParseFlow._
 import se.nimsa.dicom.streams.DicomFlows._
 import se.nimsa.dicom.streams.ModifyFlow._

@@ -22,12 +22,11 @@ import akka.NotUsed
 import akka.stream.scaladsl.{Flow, Source}
 import akka.util.ByteString
 import se.nimsa.dicom.CharacterSets.utf8Charset
+import se.nimsa.dicom.DicomParts._
 import se.nimsa.dicom.VR.VR
 import se.nimsa.dicom._
 import se.nimsa.dicom.streams.CollectFlow._
 import se.nimsa.dicom.streams.ModifyFlow._
-import se.nimsa.dicom.streams.DicomParsing.{Info, dicomInfo}
-import se.nimsa.dicom.streams.DicomParts._
 
 /**
   * Various flows for transforming streams of <code>DicomPart</code>s.
@@ -278,14 +277,14 @@ object DicomFlows {
       {
         case fmiElements: CollectedElements if fmiElements.tag == "fmigrouplength" =>
           if (fmiElements.elements.nonEmpty) {
-            val info = dicomInfo(fmiElements.elements.head.header.bytes).getOrElse(Info(bigEndian = false, explicitVR = true, hasFmi = true))
-            val fmiElementsNoLength = fmiElements.elements.filter(_.header.tag != Tag.FileMetaInformationGroupLength)
+            val element = fmiElements.elements.head
+            val fmiElementsNoLength = fmiElements.elements.filter(_.tagPath.tag != Tag.FileMetaInformationGroupLength)
             val length = fmiElementsNoLength.map(_.bytes.length).sum
-            val lengthBytes = tagToBytes(Tag.FileMetaInformationGroupLength, info.bigEndian) ++
-              (if (info.explicitVR) ByteString("UL") ++ shortToBytes(4, info.bigEndian) else intToBytes(4, info.bigEndian))
-            val lengthHeader = DicomHeader(Tag.FileMetaInformationGroupLength, VR.UL, 4, isFmi = true, info.bigEndian, info.explicitVR, lengthBytes)
-            val lengthChunk = DicomValueChunk(info.bigEndian, intToBytes(length, info.bigEndian), last = true)
-            val fmiParts = fmiElementsNoLength.toList.flatMap(element => element.header :: element.valueChunks.toList)
+            val lengthBytes = tagToBytes(Tag.FileMetaInformationGroupLength, element.bigEndian) ++
+              (if (element.explicitVR) ByteString("UL") ++ shortToBytes(4, element.bigEndian) else intToBytes(4, element.bigEndian))
+            val lengthHeader = DicomHeader(Tag.FileMetaInformationGroupLength, VR.UL, 4, isFmi = true, element.bigEndian, element.explicitVR, lengthBytes)
+            val lengthChunk = DicomValueChunk(element.bigEndian, intToBytes(length, element.bigEndian), last = true)
+            val fmiParts = fmiElementsNoLength.toList.flatMap(element => element.header :: DicomValueChunk(element.bigEndian, element.value, last = true) :: Nil)
             fmi = lengthHeader :: lengthChunk :: fmiParts
           }
           Nil

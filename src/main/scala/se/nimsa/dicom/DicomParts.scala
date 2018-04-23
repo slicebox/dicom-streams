@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-package se.nimsa.dicom.streams
+package se.nimsa.dicom
 
 import akka.util.ByteString
 import se.nimsa.dicom.VR.VR
-import se.nimsa.dicom._
 
 
 object DicomParts {

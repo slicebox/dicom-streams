@@ -4,7 +4,7 @@ import java.util.zip.Deflater
 
 import akka.stream.testkit.TestSubscriber
 import akka.util.ByteString
-import se.nimsa.dicom.streams.DicomParts._
+import se.nimsa.dicom.DicomParts._
 import se.nimsa.dicom._
 import se.nimsa.dicom.VR.VR
 import se.nimsa.dicom.streams.CollectFlow.CollectedElements

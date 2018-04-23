@@ -1,7 +1,6 @@
-package se.nimsa.dicom.streams
+package se.nimsa.dicom
 
 import se.nimsa.dicom.TagPath.TagPathSequence
-import se.nimsa.dicom._
 
 case class Elements(characterSets: CharacterSets, elements: List[Element]) {
   def apply(tagPath: TagPath): Option[Element] = elements.find(_.tagPath == tagPath)

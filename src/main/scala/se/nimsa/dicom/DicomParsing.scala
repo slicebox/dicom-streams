@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-package se.nimsa.dicom.streams
+package se.nimsa.dicom
 
 import akka.util.ByteString
-import se.nimsa.dicom.{VR, _}
 import se.nimsa.dicom.VR.VR
+import se.nimsa.dicom.streams.DicomStreamException
 
 /**
   * Helper methods for parsing binary DICOM data.

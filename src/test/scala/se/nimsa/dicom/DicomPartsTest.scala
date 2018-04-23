@@ -1,4 +1,4 @@
-package se.nimsa.dicom.streams
+package se.nimsa.dicom
 
 import org.scalatest.{FlatSpecLike, Matchers}
 import se.nimsa.dicom.TestData._

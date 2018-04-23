@@ -4,7 +4,7 @@ import akka.NotUsed
 import akka.stream.scaladsl.{Flow, Keep, Sink}
 import akka.util.ByteString
 import se.nimsa.dicom._
-import se.nimsa.dicom.streams.DicomParts._
+import DicomParts._
 
 import scala.concurrent.Future
 

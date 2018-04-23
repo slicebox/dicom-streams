@@ -1,11 +1,10 @@
-package se.nimsa.dicom.streams
+package se.nimsa.dicom
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{AsyncFlatSpecLike, BeforeAndAfterAll, Matchers}
-import se.nimsa.dicom._
 
 import scala.concurrent.ExecutionContextExecutor
 

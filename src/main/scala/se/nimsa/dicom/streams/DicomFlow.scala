@@ -21,7 +21,7 @@ import akka.stream.scaladsl.{Flow, Source}
 import akka.util.ByteString
 import se.nimsa.dicom.TagPath
 import se.nimsa.dicom.TagPath._
-import se.nimsa.dicom.streams.DicomParts._
+import se.nimsa.dicom.DicomParts._
 
 /**
   * This class defines events for modular construction of DICOM flows. Events correspond to the DICOM parts commonly
