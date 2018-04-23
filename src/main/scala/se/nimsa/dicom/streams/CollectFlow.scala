@@ -29,17 +29,17 @@ object CollectFlow {
     * elements can be processed correctly according to this information. As an example, an implementation may have
     * different graph paths for different modalities and the modality must be known before any elements are processed.
     *
-    * @param tags          tag numbers of data elements to collect. Collection (and hence buffering) will end when the
+    * @param tags          tag paths of data elements to collect. Collection (and hence buffering) will end when the
     *                      stream moves past the highest tag number
     * @param elementsTag   a tag for the resulting CollectedElements to separate this from other such elements in the same
     *                      flow
     * @param maxBufferSize the maximum allowed size of the buffer (to avoid running out of memory). The flow will fail
     *                      if this limit is exceed. Set to 0 for an unlimited buffer size
-    * @return A DicomPart Flow which will begin with a CollectedElemements part followed by other parts in the flow
+    * @return A DicomPart Flow which will begin with a CollectedElements part followed by other parts in the flow
     */
-  def collectFlow(tags: Set[Int], elementsTag: String, maxBufferSize: Int = 1000000): Flow[DicomPart, DicomPart, NotUsed] = {
-    val maxTag = if (tags.isEmpty) 0 else tags.max
-    val tagCondition = (tagPath: TagPath) => tagPath.isRoot && tags.contains(tagPath.tag)
+  def collectFlow(tags: Set[TagPath], elementsTag: String, maxBufferSize: Int = 1000000): Flow[DicomPart, DicomPart, NotUsed] = {
+    val maxTag = if (tags.isEmpty) 0 else tags.map(_.toList.head.tag).max
+    val tagCondition = (tagPath: TagPath) => tags.exists(tagPath.startsWithSuperPath)
     val stopCondition = if (tags.isEmpty)
       (_: TagPath) => true
     else

@@ -50,7 +50,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
-      .via(whitelistFilter(Set(Tag.StudyDate)))
+      .via(whitelistFilter(Set(TagPath.fromTag(Tag.StudyDate))))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.StudyDate)
@@ -63,7 +63,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
-      .via(whitelistFilter(Set(Tag.StudyDate)))
+      .via(whitelistFilter(Set(TagPath.fromTag(Tag.StudyDate))))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.StudyDate)
@@ -76,7 +76,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
-      .via(whitelistFilter(Set(Tag.StudyDate)))
+      .via(whitelistFilter(Set(TagPath.fromTag(Tag.StudyDate))))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectDicomComplete()

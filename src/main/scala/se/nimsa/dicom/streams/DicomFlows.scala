@@ -48,15 +48,15 @@ object DicomFlows {
 
   /**
     * Filter a stream of dicom parts such that all elements except those with tags in the white list are discarded.
-    * Only elements in the root dataset are considered. All other parts such as preamble are discarded.
+    * Non-data parts such as preamble are discarded.
     *
     * Note that it is up to the user of this function to make sure the modified DICOM data is valid.
     *
-    * @param tagsWhitelist list of tags to keep.
+    * @param tagsWhitelist list of tag paths to keep.
     * @return the associated filter Flow
     */
-  def whitelistFilter(tagsWhitelist: Set[Int]): Flow[DicomPart, DicomPart, NotUsed] =
-    tagFilter(_ => false)(currentPath => currentPath.isRoot && tagsWhitelist.contains(currentPath.tag))
+  def whitelistFilter(tagsWhitelist: Set[TagPath]): Flow[DicomPart, DicomPart, NotUsed] =
+    tagFilter(_ => false)(currentPath => tagsWhitelist.exists(currentPath.startsWithSuperPath))
 
   /**
     * Filter a stream of dicom parts such that elements with tag paths in the black list are discarded. Tag paths in
@@ -387,7 +387,7 @@ object DicomFlows {
     * @return the associated DicomPart Flow
     */
   def toUtf8Flow: Flow[DicomPart, DicomPart, NotUsed] = Flow[DicomPart]
-    .via(collectFlow(Set(Tag.SpecificCharacterSet), "toutf8"))
+    .via(collectFlow(Set(TagPath.fromTag(Tag.SpecificCharacterSet)), "toutf8"))
     .via(modifyFlow(TagModification.contains(TagPath.fromTag(Tag.SpecificCharacterSet), _ => ByteString("ISO_IR 192"), insert = true)))
     .statefulMapConcat {
 

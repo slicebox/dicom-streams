@@ -8,7 +8,7 @@ import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import se.nimsa.dicom.DicomParts.DicomPart
-import se.nimsa.dicom.Tag
+import se.nimsa.dicom.{Tag, TagPath}
 import se.nimsa.dicom.TestData._
 import se.nimsa.dicom.streams.CollectFlow._
 import se.nimsa.dicom.streams.ParseFlow.parseFlow
@@ -25,7 +25,7 @@ class CollectFlowTest extends TestKit(ActorSystem("CollectFlowSpec")) with FlatS
 
   "A collect elements flow" should "first produce an elements part followed by the input dicom parts" in {
     val bytes = studyDate() ++ patientNameJohnDoe()
-    val tags = Set(Tag.StudyDate, Tag.PatientName)
+    val tags: Set[TagPath] = Set(Tag.StudyDate, Tag.PatientName).map(TagPath.fromTag)
     val source = Source.single(bytes)
       .via(parseFlow)
       .via(collectFlow(tags, "tag"))
@@ -66,7 +66,7 @@ class CollectFlowTest extends TestKit(ActorSystem("CollectFlowSpec")) with FlatS
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(collectFlow(Set(Tag.Modality, Tag.SeriesInstanceUID), "tag"))
+      .via(collectFlow(Set(Tag.Modality, Tag.SeriesInstanceUID).map(TagPath.fromTag), "tag"))
 
     source.runWith(TestSink.probe[DicomPart])
       .request(1)
@@ -85,7 +85,7 @@ class CollectFlowTest extends TestKit(ActorSystem("CollectFlowSpec")) with FlatS
 
     val source = Source.single(bytes)
       .via(new ParseFlow(chunkSize = 500))
-      .via(collectFlow(Set(Tag.StudyDate, Tag.PatientName), "tag", maxBufferSize = 1000))
+      .via(collectFlow(Set(Tag.StudyDate, Tag.PatientName).map(TagPath.fromTag), "tag", maxBufferSize = 1000))
 
     source.runWith(TestSink.probe[DicomPart])
       .request(1)
