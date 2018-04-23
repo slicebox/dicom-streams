@@ -9,7 +9,7 @@ import se.nimsa.dicom.VR.VR
   * Class for decoding DICOM character data according to one or more character sets as specified by the
   * SpecificCharacterSet element.
   *
-  * @param charsetNames character sets
+  * @param charsetNames character set names as specified in the DICOM standard
   */
 class CharacterSets(val charsetNames: Seq[String]) {
 

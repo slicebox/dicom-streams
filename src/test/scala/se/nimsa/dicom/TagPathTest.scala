@@ -85,7 +85,6 @@ class TagPathTest extends FlatSpec with Matchers {
     val bPath = TagPath.fromSequence(1, 1)
     aPath < bPath shouldBe false
     bPath < aPath shouldBe false
-    aPath == bPath shouldBe false
   }
 
   "Two tag paths" should "be equal if they point to the same path" in {

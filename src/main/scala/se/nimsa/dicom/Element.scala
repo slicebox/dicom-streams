@@ -9,10 +9,26 @@ import se.nimsa.dicom.VR._
 import se.nimsa.dicom.DicomParsing.isFileMetaInformation
 import DicomParts.DicomHeader
 
+/**
+  * This class describes a DICOM data element (or attribute).
+  *
+  * @param tagPath    the tag path of the element
+  * @param bigEndian  `true` if this element is using big endian encoding
+  * @param vr         the value representation
+  * @param explicitVR `true` if this element is encoded using explicit VR
+  * @param length     the length of this element's value in bytes
+  * @param value      the binary value of this element, possibly consiting of multiple components
+  */
 case class Element(tagPath: TagPath, bigEndian: Boolean, vr: VR, explicitVR: Boolean, length: Long, value: ByteString) {
 
   import Element._
 
+  /**
+    * For each component value of this element's value, return it's string representation
+    *
+    * @param characterSets Character sets used for string decoding
+    * @return a sequence of strings, one for each component of the value
+    */
   def toStrings(characterSets: CharacterSets = CharacterSets.defaultOnly): Seq[String] = if (value.isEmpty) Seq.empty else
     vr match {
       case AT => parseAT.map(tagToString)
@@ -30,9 +46,19 @@ case class Element(tagPath: TagPath, bigEndian: Boolean, vr: VR, explicitVR: Boo
       case _ => split(characterSets.decode(vr, value)).map(trim)
     }
 
+  /**
+    * Get the string representation of each component of this value, joined with the bachslash character as separator
+    *
+    * @param characterSets Character sets used for string decoding
+    * @return a string repreentation of all components of this value
+    */
   def toSingleString(characterSets: CharacterSets = CharacterSets.defaultOnly): String =
     toStrings(characterSets).mkString(multiValueDelimiter)
 
+  /**
+    * @return the value of this element as a sequence of shorts. Casting is performed if necessary. If the value has no
+    *         short representation, an empty sequence is returned.
+    */
   def toShorts: Seq[Short] = vr match {
     case FL => parseFL.map(_.toShort)
     case FD => parseFD.map(_.toShort)
@@ -45,6 +71,10 @@ case class Element(tagPath: TagPath, bigEndian: Boolean, vr: VR, explicitVR: Boo
     case _ => Seq.empty
   }
 
+  /**
+    * @return the value of this element as a sequence of int. Casting is performed if necessary. If the value has no
+    *         int representation, an empty sequence is returned.
+    */
   def toInts: Seq[Int] = vr match {
     case AT => parseAT
     case FL => parseFL.map(_.toInt)
@@ -58,6 +88,10 @@ case class Element(tagPath: TagPath, bigEndian: Boolean, vr: VR, explicitVR: Boo
     case _ => Seq.empty
   }
 
+  /**
+    * @return the value of this element as a sequence of longs. Casting is performed if necessary. If the value has no
+    *         long representation, an empty sequence is returned.
+    */
   def toLongs: Seq[Long] = vr match {
     case FL => parseFL.map(_.toLong)
     case FD => parseFD.map(_.toLong)
@@ -70,6 +104,10 @@ case class Element(tagPath: TagPath, bigEndian: Boolean, vr: VR, explicitVR: Boo
     case _ => Seq.empty
   }
 
+  /**
+    * @return the value of this element as a sequence of floats. Casting is performed if necessary. If the value has no
+    *         float representation, an empty sequence is returned.
+    */
   def toFloats: Seq[Float] = vr match {
     case FL => parseFL
     case FD => parseFD.map(_.toFloat)
@@ -82,6 +120,10 @@ case class Element(tagPath: TagPath, bigEndian: Boolean, vr: VR, explicitVR: Boo
     case _ => Seq.empty
   }
 
+  /**
+    * @return the value of this element as a sequence of doubles. Casting is performed if necessary. If the value has no
+    *         double representation, an empty sequence is returned.
+    */
   def toDoubles: Seq[Double] = vr match {
     case FL => parseFL.map(_.toDouble)
     case FD => parseFD
@@ -94,30 +136,66 @@ case class Element(tagPath: TagPath, bigEndian: Boolean, vr: VR, explicitVR: Boo
     case _ => Seq.empty
   }
 
+  /**
+    * @return the value of this element as a sequence of `LocalDate`s. Casting is performed if necessary. If the value has no
+    *         `LocalDate` representation, an empty sequence is returned.
+    */
   def toDates: Seq[LocalDate] = vr match {
     case DA => parseDA
     case DT => parseDT(systemZone).map(_.toLocalDate)
     case _ => Seq.empty
   }
 
+  /**
+    * @return the value of this element as a sequence of `ZonedDateTime`s. Casting is performed if necessary. If the value has no
+    *         `ZonedDateTime` representation, an empty sequence is returned.
+    */
   def toDateTimes(zoneOffset: ZoneOffset = systemZone): Seq[ZonedDateTime] = vr match {
     case DA => parseDA.map(_.atStartOfDay(zoneOffset))
     case DT => parseDT(zoneOffset)
     case _ => Seq.empty
   }
 
+  /**
+    * @return the value of this element as a sequence of 'PatientName`s. Casting is performed if necessary. If the value has no
+    *         `PatientName`` representation, an empty sequence is returned.
+    */
   def toPatientNames(characterSets: CharacterSets = CharacterSets.defaultOnly): Seq[PatientName] = vr match {
     case PN => parsePN(characterSets)
     case _ => Seq.empty
   }
 
+  /**
+    * @return the first short representation of this value, if any
+    */
   def toShort: Option[Short] = toShorts.headOption
+  /**
+    * @return the first int representation of this value, if any
+    */
   def toInt: Option[Int] = toInts.headOption
+  /**
+    * @return the first long representation of this value, if any
+    */
   def toLong: Option[Long] = toLongs.headOption
+  /**
+    * @return the first float representation of this value, if any
+    */
   def toFloat: Option[Float] = toFloats.headOption
+  /**
+    * @return the first double representation of this value, if any
+    */
   def toDouble: Option[Double] = toDoubles.headOption
+  /**
+    * @return the first `LocalDate` representation of this value, if any
+    */
   def toDate: Option[LocalDate] = toDates.headOption
+  /**
+    * @return the first `ZonedDateTime` representation of this value, if any
+    */
   def toDateTime(zoneOffset: ZoneOffset = systemZone): Option[ZonedDateTime] = toDateTimes(zoneOffset).headOption
+  /**
+    * @return the first `PatientName` representation of this value, if any
+    */
   def toPatientName(characterSets: CharacterSets = CharacterSets.defaultOnly): Option[PatientName] = toPatientNames(characterSets).headOption
 
   private def parseAT: Seq[Int] = split(value, 4).map(b => bytesToTag(b, bigEndian))
@@ -133,12 +211,25 @@ case class Element(tagPath: TagPath, bigEndian: Boolean, vr: VR, explicitVR: Boo
   private def parseDT(zoneOffset: ZoneOffset): Seq[ZonedDateTime] = split(value.utf8String).flatMap(parseDateTime(_, zoneOffset))
   private def parsePN(characterSets: CharacterSets): Seq[PatientName] = split(characterSets.decode(VR.PN, value)).map(trimPadding(_, vr.paddingByte)).flatMap(parsePatientName)
 
+  /**
+    * Return a copy of this element with its value updated. Length will be updated automatically.
+    *
+    * @param newValue the new value
+    * @return a new Element instance
+    */
   def withUpdatedValue(newValue: ByteString): Element = {
     val paddedValue = padToEvenLength(newValue, vr)
     copy(length = paddedValue.length, value = paddedValue)
   }
 
+  /**
+    * The `DicomHeader` representation of header data in this `Element`
+    */
   lazy val header: DicomHeader = DicomHeader(tagPath.tag, vr, length, isFileMetaInformation(tagPath.tag), bigEndian, explicitVR)
+
+  /**
+    * @return The DICOM byte array representation of this element
+    */
   def bytes: ByteString = header.bytes ++ value
 }
 
