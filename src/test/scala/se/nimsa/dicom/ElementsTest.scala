@@ -5,6 +5,7 @@ import akka.stream.ActorMaterializer
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{AsyncFlatSpecLike, BeforeAndAfterAll, Matchers}
+import se.nimsa.dicom.streams.ElementFolds.TpElement
 
 import scala.concurrent.ExecutionContextExecutor
 
@@ -65,17 +66,17 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
     val modality = Element(Tag.Modality, bigEndian = false, VR.CS, explicitVR = true, length = 2, ByteString("NM"))
     val characterSetsTag = TagPath.fromTag(Tag.SpecificCharacterSet)
     val modalityTag = TagPath.fromTag(Tag.Modality)
-    elements.update(patientIDTag, patientID).elements shouldBe Map(
+    elements.update(patientIDTag, patientID).data shouldBe Map(
       studyDateTag -> studyDate,
       patientIDSeqTag -> patientID,
       patientNameTag -> patientName,
       patientIDTag -> patientID)
-    elements.update(TagPath.fromTag(Tag.SpecificCharacterSet), characterSets).elements shouldBe Map(
+    elements.update(TagPath.fromTag(Tag.SpecificCharacterSet), characterSets).data shouldBe Map(
       characterSetsTag -> characterSets,
       studyDateTag -> studyDate,
       patientIDSeqTag -> patientID,
       patientNameTag -> patientName)
-    elements.update(TagPath.fromTag(Tag.Modality), modality).elements shouldBe Map(
+    elements.update(TagPath.fromTag(Tag.Modality), modality).data shouldBe Map(
       studyDateTag -> studyDate,
       modalityTag -> modality,
       patientIDSeqTag -> patientID,
@@ -86,12 +87,19 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
     val newPatientName = patientName.copy(value = ByteString("Jane^Doe"))
     val updated = elements.update(patientNameTag, newPatientName)
 
-    updated.elements.size shouldBe elements.elements.size
-    updated.elements.last._2.value.utf8String shouldBe "Jane^Doe"
+    updated.data.size shouldBe elements.data.size
+    updated.data.last._2.value.utf8String shouldBe "Jane^Doe"
   }
 
   it should "update character sets" in {
     val updatedCs = elements.updateCharacterSets(CharacterSets(ByteString("\\ISO 2022 IR 127"))).characterSets
     updatedCs.charsetNames shouldBe Seq("", "ISO 2022 IR 127")
+  }
+
+  it should "return properly sorted elements" in {
+    elements.sortedElements shouldBe Seq(
+      TpElement(studyDateTag, studyDate),
+      TpElement(patientIDSeqTag, patientID),
+      TpElement(patientNameTag, patientName))
   }
 }

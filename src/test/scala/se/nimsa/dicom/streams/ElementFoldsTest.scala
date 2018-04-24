@@ -78,9 +78,9 @@ class ElementFoldsTest extends TestKit(ActorSystem("ElementFoldsSpec")) with Fla
       .via(elementsFlow)
       .runWith(elementsSink), 5.seconds)
 
-    elements.elements should have size 6
+    elements.data should have size 6
 
-    elements.elements.keys.toList.sortWith(_ < _) shouldBe List(
+    elements.data.keys.toList.sortWith(_ < _) shouldBe List(
       TagPath.fromTag(Tag.FileMetaInformationGroupLength),
       TagPath.fromTag(Tag.TransferSyntaxUID),
       TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.StudyDate),

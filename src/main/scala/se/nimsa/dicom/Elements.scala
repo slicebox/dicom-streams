@@ -1,20 +1,31 @@
 package se.nimsa.dicom
 
 import se.nimsa.dicom.TagPath.TagPathSequence
+import se.nimsa.dicom.streams.ElementFolds.TpElement
 
-case class Elements(characterSets: CharacterSets, elements: Map[TagPath, Element]) {
-  def apply(tagPath: TagPath): Option[Element] = elements.get(tagPath)
+/**
+  * Representation of a group of `Element`s, each paired with the `TagPath` that describes their position within a
+  * dataset. Representation is immutable so methods for inserting, updating and removing elements return a new instance.
+  * Also specifies the character sets that should be used for decoding the values of textual elements.
+  *
+  * @param characterSets The character sets used for decoding text values
+  * @param data          the `Map`ping of `TagPath` to `Element`
+  */
+case class Elements(characterSets: CharacterSets, data: Map[TagPath, Element]) {
+  def apply(tagPath: TagPath): Option[Element] = data.get(tagPath)
   def apply(tag: Int): Option[Element] = apply(TagPath.fromTag(tag))
   def apply(tagPathCondition: TagPath => Boolean): Elements =
-    Elements(characterSets, elements.filterKeys(tp => tagPathCondition(tp)))
+    Elements(characterSets, data.filterKeys(tp => tagPathCondition(tp)))
   def sequence(tagPath: TagPathSequence): Elements =
     apply(_.startsWithSuperPath(tagPath))
   def remove(tagPathCondition: TagPath => Boolean): Elements =
-    Elements(characterSets, elements.filterKeys(tp => !tagPathCondition(tp)))
+    Elements(characterSets, data.filterKeys(tp => !tagPathCondition(tp)))
   def update(tagPath: TagPath, element: Element): Elements =
-    Elements(characterSets, elements + (tagPath -> element))
+    Elements(characterSets, data + (tagPath -> element))
   def updateCharacterSets(characterSets: CharacterSets): Elements =
-    Elements(characterSets, elements)
+    Elements(characterSets, data)
+  def sortedElements: Seq[TpElement] =
+    data.map(e => (TpElement.apply _).tupled(e)).toSeq.sortWith(_.tagPath < _.tagPath)
 }
 
 object Elements {

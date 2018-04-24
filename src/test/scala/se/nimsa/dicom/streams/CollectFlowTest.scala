@@ -7,7 +7,7 @@ import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
-import se.nimsa.dicom.DicomParts.DicomPart
+import se.nimsa.dicom.DicomParts.{DicomPart, ElementsPart}
 import se.nimsa.dicom.{Tag, TagPath}
 import se.nimsa.dicom.TestData._
 import se.nimsa.dicom.streams.CollectFlow._
@@ -33,11 +33,11 @@ class CollectFlowTest extends TestKit(ActorSystem("CollectFlowSpec")) with FlatS
     source.runWith(TestSink.probe[DicomPart])
       .request(1)
       .expectNextChainingPF {
-        case CollectedElements(tag, _, elements) =>
-          tag shouldBe "tag"
-          elements should have length 2
-          elements.head.header.tag shouldBe Tag.StudyDate
-          elements(1).header.tag shouldBe Tag.PatientName
+        case e: ElementsPart =>
+          e.label shouldBe "tag"
+          e.data should have size 2
+          e.sortedElements.head.element.header.tag shouldBe Tag.StudyDate
+          e.sortedElements(1).element.header.tag shouldBe Tag.PatientName
       }
       .expectHeader(Tag.StudyDate)
       .expectValueChunk()
@@ -56,7 +56,7 @@ class CollectFlowTest extends TestKit(ActorSystem("CollectFlowSpec")) with FlatS
     source.runWith(TestSink.probe[DicomPart])
       .request(1)
       .expectNextChainingPF {
-        case CollectedElements(_, _, elements) => elements shouldBe empty
+        case e: ElementsPart => e.data shouldBe empty
       }
       .expectDicomComplete()
   }
@@ -71,7 +71,7 @@ class CollectFlowTest extends TestKit(ActorSystem("CollectFlowSpec")) with FlatS
     source.runWith(TestSink.probe[DicomPart])
       .request(1)
       .expectNextChainingPF {
-        case CollectedElements(_, _, elements) => elements shouldBe empty
+        case e: ElementsPart => e.data shouldBe empty
       }
       .expectHeader(Tag.PatientName)
       .expectValueChunk()
@@ -90,11 +90,11 @@ class CollectFlowTest extends TestKit(ActorSystem("CollectFlowSpec")) with FlatS
     source.runWith(TestSink.probe[DicomPart])
       .request(1)
       .expectNextChainingPF {
-        case CollectedElements(tag, _, elements) =>
-          tag shouldBe "tag"
-          elements should have length 2
-          elements.head.header.tag shouldBe Tag.StudyDate
-          elements.last.header.tag shouldBe Tag.PatientName
+        case e: ElementsPart =>
+          e.label shouldBe "tag"
+          e.data should have size 2
+          e.sortedElements.head.element.header.tag shouldBe Tag.StudyDate
+          e.sortedElements.last.element.header.tag shouldBe Tag.PatientName
       }
       .expectHeader(Tag.StudyDate)
       .expectValueChunk()

@@ -125,4 +125,8 @@ object DicomParts {
 
   case class DicomUnknownPart(bigEndian: Boolean, bytes: ByteString) extends DicomPart
 
+  class ElementsPart(val label: String, characterSets: CharacterSets, elements: Map[TagPath, Element]) extends Elements(characterSets, elements) with DicomPart {
+    override def bigEndian: Boolean = false
+    override def bytes: ByteString = sortedElements.foldLeft(ByteString.empty)(_ ++ _.element.bytes)
+  }
 }

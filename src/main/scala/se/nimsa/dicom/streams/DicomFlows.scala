@@ -275,16 +275,16 @@ object DicomFlows {
         var hasEmitted = false
 
       {
-        case fmiElements: CollectedElements if fmiElements.tag == "fmigrouplength" =>
-          if (fmiElements.elements.nonEmpty) {
-            val element = fmiElements.elements.head
-            val fmiElementsNoLength = fmiElements.elements.filter(_.tag != Tag.FileMetaInformationGroupLength)
-            val length = fmiElementsNoLength.map(_.bytes.length).sum
+        case fmiElements: ElementsPart if fmiElements.label == "fmigrouplength" =>
+          if (fmiElements.data.nonEmpty) {
+            val element = fmiElements.data.head._2
+            val fmiElementsNoLength = fmiElements(_ != TagPath.fromTag(Tag.FileMetaInformationGroupLength))
+            val length = fmiElementsNoLength.data.values.map(_.bytes.length).sum
             val lengthBytes = tagToBytes(Tag.FileMetaInformationGroupLength, element.bigEndian) ++
               (if (element.explicitVR) ByteString("UL") ++ shortToBytes(4, element.bigEndian) else intToBytes(4, element.bigEndian))
             val lengthHeader = DicomHeader(Tag.FileMetaInformationGroupLength, VR.UL, 4, isFmi = true, element.bigEndian, element.explicitVR, lengthBytes)
             val lengthChunk = DicomValueChunk(element.bigEndian, intToBytes(length, element.bigEndian), last = true)
-            val fmiParts = fmiElementsNoLength.toList.flatMap(element => element.header :: DicomValueChunk(element.bigEndian, element.value, last = true) :: Nil)
+            val fmiParts = fmiElementsNoLength.sortedElements.map(_.element).flatMap(element => element.header :: DicomValueChunk(element.bigEndian, element.value, last = true) :: Nil).toList
             fmi = lengthHeader :: lengthChunk :: fmiParts
           }
           Nil
@@ -397,8 +397,8 @@ object DicomFlows {
         var currentValue = ByteString.empty
 
       {
-        case attr: CollectedElements if attr.tag == "toutf8" =>
-          characterSets = attr.elements.headOption.map(a => CharacterSets(a.value)).getOrElse(characterSets)
+        case attr: ElementsPart if attr.label == "toutf8" =>
+          characterSets = attr(Tag.SpecificCharacterSet).map(a => CharacterSets(a.value)).getOrElse(characterSets)
           Nil
         case header: DicomHeader =>
           if (header.length > 0 && CharacterSets.isVrAffectedBySpecificCharacterSet(header.vr)) {

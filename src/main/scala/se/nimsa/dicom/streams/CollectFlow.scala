@@ -8,17 +8,6 @@ import se.nimsa.dicom._
 
 object CollectFlow {
 
-  case class DicomFragment(index: Int, bigEndian: Boolean, valueChunks: Seq[DicomValueChunk]) {
-    def bytes: ByteString = valueChunks.map(_.bytes).fold(ByteString.empty)(_ ++ _)
-  }
-
-  case class CollectedElements(tag: String, characterSets: CharacterSets, elements: Seq[Element]) extends DicomPart {
-    def bigEndian: Boolean = elements.headOption.exists(_.bigEndian)
-    def bytes: ByteString = elements.map(_.bytes).reduce(_ ++ _)
-
-    override def toString = s"${getClass.getSimpleName} tag=$tag elements=${elements.toList}"
-  }
-
   /**
     * Collect the data elements specified by the input set of tags while buffering all elements of the stream. When the
     * stream has moved past the last element to collect, a CollectedElements element is emitted containing a list of
@@ -31,20 +20,20 @@ object CollectFlow {
     *
     * @param tags          tag paths of data elements to collect. Collection (and hence buffering) will end when the
     *                      stream moves past the highest tag number
-    * @param elementsTag   a tag for the resulting CollectedElements to separate this from other such elements in the same
+    * @param label         a tag for the resulting CollectedElements to separate this from other such elements in the same
     *                      flow
     * @param maxBufferSize the maximum allowed size of the buffer (to avoid running out of memory). The flow will fail
     *                      if this limit is exceed. Set to 0 for an unlimited buffer size
     * @return A DicomPart Flow which will begin with a CollectedElements part followed by other parts in the flow
     */
-  def collectFlow(tags: Set[TagPath], elementsTag: String, maxBufferSize: Int = 1000000): Flow[DicomPart, DicomPart, NotUsed] = {
+  def collectFlow(tags: Set[TagPath], label: String, maxBufferSize: Int = 1000000): Flow[DicomPart, DicomPart, NotUsed] = {
     val maxTag = if (tags.isEmpty) 0 else tags.map(_.toList.head.tag).max
     val tagCondition = (tagPath: TagPath) => tags.exists(tagPath.startsWithSuperPath)
     val stopCondition = if (tags.isEmpty)
       (_: TagPath) => true
     else
       (tagPath: TagPath) => tagPath.isRoot && tagPath.tag > maxTag
-    collectFlow(tagCondition, stopCondition, elementsTag, maxBufferSize)
+    collectFlow(tagCondition, stopCondition, label, maxBufferSize)
   }
 
   /**
@@ -72,11 +61,10 @@ object CollectFlow {
       var currentBufferSize = 0
       var currentElement: Option[Element] = None
       var buffer: List[DicomPart] = Nil
-      var characterSets: CharacterSets = CharacterSets.defaultOnly
-      var elements: List[Element] = Nil
+      var elements: Elements = Elements.empty
 
       def elementsAndBuffer(): List[DicomPart] = {
-        val parts = CollectedElements(label, characterSets, elements) :: buffer
+        val parts = new ElementsPart(label, elements.characterSets, elements.data) :: buffer
 
         reachedEnd = true
         buffer = Nil
@@ -121,9 +109,9 @@ object CollectFlow {
                   currentElement = Some(updatedElement)
                   if (valueChunk.last) {
                     if (updatedElement.tag == Tag.SpecificCharacterSet)
-                      characterSets = CharacterSets(updatedElement.bytes)
+                      elements = elements.updateCharacterSets(CharacterSets(updatedElement.bytes))
                     if (tagPath.exists(tagCondition))
-                      elements = elements :+ updatedElement
+                      elements = elements(tagPath.get) = updatedElement
                     currentElement = None
                   }
                   Nil
