@@ -10,7 +10,7 @@ object CollectFlow {
 
   /**
     * Collect the data elements specified by the input set of tags while buffering all elements of the stream. When the
-    * stream has moved past the last element to collect, a CollectedElements element is emitted containing a list of
+    * stream has moved past the last element to collect, a ElementsPart element is emitted containing a list of
     * CollectedElement-parts with the collected information, followed by all buffered elements. Remaining elements in the
     * stream are immediately emitted downstream without buffering.
     *
@@ -20,11 +20,11 @@ object CollectFlow {
     *
     * @param tags          tag paths of data elements to collect. Collection (and hence buffering) will end when the
     *                      stream moves past the highest tag number
-    * @param label         a tag for the resulting CollectedElements to separate this from other such elements in the same
+    * @param label         a tag for the resulting ElementsPart to separate this from other such elements in the same
     *                      flow
     * @param maxBufferSize the maximum allowed size of the buffer (to avoid running out of memory). The flow will fail
     *                      if this limit is exceed. Set to 0 for an unlimited buffer size
-    * @return A DicomPart Flow which will begin with a CollectedElements part followed by other parts in the flow
+    * @return A DicomPart Flow which will begin with a ElementsPart part followed by other parts in the flow
     */
   def collectFlow(tags: Set[TagPath], label: String, maxBufferSize: Int = 1000000): Flow[DicomPart, DicomPart, NotUsed] = {
     val maxTag = if (tags.isEmpty) 0 else tags.map(_.toList.head.tag).max
@@ -38,7 +38,7 @@ object CollectFlow {
 
   /**
     * Collect data elements whenever the input tag condition yields `true` while buffering all elements of the stream. When
-    * the stop condition yields `true`, a CollectedElements is emitted containing a list of
+    * the stop condition yields `true`, a ElementsPart is emitted containing a list of
     * CollectedElement objects with the collected information, followed by all buffered parts. Remaining elements in the
     * stream are immediately emitted downstream without buffering.
     *
@@ -48,11 +48,11 @@ object CollectFlow {
     *
     * @param tagCondition  function determining the condition(s) for which elements are collected
     * @param stopCondition function determining the condition for when collection should stop and elements are emitted
-    * @param label         a label for the resulting CollectedElements to separate this from other such elements in the
+    * @param label         a label for the resulting ElementsPart to separate this from other such elements in the
     *                      same flow
     * @param maxBufferSize the maximum allowed size of the buffer (to avoid running out of memory). The flow will fail
     *                      if this limit is exceed. Set to 0 for an unlimited buffer size
-    * @return A DicomPart Flow which will begin with a CollectedElements followed by the input parts
+    * @return A DicomPart Flow which will begin with a ElementsPart followed by the input parts
     */
   def collectFlow(tagCondition: TagPath => Boolean, stopCondition: TagPath => Boolean, label: String, maxBufferSize: Int): Flow[DicomPart, DicomPart, NotUsed] =
     DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with TagPathTracking[DicomPart] with EndEvent[DicomPart] {

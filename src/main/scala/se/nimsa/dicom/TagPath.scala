@@ -41,8 +41,7 @@ sealed trait TagPath {
     * Test if this tag path is less than the input path, comparing their parts pairwise according to the following rules
     * (1) a is less than b if the a's tag number is less b's tag number
     * (2) a is less than b if tag numbers are equal and a's item index is less than b's item index
-    * (3) a is less than b if tag numbers are equal, a points to an item index and b points to all indices (wildcard)
-    * otherwise a is greater than or equal b
+    * in all other cases a is not less than b
     *
     * @param that the tag path to compare with
     * @return `true` if this tag path is less than the input path

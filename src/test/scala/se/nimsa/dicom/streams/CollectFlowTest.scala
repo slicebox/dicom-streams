@@ -36,8 +36,8 @@ class CollectFlowTest extends TestKit(ActorSystem("CollectFlowSpec")) with FlatS
         case e: ElementsPart =>
           e.label shouldBe "tag"
           e.data should have size 2
-          e.sortedElements.head.element.header.tag shouldBe Tag.StudyDate
-          e.sortedElements(1).element.header.tag shouldBe Tag.PatientName
+          e.elements.head.header.tag shouldBe Tag.StudyDate
+          e.elements(1).header.tag shouldBe Tag.PatientName
       }
       .expectHeader(Tag.StudyDate)
       .expectValueChunk()
@@ -93,8 +93,8 @@ class CollectFlowTest extends TestKit(ActorSystem("CollectFlowSpec")) with FlatS
         case e: ElementsPart =>
           e.label shouldBe "tag"
           e.data should have size 2
-          e.sortedElements.head.element.header.tag shouldBe Tag.StudyDate
-          e.sortedElements.last.element.header.tag shouldBe Tag.PatientName
+          e.elements.head.header.tag shouldBe Tag.StudyDate
+          e.elements.last.header.tag shouldBe Tag.PatientName
       }
       .expectHeader(Tag.StudyDate)
       .expectValueChunk()

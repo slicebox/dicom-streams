@@ -284,7 +284,7 @@ object DicomFlows {
               (if (element.explicitVR) ByteString("UL") ++ shortToBytes(4, element.bigEndian) else intToBytes(4, element.bigEndian))
             val lengthHeader = DicomHeader(Tag.FileMetaInformationGroupLength, VR.UL, 4, isFmi = true, element.bigEndian, element.explicitVR, lengthBytes)
             val lengthChunk = DicomValueChunk(element.bigEndian, intToBytes(length, element.bigEndian), last = true)
-            val fmiParts = fmiElementsNoLength.sortedElements.map(_.element).flatMap(element => element.header :: DicomValueChunk(element.bigEndian, element.value, last = true) :: Nil).toList
+            val fmiParts = fmiElementsNoLength.elements.flatMap(element => element.header :: DicomValueChunk(element.bigEndian, element.value, last = true) :: Nil)
             fmi = lengthHeader :: lengthChunk :: fmiParts
           }
           Nil

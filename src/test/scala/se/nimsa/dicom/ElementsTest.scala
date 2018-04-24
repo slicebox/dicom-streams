@@ -97,9 +97,11 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
   }
 
   it should "return properly sorted elements" in {
-    elements.sortedElements shouldBe Seq(
+    elements.toList shouldBe List(
       TpElement(studyDateTag, studyDate),
       TpElement(patientIDSeqTag, patientID),
       TpElement(patientNameTag, patientName))
+    elements.elements shouldBe List(studyDate, patientID, patientName)
+    elements.tagPaths shouldBe List(studyDateTag, patientIDSeqTag, patientNameTag)
   }
 }

@@ -24,8 +24,10 @@ case class Elements(characterSets: CharacterSets, data: Map[TagPath, Element]) {
     Elements(characterSets, data + (tagPath -> element))
   def updateCharacterSets(characterSets: CharacterSets): Elements =
     Elements(characterSets, data)
-  def sortedElements: Seq[TpElement] =
-    data.map(e => (TpElement.apply _).tupled(e)).toSeq.sortWith(_.tagPath < _.tagPath)
+  def toList: List[TpElement] =
+    data.map(e => (TpElement.apply _).tupled(e)).toList.sortWith(_.tagPath < _.tagPath)
+  def elements: List[Element] = toList.map(_.element)
+  def tagPaths: List[TagPath] = toList.map(_.tagPath)
 }
 
 object Elements {
