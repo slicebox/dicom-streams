@@ -10,7 +10,7 @@ import se.nimsa.dicom.VR.VR
 
 class ElementTest extends FlatSpec with Matchers {
 
-  def toElement(bytes: ByteString, bigEndian: Boolean, vr: VR) = Element(TagPath.fromTag(Tag.PatientID), bigEndian, vr, explicitVR = true, bytes.length, padToEvenLength(bytes, vr))
+  def toElement(bytes: ByteString, bigEndian: Boolean, vr: VR) = Element(Tag.PatientID, bigEndian, vr, explicitVR = true, bytes.length, padToEvenLength(bytes, vr))
 
   "Formatting bytes into multiple strings" should "return empty sequence for empty byte string" in {
     toElement(ByteString.empty, bigEndian = false, VR.SH).toStrings() shouldBe Seq.empty
@@ -360,7 +360,7 @@ class ElementTest extends FlatSpec with Matchers {
   }
 
   "An element" should "update its value bytes" in {
-    val updated = Element(TagPath.fromTag(Tag.PatientName), bigEndian = false, VR.PN, explicitVR = true, 8, patientNameJohnDoe().drop(8))
+    val updated = Element(Tag.PatientName, bigEndian = false, VR.PN, explicitVR = true, 8, patientNameJohnDoe().drop(8))
       .withUpdatedValue(ByteString("ABC"))
     updated.length shouldBe 4
     updated.value shouldBe ByteString("ABC ")

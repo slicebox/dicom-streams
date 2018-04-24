@@ -10,7 +10,7 @@ import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import se.nimsa.dicom.TestData._
 import se.nimsa.dicom.streams.ElementFolds._
 import se.nimsa.dicom.streams.TestUtils._
-import se.nimsa.dicom.{Element, Tag, TagPath}
+import se.nimsa.dicom.{Tag, TagPath}
 
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContextExecutor}
@@ -29,7 +29,7 @@ class ElementFoldsTest extends TestKit(ActorSystem("ElementFoldsSpec")) with Fla
       .via(new ParseFlow())
       .via(elementsFlow)
 
-    source.runWith(TestSink.probe[Element])
+    source.runWith(TestSink.probe[TpElement])
       .expectElement(TagPath.fromTag(Tag.PatientName))
       .expectElement(TagPath.fromTag(Tag.StudyDate))
       .expectDicomComplete()
@@ -42,7 +42,7 @@ class ElementFoldsTest extends TestKit(ActorSystem("ElementFoldsSpec")) with Fla
       .via(new ParseFlow())
       .via(elementsFlow)
 
-    source.runWith(TestSink.probe[Element])
+    source.runWith(TestSink.probe[TpElement])
       .expectElement(TagPath.fromTag(Tag.PixelData), ByteString(1,2,3,4))
       .expectElement(TagPath.fromTag(Tag.PixelData), ByteString(5,6,7,8))
       .expectDicomComplete()
@@ -56,7 +56,7 @@ class ElementFoldsTest extends TestKit(ActorSystem("ElementFoldsSpec")) with Fla
       .via(new ParseFlow())
       .via(elementsFlow)
 
-    source.runWith(TestSink.probe[Element])
+    source.runWith(TestSink.probe[TpElement])
       .expectElement(TagPath.fromTag(Tag.StudyDate), ByteString.empty)
       .expectElement(TagPath.fromTag(Tag.PatientName), ByteString("John^Doe"))
       .expectElement(TagPath.fromTag(Tag.PixelData), ByteString.empty)
@@ -78,14 +78,14 @@ class ElementFoldsTest extends TestKit(ActorSystem("ElementFoldsSpec")) with Fla
       .via(elementsFlow)
       .runWith(elementsSink), 5.seconds)
 
-    elements.elements should have length 6
+    elements.elements should have size 6
 
-    elements.elements.map(_.tagPath) shouldBe List(
+    elements.elements.keys.toList.sortWith(_ < _) shouldBe List(
       TagPath.fromTag(Tag.FileMetaInformationGroupLength),
       TagPath.fromTag(Tag.TransferSyntaxUID),
-      TagPath.fromTag(Tag.PatientName),
       TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.StudyDate),
       TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.StudyDate),
+      TagPath.fromTag(Tag.PatientName),
       TagPath.fromTag(Tag.PixelData)
     )
   }

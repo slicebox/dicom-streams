@@ -8,6 +8,7 @@ import se.nimsa.dicom.DicomParts._
 import se.nimsa.dicom._
 import se.nimsa.dicom.VR.VR
 import se.nimsa.dicom.streams.CollectFlow.CollectedElements
+import se.nimsa.dicom.streams.ElementFolds.TpElement
 
 object TestUtils {
 
@@ -176,20 +177,20 @@ object TestUtils {
       }
   }
 
-  type ElementProbe = TestSubscriber.Probe[Element]
+  type ElementProbe = TestSubscriber.Probe[TpElement]
 
   implicit class DicomElementProbe(probe: ElementProbe) {
     def expectElement(tagPath: TagPath): ElementProbe = probe
       .request(1)
       .expectNextChainingPF {
-        case e: Element if e.tagPath == tagPath => true
+        case e: TpElement if e.tagPath == tagPath => true
         case p => throw new RuntimeException(s"Expected Element with tagPath $tagPath, got $p")
       }
 
     def expectElement(tagPath: TagPath, value: ByteString): ElementProbe = probe
       .request(1)
       .expectNextChainingPF {
-        case e: Element if e.tagPath == tagPath && e.value == value => true
+        case e: TpElement if e.tagPath == tagPath && e.element.value == value => true
         case p => throw new RuntimeException(s"Expected Element with tagPath $tagPath and value $value, got $p")
       }
 

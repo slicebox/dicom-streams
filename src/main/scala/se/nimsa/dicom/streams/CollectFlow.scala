@@ -106,7 +106,7 @@ object CollectFlow {
               elementsAndBuffer()
 
             case header: DicomHeader if tagPath.exists(tagCondition) || header.tag == Tag.SpecificCharacterSet =>
-              currentElement = tagPath.map(tp => Element(tp, header.bigEndian, header.vr, header.explicitVR, header.length, ByteString.empty))
+              currentElement = tagPath.map(tp => Element(tp.tag, header.bigEndian, header.vr, header.explicitVR, header.length, ByteString.empty))
               Nil
 
             case _: DicomHeader =>
@@ -120,7 +120,7 @@ object CollectFlow {
                   val updatedElement = element.copy(value = element.value ++ valueChunk.bytes)
                   currentElement = Some(updatedElement)
                   if (valueChunk.last) {
-                    if (updatedElement.tagPath == TagPath.fromTag(Tag.SpecificCharacterSet))
+                    if (updatedElement.tag == Tag.SpecificCharacterSet)
                       characterSets = CharacterSets(updatedElement.bytes)
                     if (tagPath.exists(tagCondition))
                       elements = elements :+ updatedElement

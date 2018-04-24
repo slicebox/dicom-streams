@@ -278,7 +278,7 @@ object DicomFlows {
         case fmiElements: CollectedElements if fmiElements.tag == "fmigrouplength" =>
           if (fmiElements.elements.nonEmpty) {
             val element = fmiElements.elements.head
-            val fmiElementsNoLength = fmiElements.elements.filter(_.tagPath.tag != Tag.FileMetaInformationGroupLength)
+            val fmiElementsNoLength = fmiElements.elements.filter(_.tag != Tag.FileMetaInformationGroupLength)
             val length = fmiElementsNoLength.map(_.bytes.length).sum
             val lengthBytes = tagToBytes(Tag.FileMetaInformationGroupLength, element.bigEndian) ++
               (if (element.explicitVR) ByteString("UL") ++ shortToBytes(4, element.bigEndian) else intToBytes(4, element.bigEndian))

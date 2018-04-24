@@ -134,7 +134,7 @@ object CharacterSets {
   }
 
   def apply(specificCharacterSetBytes: ByteString): CharacterSets = apply(
-    Element(TagPath.fromTag(Tag.SpecificCharacterSet),
+    Element(Tag.SpecificCharacterSet,
       bigEndian = false,
       VR.CS,
       explicitVR = true,

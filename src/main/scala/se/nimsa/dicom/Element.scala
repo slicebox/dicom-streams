@@ -12,14 +12,14 @@ import DicomParts.DicomHeader
 /**
   * This class describes a DICOM data element (or attribute).
   *
-  * @param tagPath    the tag path of the element
+  * @param tag        the tag number of the element
   * @param bigEndian  `true` if this element is using big endian encoding
   * @param vr         the value representation
   * @param explicitVR `true` if this element is encoded using explicit VR
   * @param length     the length of this element's value in bytes
-  * @param value      the binary value of this element, possibly consiting of multiple components
+  * @param value      the binary value of this element, possibly consisting of multiple components
   */
-case class Element(tagPath: TagPath, bigEndian: Boolean, vr: VR, explicitVR: Boolean, length: Long, value: ByteString) {
+case class Element(tag: Int, bigEndian: Boolean, vr: VR, explicitVR: Boolean, length: Long, value: ByteString) {
 
   import Element._
 
@@ -225,7 +225,7 @@ case class Element(tagPath: TagPath, bigEndian: Boolean, vr: VR, explicitVR: Boo
   /**
     * The `DicomHeader` representation of header data in this `Element`
     */
-  lazy val header: DicomHeader = DicomHeader(tagPath.tag, vr, length, isFileMetaInformation(tagPath.tag), bigEndian, explicitVR)
+  lazy val header: DicomHeader = DicomHeader(tag, vr, length, isFileMetaInformation(tag), bigEndian, explicitVR)
 
   /**
     * @return The DICOM byte array representation of this element
