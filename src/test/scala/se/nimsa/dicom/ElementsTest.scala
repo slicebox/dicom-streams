@@ -104,4 +104,11 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
     elements.elements shouldBe List(studyDate, patientID, patientName)
     elements.tagPaths shouldBe List(studyDateTag, patientIDSeqTag, patientNameTag)
   }
+
+  it should "aggregate the bytes of all its elements" in {
+    Elements(CharacterSets.defaultOnly, Map(
+      TagPath.fromTag(Tag.PatientName) -> Element(Tag.PatientName, bigEndian = false, VR.PN, explicitVR = true, length = 8, TestData.patientNameJohnDoe().drop(8)),
+      TagPath.fromTag(Tag.PatientID) -> Element(Tag.PatientID, bigEndian = false, VR.LO, explicitVR = true, length = 8, TestData.patientID().drop(8))
+    )).bytes shouldBe (TestData.patientNameJohnDoe() ++ TestData.patientID())
+  }
 }

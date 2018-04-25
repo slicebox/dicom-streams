@@ -1,5 +1,6 @@
 package se.nimsa.dicom
 
+import akka.util.ByteString
 import se.nimsa.dicom.TagPath.TagPathSequence
 import se.nimsa.dicom.streams.ElementFolds.TpElement
 
@@ -28,6 +29,7 @@ case class Elements(characterSets: CharacterSets, data: Map[TagPath, Element]) {
     data.map(e => (TpElement.apply _).tupled(e)).toList.sortWith(_.tagPath < _.tagPath)
   def elements: List[Element] = toList.map(_.element)
   def tagPaths: List[TagPath] = toList.map(_.tagPath)
+  def bytes: ByteString = elements.map(_.bytes).reduce(_ ++ _)
 }
 
 object Elements {
