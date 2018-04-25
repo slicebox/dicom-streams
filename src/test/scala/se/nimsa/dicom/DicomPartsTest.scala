@@ -93,8 +93,8 @@ class DicomPartsTest extends FlatSpecLike with Matchers {
 
   "ElementsPart" should "aggregate the bytes of all its elements" in {
     new ElementsPart("label", CharacterSets.defaultOnly, Map(
-      TagPath.fromTag(Tag.PatientName) -> Element(Tag.PatientName, bigEndian = false, VR.PN, explicitVR = true, length = 8, patientNameJohnDoe().drop(8)),
-      TagPath.fromTag(Tag.PatientID) -> Element(Tag.PatientID, bigEndian = false, VR.LO, explicitVR = true, length = 8, patientID().drop(8))
+      TagPath.fromTag(Tag.PatientName) -> Element.explicitLE(Tag.PatientName, VR.PN, patientNameJohnDoe().drop(8)),
+      TagPath.fromTag(Tag.PatientID) -> Element.explicitLE(Tag.PatientID, VR.LO, patientID().drop(8))
     )).bytes shouldBe (patientNameJohnDoe() ++ patientID())
   }
 }

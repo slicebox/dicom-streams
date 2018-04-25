@@ -19,7 +19,7 @@ import DicomParts.DicomHeader
   * @param length     the length of this element's value in bytes
   * @param value      the binary value of this element, possibly consisting of multiple components
   */
-case class Element(tag: Int, bigEndian: Boolean, vr: VR, explicitVR: Boolean, length: Long, value: ByteString) {
+case class Element private[dicom](tag: Int, bigEndian: Boolean, vr: VR, explicitVR: Boolean, length: Long, value: ByteString) {
 
   import Element._
 
@@ -300,4 +300,21 @@ object Element {
     if (n > 0) s.dropRight(n) else s
   }
 
+  def empty(tag: Int, vr: VR, bigEndian: Boolean, explicitVR: Boolean) =
+    Element(tag, bigEndian, vr, explicitVR, 0, ByteString.empty)
+
+  def explicitLE(tag: Int, vr: VR, value: ByteString): Element = {
+    val paddedValue = padToEvenLength(value, vr)
+    Element(tag, bigEndian = false, vr, explicitVR = true, paddedValue.length, paddedValue)
+  }
+
+  def explicitBE(tag: Int, vr: VR, value: ByteString): Element = {
+    val paddedValue = padToEvenLength(value, vr)
+    Element(tag, bigEndian = true, vr, explicitVR = true, paddedValue.length, paddedValue)
+  }
+
+  def implicitLE(tag: Int, vr: VR, value: ByteString): Element = {
+    val paddedValue = padToEvenLength(value, vr)
+    Element(tag, bigEndian = false, vr, explicitVR = false, paddedValue.length, paddedValue)
+  }
 }

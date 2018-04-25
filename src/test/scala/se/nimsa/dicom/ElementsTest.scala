@@ -16,9 +16,9 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
 
   override def afterAll(): Unit = system.terminate()
 
-  val studyDate = Element(Tag.StudyDate, bigEndian = false, VR.DA, explicitVR = true, length = 8, ByteString(20041230))
-  val patientName = Element(Tag.PatientName, bigEndian = false, VR.PN, explicitVR = true, length = 8, ByteString("John^Doe"))
-  val patientID = Element(Tag.PatientID, bigEndian = false, VR.LO, explicitVR = true, length = 8, ByteString("12345678"))
+  val studyDate: Element = Element.explicitLE(Tag.StudyDate, VR.DA, ByteString(20041230))
+  val patientName: Element = Element.explicitLE(Tag.PatientName,VR.PN, ByteString("John^Doe"))
+  val patientID: Element = Element.explicitLE(Tag.PatientID, VR.LO, ByteString("12345678"))
 
   val studyDateTag: TagPath = TagPath.fromTag(Tag.StudyDate)
   val patientNameTag: TagPath = TagPath.fromTag(Tag.PatientName)
@@ -62,8 +62,8 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
   }
 
   it should "insert elements in the correct position" in {
-    val characterSets = Element(Tag.SpecificCharacterSet, bigEndian = false, VR.CS, explicitVR = true, length = 4, ByteString("CS1 "))
-    val modality = Element(Tag.Modality, bigEndian = false, VR.CS, explicitVR = true, length = 2, ByteString("NM"))
+    val characterSets = Element.explicitLE(Tag.SpecificCharacterSet, VR.CS,ByteString("CS1 "))
+    val modality = Element.explicitLE(Tag.Modality, VR.CS, ByteString("NM"))
     val characterSetsTag = TagPath.fromTag(Tag.SpecificCharacterSet)
     val modalityTag = TagPath.fromTag(Tag.Modality)
     elements.update(patientIDTag, patientID).data shouldBe Map(
@@ -107,8 +107,8 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
 
   it should "aggregate the bytes of all its elements" in {
     Elements(CharacterSets.defaultOnly, Map(
-      TagPath.fromTag(Tag.PatientName) -> Element(Tag.PatientName, bigEndian = false, VR.PN, explicitVR = true, length = 8, TestData.patientNameJohnDoe().drop(8)),
-      TagPath.fromTag(Tag.PatientID) -> Element(Tag.PatientID, bigEndian = false, VR.LO, explicitVR = true, length = 8, TestData.patientID().drop(8))
+      TagPath.fromTag(Tag.PatientName) -> Element.explicitLE(Tag.PatientName,VR.PN,TestData.patientNameJohnDoe().drop(8)),
+      TagPath.fromTag(Tag.PatientID) -> Element.explicitLE(Tag.PatientID, VR.LO, TestData.patientID().drop(8))
     )).bytes shouldBe (TestData.patientNameJohnDoe() ++ TestData.patientID())
   }
 }

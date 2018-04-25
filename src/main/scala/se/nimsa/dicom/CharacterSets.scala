@@ -133,13 +133,8 @@ object CharacterSets {
     if (s.isEmpty || s.length == 1 && s.head.isEmpty) defaultOnly else new CharacterSets(s)
   }
 
-  def apply(specificCharacterSetBytes: ByteString): CharacterSets = apply(
-    Element(Tag.SpecificCharacterSet,
-      bigEndian = false,
-      VR.CS,
-      explicitVR = true,
-      specificCharacterSetBytes.length,
-      specificCharacterSetBytes))
+  def apply(specificCharacterSetBytes: ByteString): CharacterSets =
+    apply(Element.explicitLE(Tag.SpecificCharacterSet, VR.CS, specificCharacterSetBytes))
 
   def isVrAffectedBySpecificCharacterSet(vr: VR): Boolean =
     vr match {
