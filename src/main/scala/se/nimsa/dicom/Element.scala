@@ -169,46 +169,68 @@ case class Element private[dicom](tag: Int, bigEndian: Boolean, vr: VR, explicit
     * @return the first short representation of this value, if any
     */
   def toShort: Option[Short] = toShorts.headOption
+
   /**
     * @return the first int representation of this value, if any
     */
   def toInt: Option[Int] = toInts.headOption
+
   /**
     * @return the first long representation of this value, if any
     */
   def toLong: Option[Long] = toLongs.headOption
+
   /**
     * @return the first float representation of this value, if any
     */
   def toFloat: Option[Float] = toFloats.headOption
+
   /**
     * @return the first double representation of this value, if any
     */
   def toDouble: Option[Double] = toDoubles.headOption
+
   /**
     * @return the first `LocalDate` representation of this value, if any
     */
   def toDate: Option[LocalDate] = toDates.headOption
+
   /**
     * @return the first `ZonedDateTime` representation of this value, if any
     */
   def toDateTime(zoneOffset: ZoneOffset = systemZone): Option[ZonedDateTime] = toDateTimes(zoneOffset).headOption
+
   /**
     * @return the first `PatientName` representation of this value, if any
     */
   def toPatientName(characterSets: CharacterSets = CharacterSets.defaultOnly): Option[PatientName] = toPatientNames(characterSets).headOption
 
   private def parseAT: Seq[Int] = split(value, 4).map(b => bytesToTag(b, bigEndian))
+
   private def parseSL: Seq[Int] = split(value, 4).map(bytesToInt(_, bigEndian))
+
   private def parseUL: Seq[Long] = parseSL.map(intToUnsignedLong)
+
   private def parseSS: Seq[Short] = split(value, 2).map(bytesToShort(_, bigEndian))
+
   private def parseUS: Seq[Int] = parseSS.map(shortToUnsignedInt)
+
   private def parseFL: Seq[Float] = split(value, 4).map(bytesToFloat(_, bigEndian))
+
   private def parseFD: Seq[Double] = split(value, 8).map(bytesToDouble(_, bigEndian))
-  private def parseDS: Seq[Double] = split(value.utf8String).map(trim).flatMap(s => try Option(java.lang.Double.parseDouble(s)) catch { case _: Throwable => None })
-  private def parseIS: Seq[Long] = split(value.utf8String).map(trim).flatMap(s => try Option(java.lang.Long.parseLong(s)) catch { case _: Throwable => None })
+
+  private def parseDS: Seq[Double] = split(value.utf8String).map(trim).flatMap(s => try Option(java.lang.Double.parseDouble(s)) catch {
+    case _: Throwable => None
+  })
+
+  private def parseIS: Seq[Long] = split(value.utf8String).map(trim).flatMap(s => try Option(java.lang.Long.parseLong(s)) catch {
+    case _: Throwable => None
+  })
+
   private def parseDA: Seq[LocalDate] = split(value.utf8String).flatMap(parseDate)
+
   private def parseDT(zoneOffset: ZoneOffset): Seq[ZonedDateTime] = split(value.utf8String).flatMap(parseDateTime(_, zoneOffset))
+
   private def parsePN(characterSets: CharacterSets): Seq[PatientName] = split(characterSets.decode(VR.PN, value)).map(trimPadding(_, vr.paddingByte)).flatMap(parsePatientName)
 
   /**
@@ -231,6 +253,9 @@ case class Element private[dicom](tag: Int, bigEndian: Boolean, vr: VR, explicit
     * @return The DICOM byte array representation of this element
     */
   def bytes: ByteString = header.bytes ++ value
+
+  override def toString: String =
+    s"Element [${tagToString(tag)} $vr $length (${if (bigEndian) "big endian" else "little endian"}/${if (explicitVR) "explicit" else "implicit"}) ${toSingleString()}]"
 }
 
 object Element {

@@ -139,7 +139,7 @@ class ParseFlow(chunkSize: Int = 8192, stopTag: Option[Int] = None, inflate: Boo
             else
               InDatasetHeader(state, inflater)
           case DicomFragments(_, _, _, bigEndian, _) => InFragments(FragmentsState(fragmentIndex = 0, bigEndian, state.explicitVR), inflater)
-          case DicomSequence(_, _, _, _) => InDatasetHeader(state.copy(itemIndex = 0), inflater)
+          case DicomSequence(_, _, _, _, _) => InDatasetHeader(state.copy(itemIndex = 0), inflater)
           case DicomSequenceItem(index, _, _, _) => InDatasetHeader(state.copy(itemIndex = index), inflater)
           case DicomSequenceItemDelimitation(index, _, _) => InDatasetHeader(state.copy(itemIndex = index), inflater)
           case _ => InDatasetHeader(state, inflater)
@@ -266,7 +266,7 @@ class ParseFlow(chunkSize: Int = 8192, stopTag: Option[Int] = None, inflate: Boo
         val updatedVr2 = if ((updatedVr1 == VR.UN) && valueLength == -1) VR.SQ else updatedVr1
         val bytes = reader.take(headerLength)
         if (updatedVr2 == VR.SQ)
-          Some(DicomSequence(tag, valueLength, state.bigEndian, bytes))
+          Some(DicomSequence(tag, valueLength, state.bigEndian, state.explicitVR, bytes))
         else if (valueLength == -1)
           Some(DicomFragments(tag, valueLength, updatedVr2, state.bigEndian, bytes))
         else

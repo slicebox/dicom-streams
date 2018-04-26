@@ -477,7 +477,7 @@ object DicomFlows {
         case p: DicomPart if !p.bigEndian => p :: Nil
 
         case s: DicomSequence =>
-          DicomSequence(s.tag, s.length, bigEndian = false,
+          DicomSequence(s.tag, s.length, bigEndian = false, explicitVR = true,
             tagToBytesLE(s.tag) ++ ByteString('S', 'Q', 0, 0) ++ s.bytes.takeRight(4).reverse) :: Nil
 
         case _: DicomSequenceDelimitation =>

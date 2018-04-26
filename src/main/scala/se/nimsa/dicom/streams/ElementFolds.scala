@@ -17,6 +17,8 @@ object ElementFolds {
   object TpElement {
     def empty(tagPath: TagPath, header: DicomHeader) =
       TpElement(tagPath, Element(header.tag, header.bigEndian, header.vr, header.explicitVR, header.length, ByteString.empty))
+    def empty(tagPath: TagPath, sequence: DicomSequence) =
+      TpElement(tagPath, Element(sequence.tag, sequence.bigEndian, VR.SQ, sequence.explicitVR, sequence.length, ByteString.empty))
     def empty(tagPath: TagPath, fragments: DicomFragments) =
       TpElement(tagPath, Element(fragments.tag, fragments.bigEndian, fragments.vr, explicitVR = true, fragments.length, ByteString.empty))
   }
@@ -30,6 +32,8 @@ object ElementFolds {
         case header: DicomHeader =>
           currentValue = tagPath.map(TpElement.empty(_, header))
           Nil
+        case sequence: DicomSequence =>
+          tagPath.map(TpElement.empty(_, sequence) :: Nil).getOrElse(Nil)
         case fragments: DicomFragments =>
           currentFragment = tagPath.map(TpElement.empty(_, fragments))
           Nil
