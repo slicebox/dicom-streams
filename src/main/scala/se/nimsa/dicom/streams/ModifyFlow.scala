@@ -90,6 +90,9 @@ object ModifyFlow {
         explicitVR = header.explicitVR
       }
 
+      def valueOrNot(bytes: ByteString): List[DicomPart] =
+        if (bytes.isEmpty) Nil else DicomValueChunk(bigEndian, bytes, last = true) :: Nil
+
       def headerAndValueParts(tagPath: TagPath, modification: ByteString => ByteString): List[DicomPart] = {
         val valueBytes = modification(ByteString.empty)
         val vr = Dictionary.vrOf(tagPath.tag)
@@ -97,8 +100,7 @@ object ModifyFlow {
         if (vr == VR.SQ) throw new IllegalArgumentException("Cannot insert sequences")
         val isFmi = isFileMetaInformation(tagPath.tag)
         val header = DicomHeader(tagPath.tag, vr, valueBytes.length, isFmi, bigEndian, explicitVR)
-        val value = DicomValueChunk(bigEndian, valueBytes, last = true)
-        header :: value :: Nil
+        header :: valueOrNot(valueBytes)
       }
 
       def isBetween(tagToTest: TagPath, upperTag: TagPath, lowerTagMaybe: Option[TagPath]): Boolean =
@@ -124,7 +126,7 @@ object ModifyFlow {
           } else {
             val newValue = tagModification.modification(ByteString.empty)
             val newHeader = header.withUpdatedLength(newValue.length)
-            newHeader :: DicomValueChunk(bigEndian, newValue, last = true) :: Nil
+            newHeader :: valueOrNot(newValue)
           }
         }
         .getOrElse(header :: Nil)
