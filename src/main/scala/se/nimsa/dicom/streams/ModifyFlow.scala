@@ -153,7 +153,7 @@ object ModifyFlow {
                 val newHeader = currentHeader.get.withUpdatedLength(newValue.length)
                 currentModification = None
                 currentHeader = None
-                newHeader :: DicomValueChunk(bigEndian, newValue, last = true) :: Nil
+                newHeader :: valueOrNot(newValue)
               } else
                 Nil
             } else
