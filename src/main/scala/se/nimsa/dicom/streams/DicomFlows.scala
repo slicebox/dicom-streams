@@ -52,11 +52,11 @@ object DicomFlows {
     *
     * Note that it is up to the user of this function to make sure the modified DICOM data is valid.
     *
-    * @param tagsWhitelist list of tag paths to keep.
+    * @param whitelistPaths list of tag paths to keep.
     * @return the associated filter Flow
     */
-  def whitelistFilter(tagsWhitelist: Set[TagPath]): Flow[DicomPart, DicomPart, NotUsed] =
-    tagFilter(_ => false)(currentPath => tagsWhitelist.exists(currentPath.startsWithSuperPath))
+  def whitelistFilter(whitelistPaths: Set[TagPath]): Flow[DicomPart, DicomPart, NotUsed] =
+    tagFilter(_ => false)(currentPath => whitelistPaths.exists(currentPath.startsWithSuperPath))
 
   /**
     * Filter a stream of dicom parts such that elements with tag paths in the black list are discarded. Tag paths in
