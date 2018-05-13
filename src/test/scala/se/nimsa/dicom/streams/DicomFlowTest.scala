@@ -292,36 +292,36 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
   "DICOM flows with tag path tracking" should "update the tag path through attributes, sequences and fragments" in {
     val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ // FMI
       studyDate() ++
-      sequence(Tag.DerivationCodeSequence) ++ item() ++ studyDate() ++ itemEnd() ++ item() ++ // sequence
-      sequence(Tag.DerivationCodeSequence, 24) ++ item(16) ++ studyDate() ++ // nested sequence (determinate length)
+      sequence(Tag.EnergyWindowInformationSequence) ++ item() ++ studyDate() ++ itemEnd() ++ item() ++ // sequence
+      sequence(Tag.EnergyWindowRangeSequence, 24) ++ item(16) ++ studyDate() ++ // nested sequence (determinate length)
       itemEnd() ++ sequenceEnd() ++
       patientNameJohnDoe() ++ // attribute
       pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragmentsEnd()
 
     var expectedPaths = List(
       None, // preamble
-      Some(TagPath.fromTag(Tag.FileMetaInformationGroupLength)), // FMI group length header, then value
-      Some(TagPath.fromTag(Tag.FileMetaInformationGroupLength)),
-      Some(TagPath.fromTag(Tag.TransferSyntaxUID)), // Transfer syntax header, then value
-      Some(TagPath.fromTag(Tag.TransferSyntaxUID)),
-      Some(TagPath.fromTag(Tag.StudyDate)), // Patient name header, then value
-      Some(TagPath.fromTag(Tag.StudyDate)),
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence)), // sequence start
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 1)), // item start
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.StudyDate)), // study date header
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.StudyDate)), // study date value
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 1)), // item end
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2)), // item start
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenSequence(Tag.DerivationCodeSequence)), // sequence start
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenSequence(Tag.DerivationCodeSequence, 1)), // item start
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.StudyDate)), // Study date header
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.StudyDate)), // Study date value
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenSequence(Tag.DerivationCodeSequence, 1)), //  item end (inserted)
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenSequence(Tag.DerivationCodeSequence)), // sequence end (inserted)
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2)), // item end
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence)), // sequence end
-      Some(TagPath.fromTag(Tag.PatientName)), // Patient name header, then value
-      Some(TagPath.fromTag(Tag.PatientName)),
+      Some(TagPath.fromTag(Tag.FileMetaInformationGroupLength)), // FMI group length header
+      Some(TagPath.fromTag(Tag.FileMetaInformationGroupLength)), // FMI group length value
+      Some(TagPath.fromTag(Tag.TransferSyntaxUID)), // Transfer syntax header
+      Some(TagPath.fromTag(Tag.TransferSyntaxUID)), // Transfer syntax value
+      Some(TagPath.fromTag(Tag.StudyDate)), // Patient name header
+      Some(TagPath.fromTag(Tag.StudyDate)), // Patient name value
+      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence)), // sequence start
+      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1)), // item start
+      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1).thenTag(Tag.StudyDate)), // study date header
+      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1).thenTag(Tag.StudyDate)), // study date value
+      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1)), // item end
+      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2)), // item start
+      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence)), // sequence start
+      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1)), // item start
+      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1).thenTag(Tag.StudyDate)), // Study date header
+      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1).thenTag(Tag.StudyDate)), // Study date value
+      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1)), //  item end (inserted)
+      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence)), // sequence end (inserted)
+      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2)), // item end
+      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence)), // sequence end
+      Some(TagPath.fromTag(Tag.PatientName)), // Patient name header
+      Some(TagPath.fromTag(Tag.PatientName)), // Patient name value
       Some(TagPath.fromTag(Tag.PixelData)), // fragments start
       Some(TagPath.fromTag(Tag.PixelData)), // item start
       Some(TagPath.fromTag(Tag.PixelData)), // fragment data
@@ -343,8 +343,8 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
       }))
 
     source.runWith(TestSink.probe[DicomPart])
-      .request(23)
-      .expectNextN(23)
+      .request(27 - 2) // two events inserted
+      .expectNextN(27 - 2)
   }
 
   it should "support using the same tracking more than once within a flow" in {

@@ -276,7 +276,7 @@ trait TagPathTracking[Out] extends DicomFlow[Out] with GuaranteedValueEvent[Out]
 
   abstract override def onSequenceStart(part: DicomSequence): List[Out] = {
     tagPath = tagPath.map {
-      case t: TagPathSequenceItem => t.thenSequence(t.tag)
+      case t: TagPathSequenceItem => t.thenSequence(part.tag)
       case t => t.previous.map(_.thenSequence(part.tag)).getOrElse(TagPath.fromSequence(part.tag))
     }.orElse(Some(TagPath.fromSequence(part.tag)))
     super.onSequenceStart(part)
