@@ -90,11 +90,11 @@ object CollectFlow {
           currentBufferSize = currentBufferSize + part.bytes.size
 
           part match {
-            case _: DicomHeader if tagPath.exists(stopCondition) =>
+            case _: DicomHeader if stopCondition(tagPath) =>
               elementsAndBuffer()
 
-            case header: DicomHeader if tagPath.exists(tagCondition) || header.tag == Tag.SpecificCharacterSet =>
-              currentElement = tagPath.map(tp => Element(tp.tag, header.bigEndian, header.vr, header.explicitVR, header.length, ByteString.empty))
+            case header: DicomHeader if tagCondition(tagPath) || header.tag == Tag.SpecificCharacterSet =>
+              currentElement = Some(Element(tagPath.tag, header.bigEndian, header.vr, header.explicitVR, header.length, ByteString.empty))
               Nil
 
             case _: DicomHeader =>
@@ -110,8 +110,8 @@ object CollectFlow {
                   if (valueChunk.last) {
                     if (updatedElement.tag == Tag.SpecificCharacterSet)
                       elements = elements.updateCharacterSets(CharacterSets(updatedElement.bytes))
-                    if (tagPath.exists(tagCondition))
-                      elements = elements(tagPath.get) = updatedElement
+                    if (tagCondition(tagPath))
+                      elements = elements(tagPath) = updatedElement
                     currentElement = None
                   }
                   Nil

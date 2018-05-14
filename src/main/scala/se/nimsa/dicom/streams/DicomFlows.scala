@@ -23,6 +23,7 @@ import akka.stream.scaladsl.{Flow, Source}
 import akka.util.ByteString
 import se.nimsa.dicom.CharacterSets.utf8Charset
 import se.nimsa.dicom.DicomParts._
+import se.nimsa.dicom.TagPath.EmptyTagPath
 import se.nimsa.dicom.VR.VR
 import se.nimsa.dicom._
 import se.nimsa.dicom.streams.CollectFlow._
@@ -111,8 +112,8 @@ object DicomFlows {
 
       def update(part: DicomPart): Unit =
         keeping = tagPath match {
-          case Some(path) => tagCondition(path)
-          case None => defaultCondition(part)
+          case EmptyTagPath => defaultCondition(part)
+          case path => tagCondition(path)
         }
 
       def emit(part: DicomPart): List[DicomPart] = if (keeping) part :: Nil else Nil

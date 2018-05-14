@@ -47,8 +47,8 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
   }
 
   it should "return a nested elements" in {
-    elements(TagPath.fromSequence(Tag.DerivationCodeSequence)) shouldBe Elements(CharacterSets.defaultOnly, Map(seqTag -> seq, patientIDSeqTag -> patientID))
-    elements(TagPath.fromSequence(Tag.DerivationCodeSequence, 1)) shouldBe Elements(CharacterSets.defaultOnly, Map(patientIDSeqTag -> patientID))
+    elements.sequence(TagPath.fromSequence(Tag.DerivationCodeSequence)) shouldBe Elements(CharacterSets.defaultOnly, Map(seqTag -> seq, patientIDSeqTag -> patientID))
+    elements.sequence(TagPath.fromSequence(Tag.DerivationCodeSequence, 1)) shouldBe Elements(CharacterSets.defaultOnly, Map(patientIDSeqTag -> patientID))
   }
 
   it should "remove element if present" in {

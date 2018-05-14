@@ -21,7 +21,7 @@ import akka.stream.scaladsl.Flow
 import akka.util.ByteString
 import se.nimsa.dicom.DicomParsing.isFileMetaInformation
 import se.nimsa.dicom.DicomParts._
-import se.nimsa.dicom.TagPath.{TagPathSequence, TagPathTag}
+import se.nimsa.dicom.TagPath.{EmptyTagPath, TagPathTag}
 import se.nimsa.dicom.{Dictionary, TagPath, VR}
 
 object ModifyFlow {
@@ -80,7 +80,7 @@ object ModifyFlow {
 
       var currentModification: Option[TagModification] = None // current modification
       var currentHeader: Option[DicomHeader] = None // header of current element being modified
-      var latestTagPath: Option[TagPath] = None // last seen new tag path
+      var latestTagPath: TagPath = EmptyTagPath // last seen new tag path
       var value: ByteString = ByteString.empty // value of current element being modified
       var bigEndian = false // endianness of current element
       var explicitVR = true // VR representation of current element
@@ -103,20 +103,20 @@ object ModifyFlow {
         header :: valueOrNot(valueBytes)
       }
 
-      def isBetween(tagToTest: TagPath, upperTag: TagPath, lowerTagMaybe: Option[TagPath]): Boolean =
-        tagToTest < upperTag && lowerTagMaybe.forall(_ < tagToTest)
+      def isBetween(lowerTag: TagPath, tagToTest: TagPath, upperTag: TagPath): Boolean =
+        lowerTag < tagToTest && tagToTest < upperTag
 
-      def isInDataset(tagToTest: TagPath, sequenceMaybe: Option[TagPathSequence]): Boolean =
-        sequenceMaybe.map(tagToTest.startsWithSubPath).getOrElse(tagToTest.isRoot)
+      def isInDataset(tagToTest: TagPath, tagPath: TagPath): Boolean =
+        tagToTest.previous.hasSubPath(tagPath.previous)
 
       def findInsertParts: List[DicomPart] = sortedModifications
         .filter(_.insert)
-        .filter(m => tagPath.exists(tp => isBetween(m.tagPath, tp, latestTagPath)))
-        .filter(m => isInDataset(m.tagPath, tagPath.flatMap(_.previous)))
+        .filter(m => isBetween(latestTagPath, m.tagPath, tagPath))
+        .filter(m => isInDataset(m.tagPath, tagPath))
         .flatMap(m => headerAndValueParts(m.tagPath, m.modification))
 
       def findModifyPart(header: DicomHeader): List[DicomPart] = sortedModifications
-        .find(m => tagPath.exists(m.matches))
+        .find(m => m.matches(tagPath))
         .map { tagModification =>
           if (header.length > 0) {
             currentHeader = Some(header)
@@ -164,11 +164,11 @@ object ModifyFlow {
             otherPart :: Nil
         }
 
-      override def onEnd(): List[DicomPart] =
+      override def onEnd(): List[DicomPart] = if (latestTagPath.isEmpty) Nil else
         sortedModifications
           .filter(_.insert)
           .filter(_.tagPath.isRoot)
-          .filter(m => latestTagPath.exists(_ < m.tagPath))
+          .filter(m => latestTagPath < m.tagPath)
           .flatMap(m => headerAndValueParts(m.tagPath, m.modification))
     })
 

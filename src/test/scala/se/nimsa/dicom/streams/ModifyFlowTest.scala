@@ -229,7 +229,8 @@ class ModifyFlowTest extends TestKit(ActorSystem("ModifyFlowSpec")) with FlatSpe
     val source = Source.single(bytes)
       .via(new ParseFlow())
       .via(modifyFlow(
-        TagModification.contains(TagPath.fromSequence(Tag.DerivationCodeSequence).thenTag(Tag.StudyDate), _ => studyDate().drop(8), insert = true)))
+        TagModification.contains(TagPath.fromSequence(Tag.DerivationCodeSequence).thenTag(Tag.StudyDate), _ => studyDate().drop(8), insert = true),
+        TagModification.contains(TagPath.fromSequence(Tag.DerivationCodeSequence).thenTag(Tag.PatientName), _ => ByteString.empty, insert = true)))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.PatientName)
@@ -261,20 +262,6 @@ class ModifyFlowTest extends TestKit(ActorSystem("ModifyFlowSpec")) with FlatSpe
 
     source.runWith(TestSink.probe[DicomPart])
       .expectDicomError()
-  }
-
-  it should "skip insert elements pointing to datasets that does not exist" in {
-    val bytes = patientNameJohnDoe()
-
-    val source = Source.single(bytes)
-      .via(new ParseFlow())
-      .via(modifyFlow(
-        TagModification.contains(TagPath.fromSequence(Tag.DerivationCodeSequence).thenTag(Tag.PatientName), _ => ByteString.empty, insert = true)))
-
-    source.runWith(TestSink.probe[DicomPart])
-      .expectHeader(Tag.PatientName)
-      .expectValueChunk()
-      .expectDicomComplete()
   }
 
   it should "insert into the correct sequence item" in {

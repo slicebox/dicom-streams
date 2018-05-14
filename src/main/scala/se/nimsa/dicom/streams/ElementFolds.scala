@@ -30,21 +30,18 @@ object ElementFolds {
 
       override def onPart(part: DicomPart): List[TpElement] = part match {
         case header: DicomHeader =>
-          currentValue = tagPath.map(TpElement.empty(_, header))
+          currentValue = Some(TpElement.empty(tagPath, header))
           Nil
         case sequence: DicomSequence =>
-          tagPath.map(TpElement.empty(_, sequence) :: Nil).getOrElse(Nil)
+          TpElement.empty(tagPath, sequence) :: Nil
         case fragments: DicomFragments =>
-          currentFragment = tagPath.map(TpElement.empty(_, fragments))
+          currentFragment = Some(TpElement.empty(tagPath, fragments))
           Nil
         case fragmentsItem: DicomFragmentsItem =>
-          currentFragment = tagPath
-            .flatMap(tp => currentFragment
-              .map(fragment => fragment.copy(
-                tagPath = tp,
-                element = fragment.element.copy(length = fragmentsItem.length, value = ByteString.empty)
-              ))
-            )
+          currentFragment = currentFragment.map(fragment => fragment.copy(
+            tagPath = tagPath,
+            element = fragment.element.copy(length = fragmentsItem.length, value = ByteString.empty)
+          ))
           Nil
         case _: DicomFragmentsDelimitation =>
           currentFragment = None

@@ -1,7 +1,7 @@
 package se.nimsa.dicom
 
 import akka.util.ByteString
-import se.nimsa.dicom.TagPath.TagPathSequence
+import se.nimsa.dicom.TagPath.TagPathTrunk
 import se.nimsa.dicom.streams.ElementFolds.TpElement
 import se.nimsa.dicom.Element.multiValueDelimiter
 
@@ -46,7 +46,7 @@ case class Elements(characterSets: CharacterSets, data: Map[TagPath, Element]) {
     * @param tagPath path to sequence to extract
     * @return a new Elements
     */
-  def apply(tagPath: TagPathSequence): Elements =
+  def sequence(tagPath: TagPathTrunk): Elements =
     apply(_.startsWithSuperPath(tagPath))
 
   /**

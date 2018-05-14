@@ -8,6 +8,7 @@ import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
+import se.nimsa.dicom.TagPath.EmptyTagPath
 import se.nimsa.dicom._
 import se.nimsa.dicom.streams.ParseFlow.parseFlow
 
@@ -299,36 +300,36 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
       pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragmentsEnd()
 
     var expectedPaths = List(
-      None, // preamble
-      Some(TagPath.fromTag(Tag.FileMetaInformationGroupLength)), // FMI group length header
-      Some(TagPath.fromTag(Tag.FileMetaInformationGroupLength)), // FMI group length value
-      Some(TagPath.fromTag(Tag.TransferSyntaxUID)), // Transfer syntax header
-      Some(TagPath.fromTag(Tag.TransferSyntaxUID)), // Transfer syntax value
-      Some(TagPath.fromTag(Tag.StudyDate)), // Patient name header
-      Some(TagPath.fromTag(Tag.StudyDate)), // Patient name value
-      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence)), // sequence start
-      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1)), // item start
-      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1).thenTag(Tag.StudyDate)), // study date header
-      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1).thenTag(Tag.StudyDate)), // study date value
-      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1)), // item end
-      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2)), // item start
-      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence)), // sequence start
-      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1)), // item start
-      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1).thenTag(Tag.StudyDate)), // Study date header
-      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1).thenTag(Tag.StudyDate)), // Study date value
-      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1)), //  item end (inserted)
-      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence)), // sequence end (inserted)
-      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2)), // item end
-      Some(TagPath.fromSequence(Tag.EnergyWindowInformationSequence)), // sequence end
-      Some(TagPath.fromTag(Tag.PatientName)), // Patient name header
-      Some(TagPath.fromTag(Tag.PatientName)), // Patient name value
-      Some(TagPath.fromTag(Tag.PixelData)), // fragments start
-      Some(TagPath.fromTag(Tag.PixelData)), // item start
-      Some(TagPath.fromTag(Tag.PixelData)), // fragment data
-      Some(TagPath.fromTag(Tag.PixelData)) // fragments end
+      EmptyTagPath, // preamble
+      TagPath.fromTag(Tag.FileMetaInformationGroupLength), // FMI group length header
+      TagPath.fromTag(Tag.FileMetaInformationGroupLength), // FMI group length value
+      TagPath.fromTag(Tag.TransferSyntaxUID), // Transfer syntax header
+      TagPath.fromTag(Tag.TransferSyntaxUID), // Transfer syntax value
+      TagPath.fromTag(Tag.StudyDate), // Patient name header
+      TagPath.fromTag(Tag.StudyDate), // Patient name value
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence), // sequence start
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1), // item start
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1).thenTag(Tag.StudyDate), // study date header
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1).thenTag(Tag.StudyDate), // study date value
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1), // item end
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2), // item start
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence), // sequence start
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1), // item start
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1).thenTag(Tag.StudyDate), // Study date header
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1).thenTag(Tag.StudyDate), // Study date value
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1), //  item end (inserted)
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence), // sequence end (inserted)
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2), // item end
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence), // sequence end
+      TagPath.fromTag(Tag.PatientName), // Patient name header
+      TagPath.fromTag(Tag.PatientName), // Patient name value
+      TagPath.fromTag(Tag.PixelData), // fragments start
+      TagPath.fromTag(Tag.PixelData), // item start
+      TagPath.fromTag(Tag.PixelData), // fragment data
+      TagPath.fromTag(Tag.PixelData) // fragments end
     )
 
-    def check(tagPath: Option[TagPath]): Unit = {
+    def check(tagPath: TagPath): Unit = {
       tagPath shouldBe expectedPaths.head
       expectedPaths = expectedPaths.tail
     }
