@@ -18,37 +18,44 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
 
   val studyDate: Element = Element.explicitLE(Tag.StudyDate, VR.DA, ByteString(20041230))
   val patientName: Element = Element.explicitLE(Tag.PatientName,VR.PN, ByteString("John^Doe"))
-  val patientID: Element = Element.explicitLE(Tag.PatientID, VR.LO, ByteString("12345678"))
+  val patientID1: Element = Element.explicitLE(Tag.PatientID, VR.LO, ByteString("12345678"))
+  val patientID2: Element = Element.explicitLE(Tag.PatientID, VR.LO, ByteString("87654321"))
+  val patientID3: Element = Element.explicitLE(Tag.PatientID, VR.LO, ByteString("18273645"))
   val seq: Element = Element.explicitLE(Tag.DerivationCodeSequence, VR.SQ, ByteString.empty)
 
   val studyDateTag: TagPath = TagPath.fromTag(Tag.StudyDate)
   val patientNameTag: TagPath = TagPath.fromTag(Tag.PatientName)
   val patientIDTag: TagPath= TagPath.fromTag(Tag.PatientID)
   val seqTag: TagPath = TagPath.fromSequence(Tag.DerivationCodeSequence)
-  val patientIDSeqTag: TagPath = TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientID)
+  val patientIDSeqTag1: TagPath = TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientID)
+  val patientIDSeqTag2: TagPath = TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenTag(Tag.PatientID)
 
   val elements = Elements(CharacterSets.defaultOnly, Map(
     studyDateTag -> studyDate,
     seqTag -> seq,
-    patientIDSeqTag -> patientID,
+    patientIDSeqTag1 -> patientID1,
+    patientIDSeqTag2 -> patientID2,
     patientNameTag -> patientName))
 
   "Elements" should "return an existing tag" in {
     elements(patientNameTag) shouldBe Some(patientName)
     elements(Tag.PatientName) shouldBe Some(patientName)
-    elements(patientIDSeqTag) shouldBe Some(patientID)
+    elements(patientIDSeqTag1) shouldBe Some(patientID1)
+    elements(patientIDSeqTag2) shouldBe Some(patientID2)
   }
 
   it should "return elements based on tag path condition" in {
-    val elements2 = elements(patientIDTag) = patientID
-    elements2(_.endsWith(patientIDTag)) shouldBe Elements(elements.characterSets, Map(
-      patientIDSeqTag -> patientID,
-      patientIDTag -> patientID))
+    val elements2 = elements(patientIDTag) = patientID3
+    elements2.filter(_.endsWith(patientIDTag)) shouldBe Elements(elements.characterSets, Map(
+      patientIDSeqTag1 -> patientID1,
+      patientIDSeqTag2 -> patientID2,
+      patientIDTag -> patientID3))
   }
 
   it should "return a nested elements" in {
-    elements.sequence(TagPath.fromSequence(Tag.DerivationCodeSequence)) shouldBe Elements(CharacterSets.defaultOnly, Map(seqTag -> seq, patientIDSeqTag -> patientID))
-    elements.sequence(TagPath.fromSequence(Tag.DerivationCodeSequence, 1)) shouldBe Elements(CharacterSets.defaultOnly, Map(patientIDSeqTag -> patientID))
+    elements.sequence(TagPath.fromSequence(Tag.DerivationCodeSequence)) shouldBe Elements(CharacterSets.defaultOnly, Map(patientIDTag -> patientID1, patientIDTag -> patientID2))
+    elements.sequence(TagPath.fromSequence(Tag.DerivationCodeSequence, 1)) shouldBe Elements(CharacterSets.defaultOnly, Map(patientIDTag -> patientID1))
+    elements.sequence(TagPath.fromSequence(Tag.DerivationCodeSequence, 2)) shouldBe Elements(CharacterSets.defaultOnly, Map(patientIDTag -> patientID2))
   }
 
   it should "remove element if present" in {
@@ -58,10 +65,12 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
     elements.remove(_.endsWith(patientNameTag)) shouldBe Elements(elements.characterSets, Map(
       studyDateTag -> studyDate,
       seqTag -> seq,
-      patientIDSeqTag -> patientID))
+      patientIDSeqTag1 -> patientID1,
+      patientIDSeqTag2 -> patientID2))
     elements.remove(_.equals(studyDateTag)) shouldBe Elements(elements.characterSets, Map(
       seqTag -> seq,
-      patientIDSeqTag -> patientID,
+      patientIDSeqTag1 -> patientID1,
+      patientIDSeqTag2 -> patientID2,
       patientNameTag -> patientName))
     elements.remove(_.endsWith(TagPath.fromTag(Tag.Modality))) shouldBe elements
   }
@@ -71,23 +80,26 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
     val modality = Element.explicitLE(Tag.Modality, VR.CS, ByteString("NM"))
     val characterSetsTag = TagPath.fromTag(Tag.SpecificCharacterSet)
     val modalityTag = TagPath.fromTag(Tag.Modality)
-    elements.update(patientIDTag, patientID).data shouldBe Map(
+    elements.update(patientIDTag, patientID3).data shouldBe Map(
       studyDateTag -> studyDate,
       seqTag -> seq,
-      patientIDSeqTag -> patientID,
+      patientIDSeqTag1 -> patientID1,
+      patientIDSeqTag2 -> patientID2,
       patientNameTag -> patientName,
-      patientIDTag -> patientID)
+      patientIDTag -> patientID3)
     elements.update(TagPath.fromTag(Tag.SpecificCharacterSet), characterSets).data shouldBe Map(
       characterSetsTag -> characterSets,
       studyDateTag -> studyDate,
       seqTag -> seq,
-      patientIDSeqTag -> patientID,
+      patientIDSeqTag1 -> patientID1,
+      patientIDSeqTag2 -> patientID2,
       patientNameTag -> patientName)
     elements.update(TagPath.fromTag(Tag.Modality), modality).data shouldBe Map(
       studyDateTag -> studyDate,
       modalityTag -> modality,
       seqTag -> seq,
-      patientIDSeqTag -> patientID,
+      patientIDSeqTag1 -> patientID1,
+      patientIDSeqTag2 -> patientID2,
       patientNameTag -> patientName)
   }
 
@@ -96,7 +108,7 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
     val updated = elements.update(patientNameTag, newPatientName)
 
     updated.size shouldBe elements.size
-    updated.data.last._2.value.utf8String shouldBe "Jane^Doe"
+    updated(patientNameTag).get.value.utf8String shouldBe "Jane^Doe"
   }
 
   it should "update character sets" in {
@@ -108,10 +120,11 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
     elements.toList shouldBe List(
       TpElement(studyDateTag, studyDate),
       TpElement(seqTag, seq),
-      TpElement(patientIDSeqTag, patientID),
+      TpElement(patientIDSeqTag1, patientID1),
+      TpElement(patientIDSeqTag2, patientID2),
       TpElement(patientNameTag, patientName))
-    elements.elements shouldBe List(studyDate, seq, patientID, patientName)
-    elements.tagPaths shouldBe List(studyDateTag, seqTag, patientIDSeqTag, patientNameTag)
+    elements.elements shouldBe List(studyDate, seq, patientID1, patientID2, patientName)
+    elements.tagPaths shouldBe List(studyDateTag, seqTag, patientIDSeqTag1, patientIDSeqTag2, patientNameTag)
   }
 
   it should "aggregate the bytes of all its elements" in {

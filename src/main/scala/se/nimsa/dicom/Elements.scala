@@ -37,7 +37,7 @@ case class Elements(characterSets: CharacterSets, data: Map[TagPath, Element]) {
     * @param tagPathCondition return elements for which this condition yields `true`
     * @return a new Elements
     */
-  def apply(tagPathCondition: TagPath => Boolean): Elements =
+  def filter(tagPathCondition: TagPath => Boolean): Elements =
     Elements(characterSets, data.filterKeys(tp => tagPathCondition(tp)))
 
   /**
@@ -46,8 +46,13 @@ case class Elements(characterSets: CharacterSets, data: Map[TagPath, Element]) {
     * @param tagPath path to sequence to extract
     * @return a new Elements
     */
-  def sequence(tagPath: TagPathTrunk): Elements =
-    apply(_.startsWithSuperPath(tagPath))
+  def sequence(tagPath: TagPathTrunk): Elements = {
+    val filtered = filter(_.startsWithSuperPath(tagPath))
+    val seqDepth = tagPath.depth
+    Elements(characterSets, filtered.data
+      .map { case (key, value) => key.drop(seqDepth) -> value }
+      .filterKeys(!_.isEmpty))
+  }
 
   /**
     * Insert or update element at the specified tag path

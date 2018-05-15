@@ -92,6 +92,23 @@ class TagPathTest extends FlatSpec with Matchers {
     bPath < aPath shouldBe false
   }
 
+  it should "not provide a particular ordering of two empty tag paths" in {
+    EmptyTagPath < EmptyTagPath shouldBe false
+  }
+
+  it should "sort empty paths as less than any other path" in {
+    EmptyTagPath < TagPath.fromTag(0) shouldBe true
+    EmptyTagPath < TagPath.fromSequence(0) shouldBe true
+    EmptyTagPath < TagPath.fromSequence(0, 1) shouldBe true
+  }
+
+  it should "sort non-empty tag paths after empty paths" in {
+    TagPath.fromTag(0) < EmptyTagPath shouldBe false
+    TagPath.fromSequence(0) < EmptyTagPath shouldBe false
+    TagPath.fromSequence(0, 1) < EmptyTagPath shouldBe false
+
+  }
+
   "Two tag paths" should "be equal if they point to the same path" in {
     val aPath = TagPath.fromSequence(1).thenSequence(2).thenSequence(3).thenTag(4)
     val bPath = TagPath.fromSequence(1).thenSequence(2).thenSequence(3).thenTag(4)
@@ -120,6 +137,10 @@ class TagPathTest extends FlatSpec with Matchers {
     val aPath = TagPath.fromSequence(1)
     val bPath = TagPath.fromSequence(1, 1)
     aPath should not be bPath
+  }
+
+  it should "be equal if both are empty" in {
+    EmptyTagPath == EmptyTagPath shouldBe true
   }
 
   "The startsWith test" should "return true for equal paths" in {
@@ -244,7 +265,7 @@ class TagPathTest extends FlatSpec with Matchers {
     aPath.startsWithSuperPath(bPath) shouldBe true
   }
 
-  "The super path test" should "return false for unequal length paths" in {
+  "The sub path test" should "return false for unequal length paths" in {
     val aPath = TagPath.fromSequence(1, 3).thenSequence(2, 4).thenSequence(3).thenTag(4)
     val bPath = TagPath.fromSequence(1, 3).thenSequence(2, 4).thenTag(4)
     aPath.hasSubPath(bPath) shouldBe false
@@ -262,7 +283,11 @@ class TagPathTest extends FlatSpec with Matchers {
     aPath.hasSubPath(bPath) shouldBe false
   }
 
-  "The sub path test" should "return false for unequal length paths" in {
+  it should "return true for two empty paths" in {
+    EmptyTagPath.hasSubPath(EmptyTagPath) shouldBe true
+  }
+
+  "The super path test" should "return false for unequal length paths" in {
     val aPath = TagPath.fromSequence(1, 3).thenSequence(2, 4).thenSequence(3).thenTag(4)
     val bPath = TagPath.fromSequence(1, 3).thenSequence(2, 4).thenTag(4)
     aPath.hasSuperPath(bPath) shouldBe false
@@ -280,10 +305,28 @@ class TagPathTest extends FlatSpec with Matchers {
     aPath.hasSuperPath(bPath) shouldBe true
   }
 
+  it should "return true for two empty paths" in {
+    EmptyTagPath.hasSuperPath(EmptyTagPath) shouldBe true
+  }
+
   "The endsWith test" should "return true when a longer tag ends with a shorter" in {
     val aPath = TagPath.fromSequence(1, 3).thenTag(2)
     val bPath = TagPath.fromTag(2)
     aPath.endsWith(bPath) shouldBe true
+  }
+
+  it should "return true for two empty paths" in {
+    EmptyTagPath.endsWith(EmptyTagPath) shouldBe true
+  }
+
+  it should "return false when checking if non-empty path ends with empty path" in {
+    val aPath = TagPath.fromTag(1)
+    aPath.endsWith(EmptyTagPath) shouldBe false
+  }
+
+  it should "return false when empty path starts with non-empty path" in {
+    val aPath = TagPath.fromTag(1)
+    EmptyTagPath.endsWith(aPath) shouldBe false
   }
 
   it should "return false when a shorter tag is compared to a longer" in {

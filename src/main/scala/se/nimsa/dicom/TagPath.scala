@@ -179,7 +179,6 @@ sealed trait TagPath {
       case (thisTag: TagPathTag, thatTag: TagPathTag) => thisTag.tag == thatTag.tag
       case _ => false
     }) && ((this.previous, that.previous) match {
-      case (EmptyTagPath, EmptyTagPath) => true
       case (_, EmptyTagPath) => true
       case (EmptyTagPath, _) => false
       case (thisPrev, thatPrev) => thisPrev.endsWith(thatPrev, f1, f2)
