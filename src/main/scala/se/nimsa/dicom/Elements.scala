@@ -1,9 +1,11 @@
 package se.nimsa.dicom
 
+import akka.NotUsed
+import akka.stream.scaladsl.Source
 import akka.util.ByteString
+import se.nimsa.dicom.Element.multiValueDelimiter
 import se.nimsa.dicom.TagPath.TagPathTrunk
 import se.nimsa.dicom.streams.ElementFolds.TpElement
-import se.nimsa.dicom.Element.multiValueDelimiter
 
 /**
   * Representation of a group of `Element`s, each paired with the `TagPath` that describes their position within a
@@ -41,7 +43,8 @@ case class Elements(characterSets: CharacterSets, data: Map[TagPath, Element]) {
     Elements(characterSets, data.filterKeys(tp => tagPathCondition(tp)))
 
   /**
-    * Get all elements contained in the specified sequence, if any
+    * Get all elements contained in the specified sequence, if any. Tag paths will be truncated from the left up to and
+    * including the requested sequence.
     *
     * @param tagPath path to sequence to extract
     * @return a new Elements
@@ -108,9 +111,30 @@ case class Elements(characterSets: CharacterSets, data: Map[TagPath, Element]) {
   def tagPaths: List[TagPath] = toList.map(_.tagPath)
 
   /**
-    * @return the byte array representation of this Elements
+    * @return a DICOM byte array representation of this Elements. This representation may be different from one used to
+    *         produce this Elements as items and sequences are always of indeterminate length here.
     */
-  def bytes: ByteString = elements.foldLeft(ByteString.empty)(_ ++ _.bytes)
+  def toBytes: Source[ByteString, NotUsed] =
+    Source(data.toList)
+      .statefulMapConcat(() => {
+        var currentDepth = 0
+
+        {
+          case (tagPath, element) =>
+            val newDepth = tagPath.depth
+            val change = newDepth - currentDepth
+            currentDepth = newDepth
+
+            if (change > 0) { // item
+              val item = tagToBytes(Tag.Item, element.bigEndian) ++ ByteString(0xFF, 0xFF, 0xFF, 0xFF)
+              item ++ element.bytes :: Nil
+            } else if (change < 0) { // delimitation
+              val delim = tagToBytes(Tag.ItemDelimitationItem, element.bigEndian) ++ ByteString(0, 0, 0, 0)
+              delim ++ element.bytes :: Nil
+            } else
+              element.bytes :: Nil
+        }
+      })
 
   /**
     * @return the number of elements in this Elements
@@ -125,8 +149,7 @@ case class Elements(characterSets: CharacterSets, data: Map[TagPath, Element]) {
       case _ => element.toStrings(characterSets)
     }
     val singleString = strings.mkString(multiValueDelimiter).replaceAll("[\\r\\n]+", " ")
-    val shortString = if (singleString.length > 64)
-      s"${singleString.take(64)}... (${singleString.length - 64} more chars)" else singleString
+    val shortString = if (singleString.length > 64) s"${singleString.take(64)}... (${singleString.length - 64} more)" else singleString
     s"$tagPath ${element.vr} ${element.length} ${strings.length} $shortString ${Keyword.valueOf(tagPath.tag)}"
   }.mkString("\r\n")
 }

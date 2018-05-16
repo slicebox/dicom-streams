@@ -73,7 +73,7 @@ class ValidateFlowTest extends TestKit(ActorSystem("ValidateFlowSpec")) with Fla
 
 
   it should "accept any file that starts like a DICOM file" in {
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ ByteString.fromArray(new Array[Byte](1024))
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ ByteString.fromArray(new Array[Byte](1024))
 
     val source = Source.single(bytes)
       .via(new Chunker(10))
@@ -91,7 +91,7 @@ class ValidateFlowTest extends TestKit(ActorSystem("ValidateFlowSpec")) with Fla
   "The DICOM validation flow with contexts" should "buffer first 512 bytes" in {
 
     val contexts = Seq(ValidationContext(UID.CTImageStorage, UID.ExplicitVRLittleEndian))
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ fmiVersion ++ mediaStorageSOPClassUID ++ mediaStorageSOPInstanceUID ++ tsuidExplicitLE ++
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ fmiVersion() ++ mediaStorageSOPClassUID() ++ mediaStorageSOPInstanceUID() ++ transferSyntaxUID() ++
       ByteString.fromArray(new Array[Byte](1024))
 
     val source = Source.single(bytes)
@@ -109,7 +109,7 @@ class ValidateFlowTest extends TestKit(ActorSystem("ValidateFlowSpec")) with Fla
   it should "accept dicom data that corresponds to the given contexts" in {
 
     val contexts = Seq(ValidationContext(UID.CTImageStorage, UID.ExplicitVRLittleEndian))
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ fmiVersion ++ mediaStorageSOPClassUID ++ mediaStorageSOPInstanceUID ++ tsuidExplicitLE
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ fmiVersion() ++ mediaStorageSOPClassUID() ++ mediaStorageSOPInstanceUID() ++ transferSyntaxUID()
 
     val moreThan512Bytes = bytes ++ ByteString.fromArray(new Array[Byte](1024))
 
@@ -140,7 +140,7 @@ class ValidateFlowTest extends TestKit(ActorSystem("ValidateFlowSpec")) with Fla
   it should "not accept dicom data that does not correspond to the given contexts" in {
 
     val contexts = Seq(ValidationContext(UID.CTImageStorage, "1.2.840.10008.1.2.2"))
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ fmiVersion ++ mediaStorageSOPClassUID ++ mediaStorageSOPInstanceUID ++ tsuidExplicitLE
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ fmiVersion() ++ mediaStorageSOPClassUID() ++ mediaStorageSOPInstanceUID() ++ transferSyntaxUID()
 
     val moreThan512Bytes = bytes ++ ByteString.fromArray(new Array[Byte](1024))
 
@@ -168,7 +168,7 @@ class ValidateFlowTest extends TestKit(ActorSystem("ValidateFlowSpec")) with Fla
   it should "be able to parse dicom file meta information with missing mandatory fields" in {
 
     val contexts = Seq(ValidationContext(UID.CTImageStorage, UID.ExplicitVRLittleEndian))
-    val bytes = preamble ++ fmiVersion ++ mediaStorageSOPClassUID ++ tsuidExplicitLE
+    val bytes = preamble ++ fmiVersion() ++ mediaStorageSOPClassUID() ++ transferSyntaxUID()
 
     val moreThan512Bytes = bytes ++ ByteString.fromArray(new Array[Byte](1024))
 
@@ -197,7 +197,7 @@ class ValidateFlowTest extends TestKit(ActorSystem("ValidateFlowSpec")) with Fla
   it should "be able to parse dicom file meta information with wrong transfer syntax" in {
     val contexts = Seq(ValidationContext(UID.CTImageStorage, UID.ExplicitVRLittleEndian))
 
-    val bytes = preamble ++ fmiVersionImplicit ++ mediaStorageSOPClassUIDImplicitLE ++ tsuidExplicitLEImplicit
+    val bytes = preamble ++ fmiVersion(explicitVR = false) ++ mediaStorageSOPClassUID(explicitVR = false) ++ transferSyntaxUID(explicitVR = false)
 
     val moreThan512Bytes = bytes ++ ByteString.fromArray(new Array[Byte](1024))
 

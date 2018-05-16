@@ -23,7 +23,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   override def afterAll(): Unit = system.terminate()
 
   "A DICOM flow" should "produce a preamble, FMI tags and dataset tags for a complete DICOM file" in {
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe()
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -40,7 +40,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   }
 
   it should "read files without preamble but with FMI" in {
-    val bytes = fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe()
+    val bytes = fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -79,7 +79,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   }
 
   it should "output a warning message when non-meta information is included in the header" in {
-    val bytes = fmiGroupLength(tsuidExplicitLE, studyDate()) ++ tsuidExplicitLE ++ studyDate()
+    val bytes = fmiGroupLength(transferSyntaxUID(), studyDate()) ++ transferSyntaxUID() ++ studyDate()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -106,7 +106,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   }
 
   it should "skip very long (and obviously erroneous) transfer syntaxes (see warning log message)" in {
-    val malformedTsuid = tsuidExplicitLE.take(6) ++ ByteString(20, 8) ++ tsuidExplicitLE.takeRight(20) ++ ByteString.fromArray(new Array[Byte](2048))
+    val malformedTsuid = transferSyntaxUID().take(6) ++ ByteString(20, 8) ++ transferSyntaxUID().takeRight(20) ++ ByteString.fromArray(new Array[Byte](2048))
     val bytes = fmiGroupLength(malformedTsuid) ++ malformedTsuid ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
@@ -134,7 +134,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   }
 
   it should "inflate deflated datasets" in {
-    val bytes = fmiGroupLength(tsuidDeflatedExplicitLE) ++ tsuidDeflatedExplicitLE ++ deflate(patientNameJohnDoe() ++ studyDate())
+    val bytes = fmiGroupLength(transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian)) ++ transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian) ++ deflate(patientNameJohnDoe() ++ studyDate())
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -152,7 +152,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   }
 
   it should "inflate gzip deflated datasets (with warning message)" in {
-    val bytes = fmiGroupLength(tsuidDeflatedExplicitLE) ++ tsuidDeflatedExplicitLE ++ deflate(patientNameJohnDoe() ++ studyDate(), gzip = true)
+    val bytes = fmiGroupLength(transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian)) ++ transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian) ++ deflate(patientNameJohnDoe() ++ studyDate(), gzip = true)
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -170,7 +170,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   }
 
   it should "pass through deflated data when asked not to inflate" in {
-    val bytes = fmiGroupLength(tsuidDeflatedExplicitLE) ++ tsuidDeflatedExplicitLE ++ deflate(patientNameJohnDoe() ++ studyDate())
+    val bytes = fmiGroupLength(transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian)) ++ transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian) ++ deflate(patientNameJohnDoe() ++ studyDate())
 
     val source = Source.single(bytes)
       .via(new ParseFlow(inflate = false))
@@ -274,7 +274,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   }
 
   it should "read a valid DICOM file correctly when data chunks are very small" in {
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe()
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
       .via(new Chunker(chunkSize = 1))
@@ -302,7 +302,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   }
 
   it should "read DICOM files with explicit VR big-endian transfer syntax" in {
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitBE) ++ tsuidExplicitBE ++ patientNameJohnDoe(bigEndian = true)
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID(UID.ExplicitVRBigEndianRetired)) ++ transferSyntaxUID(UID.ExplicitVRBigEndianRetired) ++ patientNameJohnDoe(bigEndian = true)
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -319,7 +319,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   }
 
   it should "read DICOM files with implicit VR little endian transfer syntax" in {
-    val bytes = preamble ++ fmiGroupLength(tsuidImplicit) ++ tsuidImplicit ++ patientNameJohnDoeImplicit
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID(UID.ImplicitVRLittleEndian)) ++ transferSyntaxUID(UID.ImplicitVRLittleEndian) ++ patientNameJohnDoe(explicitVR = false)
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -348,7 +348,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   }
 
   it should "chunk value data according to max chunk size" in {
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe()
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
       .via(new ParseFlow(chunkSize = 5))
@@ -369,7 +369,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   }
 
   it should "chunk deflated data according to max chunk size" in {
-    val bytes = fmiGroupLength(tsuidDeflatedExplicitLE) ++ tsuidDeflatedExplicitLE ++ deflate(patientNameJohnDoe() ++ studyDate())
+    val bytes = fmiGroupLength(transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian)) ++ transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian) ++ deflate(patientNameJohnDoe() ++ studyDate())
 
     val source = Source.single(bytes)
       .via(new ParseFlow(chunkSize = 25, inflate = false))
@@ -385,7 +385,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   }
 
   it should "accept meta information encoded with implicit VR" in {
-    val bytes = preamble ++ tsuidExplicitLEImplicit ++ patientNameJohnDoe()
+    val bytes = preamble ++ transferSyntaxUID(explicitVR = false) ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())

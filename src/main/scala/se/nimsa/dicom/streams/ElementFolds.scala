@@ -8,12 +8,22 @@ import DicomParts._
 
 import scala.concurrent.Future
 
+/**
+  * Flow, Sink etc that combine DICOM parts into data element aggregates.
+  */
 object ElementFolds {
 
+  /**
+    * Helper class that keeps track of an element and its tag path in a dataset
+    *
+    * @param tagPath tag path in dataset
+    * @param element the element
+    */
   case class TpElement(tagPath: TagPath, element: Element) {
     def ++(bytes: ByteString): TpElement =
       copy(element = element.copy(value = element.value ++ bytes))
   }
+
   object TpElement {
     def empty(tagPath: TagPath, header: DicomHeader) =
       TpElement(tagPath, Element(header.tag, header.bigEndian, header.vr, header.explicitVR, header.length, ByteString.empty))
@@ -23,6 +33,11 @@ object ElementFolds {
       TpElement(tagPath, Element(fragments.tag, fragments.bigEndian, fragments.vr, explicitVR = true, fragments.length, ByteString.empty))
   }
 
+  /**
+    * @return a `Flow` that aggregates `DicomPart`s into data elements. Each element holds header and complete value
+    *         information. Items, and sequence and item delimitations are not output, as their occurrence is implicit
+    *         from the change in tag path between two elements.
+    */
   def elementsFlow: Flow[DicomPart, TpElement, NotUsed] =
     DicomFlowFactory.create(new DeferToPartFlow[TpElement] with TagPathTracking[TpElement] {
       var currentValue: Option[TpElement] = None
@@ -57,6 +72,10 @@ object ElementFolds {
     })
 
 
+  /**
+    * A `Sink` that combines data elements into an `Elements` structure. If the `SpecificCharacterSet` element occurs,
+    * the character sets of the `Elements` structure is updated accordingly.
+    */
   val elementsSink: Sink[TpElement, Future[Elements]] = Flow[TpElement]
     .fold(Elements.empty) {
       case (elements, tagPathElement) =>

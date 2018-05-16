@@ -65,7 +65,7 @@ class ElementFoldsTest extends TestKit(ActorSystem("ElementFoldsSpec")) with Fla
   }
 
   "The elements sink" should "aggregate all elements" in {
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ // FMI
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ // FMI
       patientNameJohnDoe() ++ // attribute
       sequence(Tag.DerivationCodeSequence) ++ item() ++ studyDate() ++ itemEnd() ++ item() ++ // sequence
       sequence(Tag.DerivationCodeSequence, 24) ++ item(16) ++ studyDate() ++ // nested sequence (determinate length)

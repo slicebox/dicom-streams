@@ -42,7 +42,7 @@ object DicomFlows {
     *
     * @return the associated flow
     */
-  val printFlow: Flow[DicomPart, DicomPart, NotUsed] = Flow.fromFunction { a =>
+  def printFlow[A]: Flow[A, A, NotUsed] = Flow.fromFunction { a =>
     println(a)
     a
   }

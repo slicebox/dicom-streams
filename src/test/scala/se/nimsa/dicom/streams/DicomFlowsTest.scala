@@ -28,7 +28,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   override def afterAll(): Unit = system.terminate()
 
   "A print flow" should "not change incoming elements" in {
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe()
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -46,7 +46,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   "The DICOM parts filter" should "block all elements not on the white list" in {
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe() ++ studyDate()
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -59,7 +59,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   it should "also apply to FMI is instructed" in {
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe() ++ studyDate()
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -95,7 +95,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
   "The DICOM group length discard filter" should "discard group length elements except 0002,0000" in {
     val groupLength = ByteString(8, 0, 0, 0, 85, 76, 4, 0) ++ intToBytesLE(studyDate().size)
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ groupLength ++ studyDate()
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ groupLength ++ studyDate()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -127,7 +127,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   "The DICOM file meta information discard filter" should "discard file meta informaton" in {
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe() ++ studyDate()
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -171,7 +171,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   "The DICOM blacklist filter" should "filter elements matching the blacklist condition" in {
-    val bytes = preamble ++ fmiGroupLength(fmiVersion, tsuidExplicitLE) ++ fmiVersion ++ tsuidExplicitLE ++ studyDate()
+    val bytes = preamble ++ fmiGroupLength(fmiVersion(), transferSyntaxUID()) ++ fmiVersion() ++ transferSyntaxUID() ++ studyDate()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -248,7 +248,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
 
   "The DICOM whitelist filter" should "filter elements not matching the whitelist condition" in {
-    val bytes = preamble ++ fmiGroupLength(fmiVersion, tsuidExplicitLE) ++ fmiVersion ++ tsuidExplicitLE ++ patientNameJohnDoe() ++ studyDate()
+    val bytes = preamble ++ fmiGroupLength(fmiVersion(), transferSyntaxUID()) ++ fmiVersion() ++ transferSyntaxUID() ++ patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -275,14 +275,14 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   "The deflate flow" should "recreate the dicom parts of a dataset which has been deflated and inflated again" in {
-    val bytes = fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe() ++ studyDate()
+    val bytes = fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
       .via(deflateDatasetFlow)
       .via(modifyFlow(
-        TagModification.contains(TagPath.fromTag(Tag.FileMetaInformationGroupLength), _ => fmiGroupLength(tsuidDeflatedExplicitLE), insert = false),
-        TagModification.contains(TagPath.fromTag(Tag.TransferSyntaxUID), _ => tsuidDeflatedExplicitLE.drop(8), insert = false)))
+        TagModification.contains(TagPath.fromTag(Tag.FileMetaInformationGroupLength), _ => fmiGroupLength(transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian)), insert = false),
+        TagModification.contains(TagPath.fromTag(Tag.TransferSyntaxUID), _ => transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian).drop(8), insert = false)))
       .map(_.bytes)
       .via(new ParseFlow())
 
@@ -299,7 +299,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   it should "not deflate meta information" in {
-    val bytes = fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe() ++ studyDate()
+    val bytes = fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -325,7 +325,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   "The bulk data filter flow" should "remove pixel data" in {
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe() ++ pixelData(1000)
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe() ++ pixelData(1000)
 
     val source = Source.single(bytes)
       .via(parseFlow)
@@ -383,8 +383,8 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   "The FMI group length flow" should "calculate and emit the correct group length attribute" in {
-    val correctLength = tsuidExplicitLE.length
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE.drop(2)) ++ tsuidExplicitLE ++ patientNameJohnDoe()
+    val correctLength = transferSyntaxUID().length
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID().drop(2)) ++ transferSyntaxUID() ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
       .via(parseFlow)
@@ -402,8 +402,8 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   it should "work also in flows with file meta information only" in {
-    val correctLength = tsuidExplicitLE.length
-    val bytes = preamble ++ tsuidExplicitLE // missing file meta information group length
+    val correctLength = transferSyntaxUID().length
+    val bytes = preamble ++ transferSyntaxUID() // missing file meta information group length
 
     val source = Source.single(bytes)
       .via(parseFlow)
@@ -419,8 +419,8 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   it should "work in flows without preamble" in {
-    val correctLength = tsuidExplicitLE.length
-    val bytes = tsuidExplicitLE ++ patientNameJohnDoe()
+    val correctLength = transferSyntaxUID().length
+    val bytes = transferSyntaxUID() ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
       .via(parseFlow)
@@ -482,8 +482,8 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       def bytes: ByteString = ByteString.empty
     }
 
-    val correctLength = tsuidExplicitLE.length
-    val bytes = preamble ++ tsuidExplicitLE // missing file meta information group length
+    val correctLength = transferSyntaxUID().length
+    val bytes = preamble ++ transferSyntaxUID() // missing file meta information group length
 
     val source = Source.single(bytes)
       .via(parseFlow)
@@ -762,8 +762,8 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
   "The explicit VR little endian flow" should "convert explicit VR big endian to explicit VR little endian" in {
     val bigEndian = true
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitBE) ++ tsuidExplicitBE ++ patientNameJohnDoe(bigEndian) ++
-      rows(bigEndian) ++ dataPointRows(bigEndian) ++ apexPosition(bigEndian) ++
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID(UID.ExplicitVRBigEndianRetired)) ++ transferSyntaxUID(UID.ExplicitVRBigEndianRetired) ++
+      patientNameJohnDoe(bigEndian) ++ rows(bigEndian) ++ dataPointRows(bigEndian) ++ apexPosition(bigEndian) ++
       sequence(Tag.DerivationCodeSequence, bigEndian) ++ item(bigEndian) ++ studyDate(bigEndian) ++
       itemEnd(bigEndian) ++ sequenceEnd(bigEndian) ++ pixeDataFragments(bigEndian) ++ fragment(1000, bigEndian) ++
       (1 to 500).map(_.toShort).map(shortToBytesBE).reduce(_ ++ _) ++ fragmentsEnd(bigEndian)
@@ -777,7 +777,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectHeader(Tag.FileMetaInformationGroupLength)
       .expectValueChunk()
       .expectHeader(Tag.TransferSyntaxUID)
-      .expectValueChunk(tsuidExplicitLE.drop(8))
+      .expectValueChunk(transferSyntaxUID().drop(8))
       .expectHeader(Tag.PatientName)
       .expectValueChunk(patientNameJohnDoe().drop(8))
       .expectHeader(Tag.Rows)
@@ -800,7 +800,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   it should "convert implicit VR little endian to explicit VR little endian" in {
-    val bytes = patientNameJohnDoeImplicit
+    val bytes = patientNameJohnDoe(explicitVR = false)
 
     val source = Source.single(bytes)
       .via(parseFlow)
@@ -816,7 +816,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
   it should "not change a file already encoded with explicit VR little endian" in {
     val bigEndian = false
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ patientNameJohnDoe(bigEndian) ++
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID()++ patientNameJohnDoe(bigEndian) ++
       rows(bigEndian) ++ dataPointRows(bigEndian) ++ apexPosition(bigEndian) ++
       sequence(Tag.DerivationCodeSequence, bigEndian) ++ item(bigEndian) ++ studyDate(bigEndian) ++
       itemEnd(bigEndian) ++ sequenceEnd(bigEndian) ++ pixeDataFragments(bigEndian) ++ fragment(1000, bigEndian) ++

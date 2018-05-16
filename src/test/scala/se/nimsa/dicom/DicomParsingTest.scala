@@ -33,7 +33,7 @@ class DicomParsingTest extends FlatSpecLike with Matchers {
   }
 
   it should "parse headers for implicit VR little endian" in {
-    val bytes = patientNameJohnDoeImplicit
+    val bytes = patientNameJohnDoe(explicitVR = false)
     val maybeHeader = readHeaderImplicitVR(bytes)
     maybeHeader.isDefined shouldBe true
     val (tag, vr, headerLength, length) = maybeHeader.get
@@ -50,7 +50,7 @@ class DicomParsingTest extends FlatSpecLike with Matchers {
   }
 
   it should "parse a UID data element for explicit VR little endian" in {
-    val bytes = mediaStorageSOPInstanceUID
+    val bytes = mediaStorageSOPInstanceUID()
     val msuid = parseUIDElement(bytes, explicitVR = true, assumeBigEndian = false)
     msuid.tag shouldBe Tag.MediaStorageSOPInstanceUID
     msuid.vr shouldBe VR.UI
@@ -58,7 +58,7 @@ class DicomParsingTest extends FlatSpecLike with Matchers {
   }
 
   it should "parse a UID data element for implicit VR little endian" in {
-    val bytes = mediaStorageSOPClassUIDImplicitLE
+    val bytes = mediaStorageSOPClassUID(explicitVR = false)
     val msuid = parseUIDElement(bytes, explicitVR = false, assumeBigEndian = false)
     msuid.tag shouldBe Tag.MediaStorageSOPClassUID
     msuid.vr shouldBe VR.UI

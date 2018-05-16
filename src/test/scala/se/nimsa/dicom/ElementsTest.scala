@@ -2,12 +2,17 @@ package se.nimsa.dicom
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.{Sink, Source}
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{AsyncFlatSpecLike, BeforeAndAfterAll, Matchers}
+import se.nimsa.dicom.TestData.{studyDate => testStudyDate, _}
 import se.nimsa.dicom.streams.ElementFolds.TpElement
+import se.nimsa.dicom.streams.ElementFolds._
+import se.nimsa.dicom.streams.ParseFlow.parseFlow
 
-import scala.concurrent.ExecutionContextExecutor
+import scala.concurrent.{Await, ExecutionContextExecutor}
+import scala.concurrent.duration.DurationInt
 
 class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSpecLike with Matchers with BeforeAndAfterAll {
 
@@ -17,7 +22,7 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
   override def afterAll(): Unit = system.terminate()
 
   val studyDate: Element = Element.explicitLE(Tag.StudyDate, VR.DA, ByteString(20041230))
-  val patientName: Element = Element.explicitLE(Tag.PatientName,VR.PN, ByteString("John^Doe"))
+  val patientName: Element = Element.explicitLE(Tag.PatientName, VR.PN, ByteString("John^Doe"))
   val patientID1: Element = Element.explicitLE(Tag.PatientID, VR.LO, ByteString("12345678"))
   val patientID2: Element = Element.explicitLE(Tag.PatientID, VR.LO, ByteString("87654321"))
   val patientID3: Element = Element.explicitLE(Tag.PatientID, VR.LO, ByteString("18273645"))
@@ -25,7 +30,7 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
 
   val studyDateTag: TagPath = TagPath.fromTag(Tag.StudyDate)
   val patientNameTag: TagPath = TagPath.fromTag(Tag.PatientName)
-  val patientIDTag: TagPath= TagPath.fromTag(Tag.PatientID)
+  val patientIDTag: TagPath = TagPath.fromTag(Tag.PatientID)
   val seqTag: TagPath = TagPath.fromSequence(Tag.DerivationCodeSequence)
   val patientIDSeqTag1: TagPath = TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientID)
   val patientIDSeqTag2: TagPath = TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenTag(Tag.PatientID)
@@ -76,7 +81,7 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
   }
 
   it should "insert elements in the correct position" in {
-    val characterSets = Element.explicitLE(Tag.SpecificCharacterSet, VR.CS,ByteString("CS1 "))
+    val characterSets = Element.explicitLE(Tag.SpecificCharacterSet, VR.CS, ByteString("CS1 "))
     val modality = Element.explicitLE(Tag.Modality, VR.CS, ByteString("NM"))
     val characterSetsTag = TagPath.fromTag(Tag.SpecificCharacterSet)
     val modalityTag = TagPath.fromTag(Tag.Modality)
@@ -128,14 +133,27 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
   }
 
   it should "aggregate the bytes of all its elements" in {
-    Elements(CharacterSets.defaultOnly, Map(
-      TagPath.fromTag(Tag.PatientName) -> Element.explicitLE(Tag.PatientName,VR.PN,TestData.patientNameJohnDoe().drop(8)),
-      TagPath.fromTag(Tag.PatientID) -> Element.explicitLE(Tag.PatientID, VR.LO, TestData.patientID().drop(8))
-    )).bytes shouldBe (TestData.patientNameJohnDoe() ++ TestData.patientID())
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ // FMI
+      testStudyDate() ++
+      sequence(Tag.EnergyWindowInformationSequence) ++ item() ++ testStudyDate() ++ itemEnd() ++ item() ++ // sequence
+      sequence(Tag.EnergyWindowRangeSequence) ++ item() ++ testStudyDate() ++ itemEnd() ++ sequenceEnd() ++ // nested sequence (determinate length)
+      itemEnd() ++ sequenceEnd() ++
+      patientNameJohnDoe() ++ // attribute
+      pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragmentsEnd()
+
+    val elementsBytes = Await.result(
+      Source.single(bytes)
+        .via(parseFlow)
+        .via(elementsFlow)
+        .runWith(elementsSink)
+        .flatMap(_.toBytes.runWith(Sink.reduce[ByteString](_ ++ _))),
+      5.seconds)
+
+    elementsBytes shouldBe bytes
   }
 
   it should "return an empty byte string when aggregating bytes with no data" in {
-    Elements.empty.bytes shouldBe ByteString.empty
+    Elements.empty.toBytes shouldBe ByteString.empty
   }
 
   it should "render an informative string representation" in {
