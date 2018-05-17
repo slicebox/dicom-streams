@@ -86,8 +86,14 @@ object CollectFlow {
           if (maxBufferSize > 0 && currentBufferSize > maxBufferSize)
             throw new DicomStreamException("Error collecting elements: max buffer size exceeded")
 
-          buffer = buffer :+ part
-          currentBufferSize = currentBufferSize + part.bytes.size
+          part match {
+            case DicomValueChunkMarker =>
+            case DicomSequenceDelimitationMarker =>
+            case _: DicomSequenceItemDelimitationMarker =>
+            case _ =>
+              buffer = buffer :+ part
+              currentBufferSize = currentBufferSize + part.bytes.size
+          }
 
           part match {
             case _: DicomHeader if stopCondition(tagPath) =>
@@ -109,7 +115,7 @@ object CollectFlow {
                   currentElement = Some(updatedElement)
                   if (valueChunk.last) {
                     if (updatedElement.tag == Tag.SpecificCharacterSet)
-                      elements = elements.updateCharacterSets(CharacterSets(updatedElement.bytes))
+                      elements = elements.updateCharacterSets(CharacterSets(updatedElement.toBytes))
                     if (tagCondition(tagPath))
                       elements = elements(tagPath) = updatedElement
                     currentElement = None
