@@ -231,8 +231,8 @@ class ElementTest extends FlatSpec with Matchers {
     val yyyyMMddHHmmssS = ZonedDateTime.of(2004, 3, 29, 11, 59, 35, 123456000, zone)
     val yyyyMMddHHmmssSZ = ZonedDateTime.of(2004, 3, 29, 11, 59, 35, 123456000, ZoneOffset.UTC)
     toElement(bigEndian = false, VR.DT, ByteString(
-            "2004\\200403\\20040329\\2004032911\\200403291159\\20040329115935\\20040329115935.123456\\20040329115935.123456+0000\\20040329115935.123456-0000"
-          )).toDateTimes() shouldBe Seq(yyyy, yyyyMM, yyyyMMdd, yyyyMMddHH, yyyyMMddHHmm, yyyyMMddHHmmss, yyyyMMddHHmmssS, yyyyMMddHHmmssSZ, yyyyMMddHHmmssSZ)
+      "2004\\200403\\20040329\\2004032911\\200403291159\\20040329115935\\20040329115935.123456\\20040329115935.123456+0000\\20040329115935.123456-0000"
+    )).toDateTimes() shouldBe Seq(yyyy, yyyyMM, yyyyMMdd, yyyyMMddHH, yyyyMMddHHmm, yyyyMMddHHmmss, yyyyMMddHHmmssS, yyyyMMddHHmmssSZ, yyyyMMddHHmmssSZ)
   }
 
   it should "ignore improperly formatted entries" in {
@@ -260,12 +260,12 @@ class ElementTest extends FlatSpec with Matchers {
   }
 
   "String representations of elements" should "format OW values" in {
-    toElement(bigEndian = false, VR.OW, ByteString(Array(1,2,3,4,5,6,7,8).map(_.toByte))).toSingleString() shouldBe "0201 0403 0605 0807"
-    toElement(bigEndian = true, VR.OW, ByteString(Array(1,2,3,4,5,6,7,8).map(_.toByte))).toSingleString() shouldBe "0102 0304 0506 0708"
+    toElement(bigEndian = false, VR.OW, ByteString(Array(1, 2, 3, 4, 5, 6, 7, 8).map(_.toByte))).toSingleString() shouldBe "0201 0403 0605 0807"
+    toElement(bigEndian = true, VR.OW, ByteString(Array(1, 2, 3, 4, 5, 6, 7, 8).map(_.toByte))).toSingleString() shouldBe "0102 0304 0506 0708"
   }
 
   it should "format OB values" in {
-    toElement(bigEndian = false, VR.OB, ByteString(Array(1,2,3,4,5,6,7,8).map(_.toByte))).toSingleString() shouldBe "01 02 03 04 05 06 07 08"
+    toElement(bigEndian = false, VR.OB, ByteString(Array(1, 2, 3, 4, 5, 6, 7, 8).map(_.toByte))).toSingleString() shouldBe "01 02 03 04 05 06 07 08"
   }
 
   it should "format OF values" in {
@@ -277,27 +277,27 @@ class ElementTest extends FlatSpec with Matchers {
   }
 
   it should "format AT values" in {
-    toElement(bigEndian = false, VR.AT, ByteString(Array(1,2,3,4).map(_.toByte))).toSingleString() shouldBe "(0201,0403)"
+    toElement(bigEndian = false, VR.AT, ByteString(Array(1, 2, 3, 4).map(_.toByte))).toSingleString() shouldBe "(0201,0403)"
   }
 
   it should "format UL values" in {
-    toElement(bigEndian = false, VR.UL, ByteString(Array(1,2,3,4).map(_.toByte))).toSingleString() shouldBe 0x04030201.toString
-    toElement(bigEndian = false, VR.UL, ByteString(Array(255,255,255,255).map(_.toByte))).toSingleString() shouldBe 0xFFFFFFFFL.toString
+    toElement(bigEndian = false, VR.UL, ByteString(Array(1, 2, 3, 4).map(_.toByte))).toSingleString() shouldBe 0x04030201.toString
+    toElement(bigEndian = false, VR.UL, ByteString(Array(255, 255, 255, 255).map(_.toByte))).toSingleString() shouldBe 0xFFFFFFFFL.toString
   }
 
   it should "format US values" in {
-    toElement(bigEndian = false, VR.US, ByteString(Array(1,2).map(_.toByte))).toSingleString() shouldBe 0x0201.toString
-    toElement(bigEndian = false, VR.US, ByteString(Array(255,255).map(_.toByte))).toSingleString() shouldBe 0xFFFF.toString
+    toElement(bigEndian = false, VR.US, ByteString(Array(1, 2).map(_.toByte))).toSingleString() shouldBe 0x0201.toString
+    toElement(bigEndian = false, VR.US, ByteString(Array(255, 255).map(_.toByte))).toSingleString() shouldBe 0xFFFF.toString
   }
 
   it should "format SL values" in {
-    toElement(bigEndian = false, VR.SL, ByteString(Array(1,2,3,4).map(_.toByte))).toSingleString() shouldBe 0x04030201.toString
-    toElement(bigEndian = false, VR.SL, ByteString(Array(255,255,255,255).map(_.toByte))).toSingleString() shouldBe "-1"
+    toElement(bigEndian = false, VR.SL, ByteString(Array(1, 2, 3, 4).map(_.toByte))).toSingleString() shouldBe 0x04030201.toString
+    toElement(bigEndian = false, VR.SL, ByteString(Array(255, 255, 255, 255).map(_.toByte))).toSingleString() shouldBe "-1"
   }
 
   it should "format SS values" in {
-    toElement(bigEndian = false, VR.SS, ByteString(Array(1,2).map(_.toByte))).toSingleString() shouldBe 0x0201.toString
-    toElement(bigEndian = false, VR.SS, ByteString(Array(255,255).map(_.toByte))).toSingleString() shouldBe "-1"
+    toElement(bigEndian = false, VR.SS, ByteString(Array(1, 2).map(_.toByte))).toSingleString() shouldBe 0x0201.toString
+    toElement(bigEndian = false, VR.SS, ByteString(Array(255, 255).map(_.toByte))).toSingleString() shouldBe "-1"
   }
 
   it should "format FL values" in {
@@ -364,53 +364,131 @@ class ElementTest extends FlatSpec with Matchers {
     updated.value shouldBe ByteString("ABC ")
   }
 
-  "Creating an element" should "produce the expected bytes from string(s)" in {
-    Element.fromString(Tag.PatientName, "John^Doe").toBytes shouldBe patientNameJohnDoe()
-    Element.fromString(Tag.PatientName, "John^Doe", bigEndian = true).toBytes shouldBe patientNameJohnDoe(bigEndian = true)
-    Element.fromString(Tag.PatientName, "John^Doe", explicitVR = false).toBytes shouldBe patientNameJohnDoe(explicitVR = false)
-    Element.fromStrings(Tag.PatientName, VR.PN, Seq("John^Doe", "Jane^Doe")).toBytes shouldBe element(Tag.PatientName, "John^Doe\\Jane^Doe")
+  val tag = 0
+  val explicit = true
+  val le = false
 
-    Element.fromString(Tag.DimensionIndexPointer, "00A01234").toBytes shouldBe element(Tag.DimensionIndexPointer, tagToBytesLE(0x00A01234), bigEndian = false, explicitVR = true)
-    Element.fromString(Tag.RecommendedDisplayFrameRateInFloat, "3.1415").toBytes shouldBe element(Tag.RecommendedDisplayFrameRateInFloat, floatToBytes(3.1415F, bigEndian = false), bigEndian = false, explicitVR = true)
-    Element.fromString(Tag.TimeRange, "3.1415").toBytes shouldBe element(Tag.TimeRange, doubleToBytes(3.1415, bigEndian = false), bigEndian = false, explicitVR = true)
-    Element.fromString(Tag.ReferencePixelX0, "-1024").toBytes shouldBe element(Tag.ReferencePixelX0, intToBytesLE(-1024), bigEndian = false, explicitVR = true)
-    Element.fromString(Tag.TagAngleSecondAxis, "-1024").toBytes shouldBe element(Tag.TagAngleSecondAxis, shortToBytesLE(-1024.toShort), bigEndian = false, explicitVR = true)
-    Element.fromString(Tag.PrivateDataElementValueMultiplicity, "4294967295").toBytes shouldBe element(Tag.PrivateDataElementValueMultiplicity, longToBytesLE(4294967295L).dropRight(4), bigEndian = false, explicitVR = true)
-    Element.fromString(Tag.PrivateGroupReference, "65535").toBytes shouldBe element(Tag.PrivateGroupReference, intToBytesLE(65535).dropRight(2), bigEndian = false, explicitVR = true)
+  "Creating an element" should "produce the expected bytes from string(s)" in {
+    Element.fromString(tag, VR.PN, "John^Doe", le, explicit).toSingleString() shouldBe "John^Doe"
+    Element.fromString(tag, VR.PN, "John^Doe", bigEndian = true, explicit).toSingleString() shouldBe "John^Doe"
+    Element.fromString(tag, VR.PN, "John^Doe", le, explicitVR = false).toSingleString() shouldBe "John^Doe"
+    Element.fromStrings(tag, VR.PN, Seq("John^Doe", "Jane^Doe")).toStrings() shouldBe Seq("John^Doe", "Jane^Doe")
+
+    Element.fromString(tag, VR.AT, "00A01234", le, explicit).toInt.get shouldBe 0x00A01234
+    Element.fromString(tag, VR.FL, "3.1415", le, explicit).toFloat.get shouldBe 3.1415F
+    Element.fromString(tag, VR.FD, "3.1415", le, explicit).toDouble.get shouldBe 3.1415
+    Element.fromString(tag, VR.SL, "-1024", le, explicit).toInt.get shouldBe -1024
+    Element.fromString(tag, VR.SS, "-1024", le, explicit).toShort.get shouldBe -1024.toShort
+    Element.fromString(tag, VR.UL, "4294967295", le, explicit).toLong.get shouldBe 4294967295L
+    Element.fromString(tag, VR.US, "65535", le, explicit).toInt.get shouldBe 65535
   }
 
   it should "produce the expected bytes from short(s)" in {
-    println(intToBytesLE(java.lang.Short.toUnsignedInt(512.toShort)))
-    Element.fromShort(Tag.Rows, 512.toShort).toBytes shouldBe rows()
-    Element.fromShort(Tag.Rows, 512.toShort, bigEndian = true).toBytes shouldBe rows(bigEndian = true)
-    Element.fromShort(Tag.Rows, 512.toShort, explicitVR = false).toBytes shouldBe rows(explicitVR = false)
-    Element.fromShorts(Tag.Rows, VR.US, Seq(512, 256).map(_.toShort)).toBytes shouldBe element(Tag.Rows, shortToBytesLE(512.toShort) ++ shortToBytesLE(256.toShort), bigEndian = false, explicitVR = true)
+    Element.fromShort(tag, VR.US, 512.toShort, le, explicit).toShort.get shouldBe 512.toShort
+    Element.fromShort(tag, VR.US, 512.toShort, bigEndian = true, explicit).toShort.get shouldBe 512.toShort
+    Element.fromShort(tag, VR.US, 512.toShort, le, explicitVR = false).toShort.get shouldBe 512.toShort
+    Element.fromShorts(tag, VR.US, Seq(512, 256).map(_.toShort)).toShorts shouldBe Seq(512.toShort, 256.toShort)
 
-    Element.fromShort(Tag.RecommendedDisplayFrameRateInFloat, 42.toShort).toBytes shouldBe element(Tag.RecommendedDisplayFrameRateInFloat, floatToBytes(42F, bigEndian = false), bigEndian = false, explicitVR = true)
-    Element.fromShort(Tag.TimeRange, 42.toShort).toBytes shouldBe element(Tag.TimeRange, doubleToBytes(42, bigEndian = false), bigEndian = false, explicitVR = true)
-    Element.fromShort(Tag.ReferencePixelX0, -1024.toShort).toBytes shouldBe element(Tag.ReferencePixelX0, intToBytesLE(-1024), bigEndian = false, explicitVR = true)
-    Element.fromShort(Tag.TagAngleSecondAxis, -1024.toShort).toBytes shouldBe element(Tag.TagAngleSecondAxis, shortToBytesLE(-1024.toShort), bigEndian = false, explicitVR = true)
-    Element.fromShort(Tag.PrivateDataElementValueMultiplicity, 42.toShort).toBytes shouldBe element(Tag.PrivateDataElementValueMultiplicity, longToBytesLE(42).dropRight(4), bigEndian = false, explicitVR = true)
-    Element.fromShort(Tag.PrivateGroupReference, 42.toShort).toBytes shouldBe element(Tag.PrivateGroupReference, intToBytesLE(42).dropRight(2), bigEndian = false, explicitVR = true)
+    Element.fromShort(tag, VR.FL, 3.1415.toShort, le, explicit).toFloat.get shouldBe 3.0F
+    Element.fromShort(tag, VR.FD, 3.1415.toShort, le, explicit).toDouble.get shouldBe 3.0
+    Element.fromShort(tag, VR.SL, (-1024).toShort, le, explicit).toInt.get shouldBe -1024
+    Element.fromShort(tag, VR.SS, (-1024).toShort, le, explicit).toShort.get shouldBe -1024.toShort
+    Element.fromShort(tag, VR.UL, 42.toShort, le, explicit).toLong.get shouldBe 42L
+    Element.fromShort(tag, VR.US, 42.toShort, le, explicit).toInt.get shouldBe 42
   }
 
   it should "produce the expected bytes from int(s)" in {
-    Element.fromInt(Tag.DataPointRows, 1234).toBytes shouldBe dataPointRows()
-    Element.fromInt(Tag.DataPointRows, 1234, bigEndian = true).toBytes shouldBe dataPointRows(bigEndian = true)
-    Element.fromInt(Tag.DataPointRows, 1234, explicitVR = false).toBytes shouldBe dataPointRows(explicitVR = false)
-    Element.fromInts(Tag.DataPointRows, VR.UL, Seq(512, 256)).toBytes shouldBe element(Tag.DataPointRows, intToBytesLE(512) ++ intToBytesLE(256), bigEndian = false, explicitVR = true)
+    Element.fromInt(tag, VR.UL, 1234, le, explicit).toInt.get shouldBe 1234
+    Element.fromInt(tag, VR.UL, 1234, bigEndian = true, explicit).toInt.get shouldBe 1234
+    Element.fromInt(tag, VR.UL, 1234, le, explicitVR = false).toInt.get shouldBe 1234
+    Element.fromInts(tag, VR.UL, Seq(512, 256)).toInts shouldBe Seq(512, 256)
 
-    Element.fromInt(Tag.DimensionIndexPointer, 0x00A01234).toBytes shouldBe element(Tag.DimensionIndexPointer, tagToBytesLE(0x00A01234), bigEndian = false, explicitVR = true)
-    Element.fromInt(Tag.RecommendedDisplayFrameRateInFloat, 42).toBytes shouldBe element(Tag.RecommendedDisplayFrameRateInFloat, floatToBytes(42F, bigEndian = false), bigEndian = false, explicitVR = true)
-    Element.fromInt(Tag.TimeRange, 42).toBytes shouldBe element(Tag.TimeRange, doubleToBytes(42, bigEndian = false), bigEndian = false, explicitVR = true)
-    Element.fromInt(Tag.ReferencePixelX0, -1024).toBytes shouldBe element(Tag.ReferencePixelX0, intToBytesLE(-1024), bigEndian = false, explicitVR = true)
-    Element.fromInt(Tag.TagAngleSecondAxis, -1024).toBytes shouldBe element(Tag.TagAngleSecondAxis, shortToBytesLE(-1024.toShort), bigEndian = false, explicitVR = true)
-    Element.fromInt(Tag.PrivateDataElementValueMultiplicity, 42).toBytes shouldBe element(Tag.PrivateDataElementValueMultiplicity, longToBytesLE(42).dropRight(4), bigEndian = false, explicitVR = true)
-    Element.fromInt(Tag.PrivateGroupReference, 65535).toBytes shouldBe element(Tag.PrivateGroupReference, intToBytesLE(65535).dropRight(2), bigEndian = false, explicitVR = true)
+    Element.fromInt(tag, VR.AT, 0x00A01234, le, explicit).toInt.get shouldBe 0x00A01234
+    Element.fromInt(tag, VR.FL, 3.1415.toInt, le, explicit).toFloat.get shouldBe 3.0F
+    Element.fromInt(tag, VR.FD, 3.1415.toInt, le, explicit).toDouble.get shouldBe 3.0
+    Element.fromInt(tag, VR.SL, -1024, le, explicit).toInt.get shouldBe -1024
+    Element.fromInt(tag, VR.SS, -1024, le, explicit).toShort.get shouldBe -1024.toShort
+    Element.fromInt(tag, VR.UL, 42, le, explicit).toLong.get shouldBe 42L
+    Element.fromInt(tag, VR.US, 65535, le, explicit).toInt.get shouldBe 65535
   }
 
   it should "produce the expected bytes from long(s)" in {
-    Element.fromLongs(Tag.DataPointRows, Seq(512L, 256L)).toBytes shouldBe element(Tag.DataPointRows, longToBytesLE(512) ++ longToBytesLE(256), bigEndian = false, explicitVR = true)
+    Element.fromLong(tag, VR.UL, 1234L, le, explicit).toLong.get shouldBe 1234L
+    Element.fromLong(tag, VR.UL, 1234L, bigEndian = true, explicit).toLong.get shouldBe 1234L
+    Element.fromLong(tag, VR.UL, 1234L, le, explicitVR = false).toLong.get shouldBe 1234L
+    Element.fromLongs(tag, VR.UL, Seq(512L, 256L)).toLongs shouldBe Seq(512L, 256L)
+
+    Element.fromLong(tag, VR.AT, 0x00A01234L, le, explicit).toInt.get shouldBe 0x00A01234
+    Element.fromLong(tag, VR.FL, 3.1415.toLong, le, explicit).toFloat.get shouldBe 3.0F
+    Element.fromLong(tag, VR.FD, 3.1415.toLong, le, explicit).toDouble.get shouldBe 3.0
+    Element.fromLong(tag, VR.SL, -1024L, le, explicit).toInt.get shouldBe -1024
+    Element.fromLong(tag, VR.SS, -1024L, le, explicit).toShort.get shouldBe -1024.toShort
+    Element.fromLong(tag, VR.UL, 4294967295L, le, explicit).toLong.get shouldBe 4294967295L
+    Element.fromLong(tag, VR.US, 65535L, le, explicit).toInt.get shouldBe 65535
+  }
+
+  it should "produce the expected bytes from float(s)" in {
+    Element.fromFloat(tag, VR.FL, 3.14F, le, explicit).toFloat.get shouldBe 3.14F
+    Element.fromFloat(tag, VR.FL, 3.14F, bigEndian = true, explicit).toFloat.get shouldBe 3.14F
+    Element.fromFloat(tag, VR.FL, 3.14F, le, explicitVR = false).toFloat.get shouldBe 3.14F
+    Element.fromFloats(tag, VR.FL, Seq(512F, 256F)).toFloats shouldBe Seq(512F, 256F)
+
+    Element.fromFloat(tag, VR.AT, 0x00A01234.toFloat, le, explicit).toInt.get shouldBe 0x00A01234
+    Element.fromFloat(tag, VR.FL, 3.1415F, le, explicit).toFloat.get shouldBe 3.1415F
+    Element.fromFloat(tag, VR.FD, 3.1415F, le, explicit).toDouble.get.toFloat shouldBe 3.1415F
+    Element.fromFloat(tag, VR.SL, -1024F, le, explicit).toInt.get shouldBe -1024
+    Element.fromFloat(tag, VR.SS, -1024F, le, explicit).toShort.get shouldBe -1024.toShort
+    Element.fromFloat(tag, VR.UL, 42.0F, le, explicit).toLong.get shouldBe 42L
+    Element.fromFloat(tag, VR.US, 65535F, le, explicit).toInt.get shouldBe 65535
+  }
+
+  it should "produce the expected bytes from double(s)" in {
+    Element.fromDouble(tag, VR.FL, 3.14, le, explicit).toDouble.get.toFloat shouldBe 3.14F
+    Element.fromDouble(tag, VR.FL, 3.14, bigEndian = true, explicit).toDouble.get.toFloat shouldBe 3.14F
+    Element.fromDouble(tag, VR.FL, 3.14, le, explicitVR = false).toDouble.get.toFloat shouldBe 3.14F
+    Element.fromDoubles(tag, VR.FL, Seq(512.0, 256.0)).toDoubles shouldBe Seq(512.0, 256.0)
+
+    Element.fromDouble(tag, VR.AT, 0x00A01234.toDouble, le, explicit).toInt.get shouldBe 0x00A01234
+    Element.fromDouble(tag, VR.FL, 3.1415, le, explicit).toFloat.get shouldBe 3.1415F
+    Element.fromDouble(tag, VR.FD, 3.1415, le, explicit).toDouble.get.toFloat shouldBe 3.1415F
+    Element.fromDouble(tag, VR.SL, -1024.0, le, explicit).toInt.get shouldBe -1024
+    Element.fromDouble(tag, VR.SS, -1024.0, le, explicit).toShort.get shouldBe -1024.toShort
+    Element.fromDouble(tag, VR.UL, 42.0, le, explicit).toLong.get shouldBe 42L
+    Element.fromDouble(tag, VR.US, 65535.0, le, explicit).toInt.get shouldBe 65535
+  }
+
+  it should "produce the expected bytes from date(s)" in {
+    val date1 = LocalDate.of(2004, 3, 29)
+    val date2 = LocalDate.of(2004, 3, 30)
+    Element.fromDate(tag, VR.DA, date1, le, explicit).toDate.get shouldBe date1
+    Element.fromDate(tag, VR.DA, date1, bigEndian = true, explicit).toDate.get shouldBe date1
+    Element.fromDate(tag, VR.DA, date1, le, explicitVR = false).toDate.get shouldBe date1
+    Element.fromDates(tag, VR.DA, Seq(date1, date2)).toDates shouldBe Seq(date1, date2)
+
+    Element.fromDate(tag, VR.DT, date1, le, explicit).toDate.get shouldBe date1
+    Element.fromDate(tag, VR.LT, date1, le, explicit).toSingleString() shouldBe "20040329"
+  }
+
+  it should "produce the expected bytes from date-time(s)" in {
+    val dt1 = ZonedDateTime.of(2004, 3, 29, 11, 59, 35, 123456000, ZoneOffset.UTC)
+    val dt2 = ZonedDateTime.of(2004, 3, 29, 11, 59, 36, 123456000, ZoneOffset.UTC)
+    Element.fromDateTime(tag, VR.DT, dt1, le, explicit).toDateTime().get shouldBe dt1
+    Element.fromDateTime(tag, VR.DT, dt1, bigEndian = true, explicit).toDateTime().get shouldBe dt1
+    Element.fromDateTime(tag, VR.DT, dt1, le, explicitVR = false).toDateTime().get shouldBe dt1
+    Element.fromDateTimes(tag, VR.DT, Seq(dt1, dt2)).toDateTimes() shouldBe Seq(dt1, dt2)
+
+    Element.fromDateTime(tag, VR.LT, dt1, le, explicit).toSingleString() shouldBe "20040329115935.123456+0000"
+  }
+
+  it should "produce the expected bytes from patient name(s)" in {
+    val pn1 = PatientName(ComponentGroup("family", "i", "p"), ComponentGroup("given", "i", "p"), ComponentGroup("middle", "i", "p"), ComponentGroup("prefix", "i", "p"), ComponentGroup("suffix", "i", "p"))
+    val pn2 = pn1.copy(familyName = ComponentGroup("otherfamily", "i", "p"))
+    Element.fromPatientName(tag, VR.PN, pn1, le, explicit).toPatientName().get shouldBe pn1
+    Element.fromPatientName(tag, VR.PN, pn1, bigEndian = true, explicit).toPatientName().get shouldBe pn1
+    Element.fromPatientName(tag, VR.PN, pn1, le, explicitVR = false).toPatientName().get shouldBe pn1
+    Element.fromPatientNames(tag, VR.PN, Seq(pn1, pn2)).toPatientNames() shouldBe Seq(pn1, pn2)
+
+    Element.fromPatientName(tag, VR.PN, pn1, le, explicit).toSingleString() shouldBe "family=i=p^given=i=p^middle=i=p^prefix=i=p^suffix=i=p"
   }
 
 }

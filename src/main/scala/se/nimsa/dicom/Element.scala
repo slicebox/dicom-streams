@@ -263,7 +263,12 @@ object Element {
   final lazy val multiValueDelimiter = """\"""
   final lazy val multiValueDelimiterRegex = """\\"""
 
-  final private lazy val dateFormat = new DateTimeFormatterBuilder()
+  final private lazy val dateFormat1 = new DateTimeFormatterBuilder()
+    .appendValue(YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
+    .appendPattern("MMdd")
+    .toFormatter
+
+  final private lazy val dateFormat2 = new DateTimeFormatterBuilder()
     .appendValue(YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
     .appendPattern("['.']MM['.']dd")
     .toFormatter
@@ -289,7 +294,7 @@ object Element {
   private def systemZone: ZoneOffset = ZonedDateTime.now().getOffset
 
   def parseDate(s: String): Option[LocalDate] =
-    try Option(LocalDate.parse(s.trim, dateFormat)) catch {
+    try Option(LocalDate.parse(s.trim, dateFormat2)) catch {
       case _: Throwable => None
     }
 
@@ -364,14 +369,13 @@ object Element {
   def fromStrings(tag: Int, vr: VR, values: Seq[String], bigEndian: Boolean = false, explicitVR: Boolean = true): Element = apply(tag, vr, combine(vr, values.map(stringBytes(vr, _, bigEndian))), bigEndian, explicitVR)
 
   private def shortBytes(vr: VR, value: Short, bigEndian: Boolean): ByteString = vr match {
-    case AT => throw new IllegalArgumentException("Cannot create tag from short")
     case FL => floatToBytes(value.toFloat, bigEndian)
     case FD => doubleToBytes(value.toDouble, bigEndian)
     case SL => intToBytes(value.toInt, bigEndian)
     case SS => shortToBytes(value, bigEndian)
     case UL => intToBytes(java.lang.Short.toUnsignedInt(value), bigEndian)
     case US => truncate(2, intToBytes(java.lang.Short.toUnsignedInt(value), bigEndian), bigEndian)
-    case OB | OW | OF | OD => throw new IllegalArgumentException("Cannot create binary array from short")
+    case OB | OW | OF | OD | AT => throw new IllegalArgumentException(s"Cannot create value of VR $vr from short")
     case _ => ByteString(value.toString)
   }
   def fromShort(tag: Int, vr: VR, value: Short, bigEndian: Boolean, explicitVR: Boolean): Element = apply(tag, vr, shortBytes(vr, value, bigEndian), bigEndian, explicitVR)
@@ -386,46 +390,79 @@ object Element {
     case SS => shortToBytes(value.toShort, bigEndian)
     case UL => truncate(4, longToBytes(Integer.toUnsignedLong(value), bigEndian), bigEndian)
     case US => truncate(6, longToBytes(Integer.toUnsignedLong(value), bigEndian), bigEndian)
-    case OB | OW | OF | OD => throw new IllegalArgumentException("Cannot create binary array from int")
+    case OB | OW | OF | OD => throw new IllegalArgumentException(s"Cannot create value of VR $vr from int")
     case _ => ByteString(value.toString)
   }
   def fromInt(tag: Int, vr: VR, value: Int, bigEndian: Boolean, explicitVR: Boolean): Element = apply(tag, vr, intBytes(vr, value, bigEndian), bigEndian, explicitVR)
   def fromInt(tag: Int, value: Int, bigEndian: Boolean = false, explicitVR: Boolean = true): Element = fromInt(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
   def fromInts(tag: Int, vr: VR, values: Seq[Int], bigEndian: Boolean = false, explicitVR: Boolean = true): Element = apply(tag, vr, combine(vr, values.map(intBytes(vr, _, bigEndian))), bigEndian, explicitVR)
 
-  def fromLong(tag: Int, value: Long, bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
-    apply(tag, longToBytes(value, bigEndian), bigEndian, explicitVR)
+  private def longBytes(vr: VR, value: Long, bigEndian: Boolean): ByteString = vr match {
+    case AT => tagToBytes(value.toInt, bigEndian)
+    case FL => floatToBytes(value.toFloat, bigEndian)
+    case FD => doubleToBytes(value.toDouble, bigEndian)
+    case SL => intToBytes(value.toInt, bigEndian)
+    case SS => shortToBytes(value.toShort, bigEndian)
+    case UL => truncate(4, longToBytes(value, bigEndian), bigEndian)
+    case US => truncate(6, longToBytes(value, bigEndian), bigEndian)
+    case OB | OW | OF | OD => throw new IllegalArgumentException(s"Cannot create value of VR $vr from long")
+    case _ => ByteString(value.toString)
+  }
+  def fromLong(tag: Int, vr: VR, value: Long, bigEndian: Boolean, explicitVR: Boolean): Element = apply(tag, vr, longBytes(vr, value, bigEndian), bigEndian, explicitVR)
+  def fromLong(tag: Int, value: Long, bigEndian: Boolean = false, explicitVR: Boolean = true): Element = fromLong(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
+  def fromLongs(tag: Int, vr: VR, values: Seq[Long], bigEndian: Boolean = false, explicitVR: Boolean = true): Element = apply(tag, vr, combine(vr, values.map(longBytes(vr, _, bigEndian))), bigEndian, explicitVR)
 
-  def fromLongs(tag: Int, values: Seq[Long], bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
-    apply(tag, values.map(longToBytes(_, bigEndian)).reduce(_ ++ _), bigEndian, explicitVR)
+  private def floatBytes(vr: VR, value: Float, bigEndian: Boolean): ByteString = vr match {
+    case AT => tagToBytes(value.toInt, bigEndian)
+    case FL => floatToBytes(value, bigEndian)
+    case FD => doubleToBytes(value.toDouble, bigEndian)
+    case SL => intToBytes(value.toInt, bigEndian)
+    case SS => shortToBytes(value.toShort, bigEndian)
+    case UL => truncate(4, longToBytes(value.toLong, bigEndian), bigEndian)
+    case US => truncate(6, longToBytes(value.toLong, bigEndian), bigEndian)
+    case OB | OW | OF | OD => throw new IllegalArgumentException(s"Cannot create value of VR $vr from float")
+    case _ => ByteString(value.toString)
+  }
+  def fromFloat(tag: Int, vr: VR, value: Float, bigEndian: Boolean, explicitVR: Boolean): Element = apply(tag, vr, floatBytes(vr, value, bigEndian), bigEndian, explicitVR)
+  def fromFloat(tag: Int, value: Float, bigEndian: Boolean = false, explicitVR: Boolean = true): Element = fromFloat(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
+  def fromFloats(tag: Int, vr: VR, values: Seq[Float], bigEndian: Boolean = false, explicitVR: Boolean = true): Element = apply(tag, vr, combine(vr, values.map(floatBytes(vr, _, bigEndian))), bigEndian, explicitVR)
 
-  def fromFloat(tag: Int, value: Long, bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
-    apply(tag, floatToBytes(value, bigEndian), bigEndian, explicitVR)
+  private def doubleBytes(vr: VR, value: Double, bigEndian: Boolean): ByteString = vr match {
+    case AT => tagToBytes(value.toInt, bigEndian)
+    case FL => floatToBytes(value.toFloat, bigEndian)
+    case FD => doubleToBytes(value, bigEndian)
+    case SL => intToBytes(value.toInt, bigEndian)
+    case SS => shortToBytes(value.toShort, bigEndian)
+    case UL => truncate(4, longToBytes(value.toLong, bigEndian), bigEndian)
+    case US => truncate(6, longToBytes(value.toLong, bigEndian), bigEndian)
+    case OB | OW | OF | OD => throw new IllegalArgumentException(s"Cannot create value of VR $vr from double")
+    case _ => ByteString(value.toString)
+  }
+  def fromDouble(tag: Int, vr: VR, value: Double, bigEndian: Boolean, explicitVR: Boolean): Element = apply(tag, vr, doubleBytes(vr, value, bigEndian), bigEndian, explicitVR)
+  def fromDouble(tag: Int, value: Double, bigEndian: Boolean = false, explicitVR: Boolean = true): Element = fromDouble(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
+  def fromDoubles(tag: Int, vr: VR, values: Seq[Double], bigEndian: Boolean = false, explicitVR: Boolean = true): Element = apply(tag, vr, combine(vr, values.map(doubleBytes(vr, _, bigEndian))), bigEndian, explicitVR)
 
-  def fromFloats(tag: Int, values: Seq[Float], bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
-    apply(tag, values.map(floatToBytes(_, bigEndian)).reduce(_ ++ _), bigEndian, explicitVR)
+  private def dateBytes(vr: VR, value: LocalDate): ByteString = vr match {
+    case AT | FL | FD | SL | SS | UL | US | OB | OW | OF | OD => throw new IllegalArgumentException(s"Cannot create value of VR $vr from date")
+    case _ => ByteString(value.format(dateFormat1))
+  }
+  def fromDate(tag: Int, vr: VR, value: LocalDate, bigEndian: Boolean, explicitVR: Boolean): Element = apply(tag, vr, dateBytes(vr, value), bigEndian, explicitVR)
+  def fromDate(tag: Int, value: LocalDate, bigEndian: Boolean = false, explicitVR: Boolean = true): Element = fromDate(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
+  def fromDates(tag: Int, vr: VR, values: Seq[LocalDate], bigEndian: Boolean = false, explicitVR: Boolean = true): Element = apply(tag, vr, combine(vr, values.map(dateBytes(vr, _))), bigEndian, explicitVR)
 
-  def fromDouble(tag: Int, value: Long, bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
-    apply(tag, doubleToBytes(value, bigEndian), bigEndian, explicitVR)
+  private def dateTimeBytes(vr: VR, value: ZonedDateTime): ByteString = vr match {
+    case AT | FL | FD | SL | SS | UL | US | OB | OW | OF | OD => throw new IllegalArgumentException(s"Cannot create value of VR $vr from date-time")
+    case _ => ByteString(value.format(dateTimeZoneFormat))
+  }
+  def fromDateTime(tag: Int, vr: VR, value: ZonedDateTime, bigEndian: Boolean, explicitVR: Boolean): Element = apply(tag, vr, dateTimeBytes(vr, value), bigEndian, explicitVR)
+  def fromDateTime(tag: Int, value: ZonedDateTime, bigEndian: Boolean = false, explicitVR: Boolean = true): Element = fromDateTime(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
+  def fromDateTimes(tag: Int, vr: VR, values: Seq[ZonedDateTime], bigEndian: Boolean = false, explicitVR: Boolean = true): Element = apply(tag, vr, combine(vr, values.map(dateTimeBytes(vr, _))), bigEndian, explicitVR)
 
-  def fromDoubles(tag: Int, values: Seq[Double], bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
-    apply(tag, values.map(doubleToBytes(_, bigEndian)).reduce(_ ++ _), bigEndian, explicitVR)
-
-  def fromDate(tag: Int, value: LocalDate, bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
-    fromString(tag, value.format(dateFormat), bigEndian, explicitVR)
-
-  def fromDates(tag: Int, values: Seq[LocalDate], bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
-    fromString(tag, values.map(_.format(dateFormat)).mkString(multiValueDelimiter), bigEndian, explicitVR)
-
-  def fromDateTime(tag: Int, value: ZonedDateTime, bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
-    fromString(tag, value.format(dateTimeZoneFormat), bigEndian, explicitVR)
-
-  def fromDateTimes(tag: Int, values: Seq[ZonedDateTime], bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
-    fromString(tag, values.map(_.format(dateTimeZoneFormat)).mkString(multiValueDelimiter), bigEndian, explicitVR)
-
-  def fromPatientName(tag: Int, value: PatientName, bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
-    fromString(tag, value.toString, bigEndian, explicitVR)
-
-  def fromPatientNames(tag: Int, values: Seq[PatientName], bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
-    fromString(tag, values.map(_.toString).mkString(multiValueDelimiter), bigEndian, explicitVR)
+  private def patientNameBytes(vr: VR, value: PatientName): ByteString = vr match {
+    case PN => ByteString(value.toString)
+    case _  => throw new IllegalArgumentException(s"Cannot create value of VR $vr from date-time")
+  }
+  def fromPatientName(tag: Int, vr: VR, value: PatientName, bigEndian: Boolean, explicitVR: Boolean): Element = apply(tag, vr, patientNameBytes(vr, value), bigEndian, explicitVR)
+  def fromPatientName(tag: Int, value: PatientName, bigEndian: Boolean = false, explicitVR: Boolean = true): Element = fromPatientName(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
+  def fromPatientNames(tag: Int, vr: VR, values: Seq[PatientName], bigEndian: Boolean = false, explicitVR: Boolean = true): Element = apply(tag, vr, combine(vr, values.map(patientNameBytes(vr, _))), bigEndian, explicitVR)
 }
