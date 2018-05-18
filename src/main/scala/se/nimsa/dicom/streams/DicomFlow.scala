@@ -250,7 +250,6 @@ trait GuaranteedDelimitationEvents[Out] extends DicomFlow[Out] {
 trait TagPathTracking[Out] extends DicomFlow[Out] with GuaranteedValueEvent[Out] with GuaranteedDelimitationEvents[Out] {
 
   protected var tagPath: TagPath = EmptyTagPath
-  protected var inFragments = false
 
   abstract override def onHeader(part: DicomHeader): List[Out] = {
     tagPath = tagPath match {
@@ -261,7 +260,6 @@ trait TagPathTracking[Out] extends DicomFlow[Out] with GuaranteedValueEvent[Out]
   }
 
   abstract override def onFragmentsStart(part: DicomFragments): List[Out] = {
-    inFragments = true
     tagPath = tagPath match {
       case t: TagPathSequenceItem => t.thenTag(part.tag)
       case t => t.previous.thenTag(part.tag)
@@ -270,7 +268,6 @@ trait TagPathTracking[Out] extends DicomFlow[Out] with GuaranteedValueEvent[Out]
   }
 
   abstract override def onFragmentsEnd(part: DicomFragmentsDelimitation): List[Out] = {
-    inFragments = false
     super.onFragmentsEnd(part)
   }
 
@@ -293,7 +290,10 @@ trait TagPathTracking[Out] extends DicomFlow[Out] with GuaranteedValueEvent[Out]
   }
 
   abstract override def onSequenceItemEnd(part: DicomSequenceItemDelimitation): List[Out] = {
-    tagPath = tagPath.previous
+    tagPath = tagPath match {
+      case t: TagPathSequenceItem => tagPath.previous.thenSequence(t.tag, t.item)
+      case t => t.previous
+    }
     super.onSequenceItemEnd(part)
   }
 

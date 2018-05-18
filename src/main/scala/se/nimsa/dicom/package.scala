@@ -69,6 +69,8 @@ package object dicom {
   def intToUnsignedLong(i: Int): Long = i & 0xFFFFFFFFL
   def shortToUnsignedInt(i: Short): Int = i & 0xFFFF
 
+  def truncate(n: Int, bytes: ByteString, bigEndian: Boolean) = if (bigEndian) bytes.drop(n) else bytes.dropRight(n)
+
   def tagToString(tag: Int): String = new String(Array('(',
     hexDigits(tag >>> 28), hexDigits(tag >>> 24 & 15), hexDigits(tag >>> 20 & 15), hexDigits(tag >>> 16 & 15), ',',
     hexDigits(tag >>> 12 & 15), hexDigits(tag >>> 8 & 15), hexDigits(tag >>> 4 & 15), hexDigits(tag >>> 0 & 15), ')'))

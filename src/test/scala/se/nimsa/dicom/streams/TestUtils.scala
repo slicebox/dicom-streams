@@ -161,6 +161,13 @@ object TestUtils {
       .request(1)
       .expectError()
 
+    def expectElements(): PartProbe = probe
+      .request(1)
+      .expectNextChainingPF {
+        case p: ElementsPart => true
+        case p => throw new RuntimeException(s"Expected ElementsPart, got $p")
+      }
+
     def expectElements(elementsPart: ElementsPart): PartProbe = probe
       .request(1)
       .expectNextChainingPF {

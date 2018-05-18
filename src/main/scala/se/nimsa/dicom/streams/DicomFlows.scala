@@ -280,7 +280,7 @@ object DicomFlows {
           if (fmiElements.data.nonEmpty) {
             val element = fmiElements.data.head._2
             val fmiElementsNoLength = fmiElements.filter(_ != TagPath.fromTag(Tag.FileMetaInformationGroupLength))
-            val length = fmiElementsNoLength.data.values.map(_.bytes.length).sum
+            val length = fmiElementsNoLength.data.values.map(_.toBytes.length).sum
             val lengthBytes = tagToBytes(Tag.FileMetaInformationGroupLength, element.bigEndian) ++
               (if (element.explicitVR) ByteString("UL") ++ shortToBytes(4, element.bigEndian) else intToBytes(4, element.bigEndian))
             val lengthHeader = DicomHeader(Tag.FileMetaInformationGroupLength, VR.UL, 4, isFmi = true, element.bigEndian, element.explicitVR, lengthBytes)
@@ -325,56 +325,40 @@ object DicomFlows {
   val syntheticPartsFilter: Flow[DicomPart, DicomPart, NotUsed] = Flow[DicomPart].filter(_.bytes.nonEmpty)
 
   /**
-    * This flow guarantees that all `DicomHeader` parts are immediately followed by one or more `DicomValueChunk`s.
-    * Normally, an empty element consists of a `DicomHeader` only. To allow the flow to keep track of inserted parts,
-    * empty `DicomValueChunk`s are of the subtype `DicomValueChunkMarker`.
-    */
-  val guaranteedValueFlow: Flow[DicomPart, DicomPart, NotUsed] =
-    DicomFlowFactory.create(new IdentityFlow with GuaranteedValueEvent[DicomPart] {
-      override def onValueChunk(part: DicomValueChunk): List[DicomPart] = part :: Nil
-    })
-
-  /**
-    * This flow guarantees that the end of sequences are marked with a `DicomSequenceDelimitation` and that the end of
-    * items are marked with a `DicomSequenceItemDelimitation`. Normally, this is not the case for sequences and items
-    * with determinate length. To allow the flow to keep track of inserted parts downstream, inserted delimitations are
-    * of the subtypes `DicomSequenceDelimitationMarkser` and `DicomSequenceItemDelimitationMarker`.
-    *
-    * @return the associated flow
-    */
-  def guaranteedDelimitationFlow: Flow[DicomPart, DicomPart, NotUsed] =
-    DicomFlowFactory.create(new IdentityFlow with GuaranteedDelimitationEvents[DicomPart] {
-      override def onSequenceItemEnd(part: DicomSequenceItemDelimitation): List[DicomPart] =
-        part match {
-          case m: DicomSequenceItemDelimitationMarker => m :: super.onSequenceItemEnd(m)
-          case p => super.onSequenceItemEnd(p)
-        }
-      override def onSequenceEnd(part: DicomSequenceDelimitation): List[DicomPart] =
-        part match {
-          case DicomSequenceDelimitationMarker => part :: super.onSequenceEnd(part)
-          case p => super.onSequenceEnd(p)
-        }
-    })
-
-  /**
     * Sets any sequences and/or items with known length to undefined length (length = -1) and inserts
     * delimiters.
     */
   def toUndefinedLengthSequences: Flow[DicomPart, DicomPart, NotUsed] =
-    guaranteedDelimitationFlow
-      .via(DicomFlowFactory.create(new IdentityFlow { // map to indeterminate length
+      DicomFlowFactory.create(new IdentityFlow with GuaranteedDelimitationEvents[DicomPart] { // map to indeterminate length
         val indeterminateBytes = ByteString(0xFF, 0xFF, 0xFF, 0xFF)
         val zeroBytes = ByteString(0x00, 0x00, 0x00, 0x00)
 
         override def onSequenceStart(part: DicomSequence): List[DicomPart] =
-          super.onSequenceStart(part.copy(length = -1, bytes = part.bytes.dropRight(4) ++ indeterminateBytes))
+          super.onSequenceStart(part).map {
+            case s: DicomSequence if s.hasLength => part.copy(length = -1, bytes = part.bytes.dropRight(4) ++ indeterminateBytes)
+            case p => p
+          }
+
         override def onSequenceEnd(part: DicomSequenceDelimitation): List[DicomPart] =
-          super.onSequenceEnd(part.copy(bytes = tagToBytes(0xFFFEE0DD, part.bigEndian) ++ zeroBytes))
+          super.onSequenceEnd(part) ::: (
+            if (part.bytes.isEmpty)
+              DicomSequenceDelimitation(part.bigEndian, tagToBytes(Tag.SequenceDelimitationItem, part.bigEndian) ++ zeroBytes) :: Nil
+            else
+              Nil)
+
         override def onSequenceItemStart(part: DicomSequenceItem): List[DicomPart] =
-          super.onSequenceItemStart(part.copy(length = -1, bytes = part.bytes.dropRight(4) ++ indeterminateBytes))
+          super.onSequenceItemStart(part).map {
+            case i: DicomSequenceItem if i.hasLength => part.copy(length = -1, bytes = part.bytes.dropRight(4) ++ indeterminateBytes)
+            case p => p
+          }
+
         override def onSequenceItemEnd(part: DicomSequenceItemDelimitation): List[DicomPart] =
-          super.onSequenceItemEnd(part.copy(bytes = tagToBytes(0xFFFEE00D, part.bigEndian) ++ zeroBytes))
-      }))
+          super.onSequenceItemEnd(part) ::: (
+            if (part.bytes.isEmpty)
+              DicomSequenceItemDelimitation(part.index, part.bigEndian, tagToBytes(Tag.ItemDelimitationItem, part.bigEndian) ++ zeroBytes) :: Nil
+            else
+              Nil)
+      })
 
   /**
     * Convert all string values to UTF-8 corresponding to the DICOM character set ISO_IR 192. First collects the
@@ -483,15 +467,15 @@ object DicomFlows {
 
         case _: DicomSequenceDelimitation =>
           DicomSequenceDelimitation(bigEndian = false,
-            tagToBytesLE(0xFFFEE0DD) ++ ByteString(0, 0, 0, 0)) :: Nil
+            tagToBytesLE(Tag.SequenceDelimitationItem) ++ ByteString(0, 0, 0, 0)) :: Nil
 
         case i: DicomSequenceItem =>
           DicomSequenceItem(i.index, i.length, bigEndian = false,
-            tagToBytesLE(0xFFFEE000) ++ i.bytes.takeRight(4).reverse) :: Nil
+            tagToBytesLE(Tag.Item) ++ i.bytes.takeRight(4).reverse) :: Nil
 
         case i: DicomSequenceItemDelimitation =>
           DicomSequenceItemDelimitation(i.index, bigEndian = false,
-            tagToBytesLE(0xFFFEE00D) ++ ByteString(0, 0, 0, 0)) :: Nil
+            tagToBytesLE(Tag.ItemDelimitationItem) ++ ByteString(0, 0, 0, 0)) :: Nil
 
         case f: DicomFragments =>
           if (f.bigEndian) {
@@ -503,7 +487,7 @@ object DicomFlows {
 
         case _: DicomFragmentsDelimitation =>
           DicomFragmentsDelimitation(bigEndian = false,
-            tagToBytesLE(0xFFFEE0DD) ++ ByteString(0, 0, 0, 0)) :: Nil
+            tagToBytesLE(Tag.SequenceDelimitationItem) ++ ByteString(0, 0, 0, 0)) :: Nil
 
         case p => p :: Nil
       }

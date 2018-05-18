@@ -72,20 +72,13 @@ object DicomParts {
 
   object DicomHeader {
     def apply(tag: Int, vr: VR, length: Long, isFmi: Boolean, bigEndian: Boolean, explicitVR: Boolean): DicomHeader = {
-      val tagBytes = tagToBytes(tag, bigEndian)
-      val headerBytes =
-        if (explicitVR) {
-          val vrBytes = shortToBytesBE(vr.code.toShort)
-          val lengthBytes =
-            if (vr.headerLength == 8)
-              shortToBytes(length.toShort, bigEndian)
-            else
-              ByteString(0, 0) ++ intToBytes(length.toInt, bigEndian)
-          tagBytes ++ vrBytes ++ lengthBytes
-        } else {
-          val lengthBytes = intToBytes(length.toInt, bigEndian)
-          tagBytes ++ lengthBytes
-        }
+      val headerBytes = if (explicitVR)
+        if (vr.headerLength == 8)
+          tagToBytes(tag, bigEndian) ++ ByteString(vr.toString) ++ shortToBytes(length.toShort, bigEndian)
+        else
+          tagToBytes(tag, bigEndian) ++ ByteString(vr.toString) ++ ByteString(0, 0) ++ intToBytes(length.toInt, bigEndian)
+      else
+        tagToBytes(tag, bigEndian) ++ intToBytes(length.toInt, bigEndian)
       DicomHeader(tag, vr, length, isFmi, bigEndian, explicitVR, headerBytes)
     }
   }
@@ -127,6 +120,6 @@ object DicomParts {
 
   class ElementsPart(val label: String, characterSets: CharacterSets, data: Map[TagPath, Element]) extends Elements(characterSets, data) with DicomPart {
     override def bigEndian: Boolean = false
-    override def bytes: ByteString = elements.foldLeft(ByteString.empty)(_ ++ _.bytes)
+    override def bytes: ByteString = elements.foldLeft(ByteString.empty)(_ ++ _.toBytes)
   }
 }

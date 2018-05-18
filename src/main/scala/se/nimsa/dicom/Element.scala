@@ -247,12 +247,12 @@ case class Element private[dicom](tag: Int, bigEndian: Boolean, vr: VR, explicit
   /**
     * The `DicomHeader` representation of header data in this `Element`
     */
-  lazy val header: DicomHeader = DicomHeader(tag, vr, length, isFileMetaInformation(tag), bigEndian, explicitVR)
+  def header: DicomHeader = DicomHeader(tag, vr, length, isFileMetaInformation(tag), bigEndian, explicitVR)
 
   /**
     * @return The DICOM byte array representation of this element
     */
-  def bytes: ByteString = header.bytes ++ value
+  def toBytes: ByteString = header.bytes ++ value
 
   override def toString: String =
     s"Element [${tagToString(tag)} $vr $length (${if (bigEndian) "big endian" else "little endian"}/${if (explicitVR) "explicit" else "implicit"}) ${toSingleString()}]"
@@ -289,7 +289,9 @@ object Element {
   private def systemZone: ZoneOffset = ZonedDateTime.now().getOffset
 
   def parseDate(s: String): Option[LocalDate] =
-    try Option(LocalDate.parse(s.trim, dateFormat)) catch { case _: Throwable => None }
+    try Option(LocalDate.parse(s.trim, dateFormat)) catch {
+      case _: Throwable => None
+    }
 
   def parseDateTime(s: String, zoneOffset: ZoneOffset): Option[ZonedDateTime] = {
     val trimmed = s.trim
@@ -300,8 +302,13 @@ object Element {
     }
   }
 
-  case class ComponentGroup(alphabetic: String, ideographic: String, phonetic: String)
-  case class PatientName(familyName: ComponentGroup, givenName: ComponentGroup, middleName: ComponentGroup, prefix: ComponentGroup, suffix: ComponentGroup)
+  case class ComponentGroup(alphabetic: String, ideographic: String, phonetic: String) {
+    override def toString: String = s"$alphabetic=$ideographic=$phonetic".replaceAll("=+$", "")
+  }
+
+  case class PatientName(familyName: ComponentGroup, givenName: ComponentGroup, middleName: ComponentGroup, prefix: ComponentGroup, suffix: ComponentGroup) {
+    override def toString: String = s"$familyName^$givenName^$middleName^$prefix^$suffix".replaceAll("\\^+$", "")
+  }
 
   def parsePatientName(value: String): Option[PatientName] = {
     def ensureLength(s: Seq[String], n: Int) = s ++ Seq.fill(math.max(0, n - s.length))("")
@@ -325,21 +332,100 @@ object Element {
     if (n > 0) s.dropRight(n) else s
   }
 
+  private def combine(vr: VR, values: Seq[ByteString]): ByteString = vr match {
+    case AT | FL | FD | SL | SS | UL | US | OB | OW | OF | OD => values.reduce(_ ++ _)
+    case _ => if (values.isEmpty) ByteString.empty else values.tail.foldLeft(values.head)((bytes, b) => bytes ++ ByteString('\\') ++ b)
+  }
+
   def empty(tag: Int, vr: VR, bigEndian: Boolean, explicitVR: Boolean) =
     Element(tag, bigEndian, vr, explicitVR, 0, ByteString.empty)
 
-  def explicitLE(tag: Int, vr: VR, value: ByteString): Element = {
+  def apply(tag: Int, vr: VR, value: ByteString, bigEndian: Boolean, explicitVR: Boolean): Element = {
     val paddedValue = padToEvenLength(value, vr)
-    Element(tag, bigEndian = false, vr, explicitVR = true, paddedValue.length, paddedValue)
+    Element(tag, bigEndian, vr, explicitVR, paddedValue.length, paddedValue)
   }
 
-  def explicitBE(tag: Int, vr: VR, value: ByteString): Element = {
-    val paddedValue = padToEvenLength(value, vr)
-    Element(tag, bigEndian = true, vr, explicitVR = true, paddedValue.length, paddedValue)
-  }
+  def apply(tag: Int, value: ByteString, bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
+    apply(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
 
-  def implicitLE(tag: Int, vr: VR, value: ByteString): Element = {
-    val paddedValue = padToEvenLength(value, vr)
-    Element(tag, bigEndian = false, vr, explicitVR = false, paddedValue.length, paddedValue)
+  private def stringBytes(vr: VR, value: String, bigEndian: Boolean): ByteString = vr match {
+    case AT => tagToBytes(Integer.parseInt(value, 16), bigEndian)
+    case FL => floatToBytes(java.lang.Float.parseFloat(value), bigEndian)
+    case FD => doubleToBytes(java.lang.Double.parseDouble(value), bigEndian)
+    case SL => intToBytes(Integer.parseInt(value), bigEndian)
+    case SS => shortToBytes(java.lang.Short.parseShort(value), bigEndian)
+    case UL => truncate(4, longToBytes(java.lang.Long.parseUnsignedLong(value), bigEndian), bigEndian)
+    case US => truncate(2, intToBytes(java.lang.Integer.parseUnsignedInt(value), bigEndian), bigEndian)
+    case OB | OW | OF | OD => throw new IllegalArgumentException("Cannot create binary array from string")
+    case _ => ByteString(value)
   }
+  def fromString(tag: Int, vr: VR, value: String, bigEndian: Boolean, explicitVR: Boolean): Element = apply(tag, vr, stringBytes(vr, value, bigEndian), bigEndian, explicitVR)
+  def fromString(tag: Int, value: String, bigEndian: Boolean = false, explicitVR: Boolean = true): Element = fromString(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
+  def fromStrings(tag: Int, vr: VR, values: Seq[String], bigEndian: Boolean = false, explicitVR: Boolean = true): Element = apply(tag, vr, combine(vr, values.map(stringBytes(vr, _, bigEndian))), bigEndian, explicitVR)
+
+  private def shortBytes(vr: VR, value: Short, bigEndian: Boolean): ByteString = vr match {
+    case AT => throw new IllegalArgumentException("Cannot create tag from short")
+    case FL => floatToBytes(value.toFloat, bigEndian)
+    case FD => doubleToBytes(value.toDouble, bigEndian)
+    case SL => intToBytes(value.toInt, bigEndian)
+    case SS => shortToBytes(value, bigEndian)
+    case UL => intToBytes(java.lang.Short.toUnsignedInt(value), bigEndian)
+    case US => truncate(2, intToBytes(java.lang.Short.toUnsignedInt(value), bigEndian), bigEndian)
+    case OB | OW | OF | OD => throw new IllegalArgumentException("Cannot create binary array from short")
+    case _ => ByteString(value.toString)
+  }
+  def fromShort(tag: Int, vr: VR, value: Short, bigEndian: Boolean, explicitVR: Boolean): Element = apply(tag, vr, shortBytes(vr, value, bigEndian), bigEndian, explicitVR)
+  def fromShort(tag: Int, value: Short, bigEndian: Boolean = false, explicitVR: Boolean = true): Element = fromShort(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
+  def fromShorts(tag: Int, vr: VR, values: Seq[Short], bigEndian: Boolean = false, explicitVR: Boolean = true): Element = apply(tag, vr, combine(vr, values.map(shortBytes(vr, _, bigEndian))), bigEndian, explicitVR)
+
+  private def intBytes(vr: VR, value: Int, bigEndian: Boolean): ByteString = vr match {
+    case AT => tagToBytes(value, bigEndian)
+    case FL => floatToBytes(value.toFloat, bigEndian)
+    case FD => doubleToBytes(value.toDouble, bigEndian)
+    case SL => intToBytes(value, bigEndian)
+    case SS => shortToBytes(value.toShort, bigEndian)
+    case UL => truncate(4, longToBytes(Integer.toUnsignedLong(value), bigEndian), bigEndian)
+    case US => truncate(6, longToBytes(Integer.toUnsignedLong(value), bigEndian), bigEndian)
+    case OB | OW | OF | OD => throw new IllegalArgumentException("Cannot create binary array from int")
+    case _ => ByteString(value.toString)
+  }
+  def fromInt(tag: Int, vr: VR, value: Int, bigEndian: Boolean, explicitVR: Boolean): Element = apply(tag, vr, intBytes(vr, value, bigEndian), bigEndian, explicitVR)
+  def fromInt(tag: Int, value: Int, bigEndian: Boolean = false, explicitVR: Boolean = true): Element = fromInt(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
+  def fromInts(tag: Int, vr: VR, values: Seq[Int], bigEndian: Boolean = false, explicitVR: Boolean = true): Element = apply(tag, vr, combine(vr, values.map(intBytes(vr, _, bigEndian))), bigEndian, explicitVR)
+
+  def fromLong(tag: Int, value: Long, bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
+    apply(tag, longToBytes(value, bigEndian), bigEndian, explicitVR)
+
+  def fromLongs(tag: Int, values: Seq[Long], bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
+    apply(tag, values.map(longToBytes(_, bigEndian)).reduce(_ ++ _), bigEndian, explicitVR)
+
+  def fromFloat(tag: Int, value: Long, bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
+    apply(tag, floatToBytes(value, bigEndian), bigEndian, explicitVR)
+
+  def fromFloats(tag: Int, values: Seq[Float], bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
+    apply(tag, values.map(floatToBytes(_, bigEndian)).reduce(_ ++ _), bigEndian, explicitVR)
+
+  def fromDouble(tag: Int, value: Long, bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
+    apply(tag, doubleToBytes(value, bigEndian), bigEndian, explicitVR)
+
+  def fromDoubles(tag: Int, values: Seq[Double], bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
+    apply(tag, values.map(doubleToBytes(_, bigEndian)).reduce(_ ++ _), bigEndian, explicitVR)
+
+  def fromDate(tag: Int, value: LocalDate, bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
+    fromString(tag, value.format(dateFormat), bigEndian, explicitVR)
+
+  def fromDates(tag: Int, values: Seq[LocalDate], bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
+    fromString(tag, values.map(_.format(dateFormat)).mkString(multiValueDelimiter), bigEndian, explicitVR)
+
+  def fromDateTime(tag: Int, value: ZonedDateTime, bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
+    fromString(tag, value.format(dateTimeZoneFormat), bigEndian, explicitVR)
+
+  def fromDateTimes(tag: Int, values: Seq[ZonedDateTime], bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
+    fromString(tag, values.map(_.format(dateTimeZoneFormat)).mkString(multiValueDelimiter), bigEndian, explicitVR)
+
+  def fromPatientName(tag: Int, value: PatientName, bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
+    fromString(tag, value.toString, bigEndian, explicitVR)
+
+  def fromPatientNames(tag: Int, values: Seq[PatientName], bigEndian: Boolean = false, explicitVR: Boolean = true): Element =
+    fromString(tag, values.map(_.toString).mkString(multiValueDelimiter), bigEndian, explicitVR)
 }

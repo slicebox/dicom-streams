@@ -517,12 +517,12 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectItem(1, -1)
       .expectHeader(Tag.StudyDate)
       .expectValueChunk()
-      .expectItemDelimitation()
+      .expectItemDelimitation() // inserted
       .expectItem(2)
       .expectHeader(Tag.StudyDate)
       .expectValueChunk()
       .expectItemDelimitation()
-      .expectSequenceDelimitation()
+      .expectSequenceDelimitation() // inserted
       .expectSequence(Tag.AbstractPriorCodeSequence, -1)
       .expectItem(1, -1)
       .expectHeader(Tag.StudyDate)
@@ -531,7 +531,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectItem(2)
       .expectHeader(Tag.StudyDate)
       .expectValueChunk()
-      .expectItemDelimitation()
+      .expectItemDelimitation() // inserted
       .expectSequenceDelimitation()
       .expectDicomComplete()
   }

@@ -5,7 +5,7 @@ import java.time.{LocalDate, ZoneOffset, ZonedDateTime}
 import akka.util.ByteString
 import org.scalatest.{FlatSpec, Matchers}
 import se.nimsa.dicom.Element.{ComponentGroup, PatientName}
-import se.nimsa.dicom.TestData.patientNameJohnDoe
+import se.nimsa.dicom.TestData._
 import se.nimsa.dicom.VR.VR
 
 class ElementTest extends FlatSpec with Matchers {
@@ -358,10 +358,59 @@ class ElementTest extends FlatSpec with Matchers {
   }
 
   "An element" should "update its value bytes" in {
-    val updated = Element.explicitLE(Tag.PatientName, VR.PN, patientNameJohnDoe().drop(8))
+    val updated = Element(Tag.PatientName, patientNameJohnDoe().drop(8))
       .withUpdatedValue(ByteString("ABC"))
     updated.length shouldBe 4
     updated.value shouldBe ByteString("ABC ")
+  }
+
+  "Creating an element" should "produce the expected bytes from string(s)" in {
+    Element.fromString(Tag.PatientName, "John^Doe").toBytes shouldBe patientNameJohnDoe()
+    Element.fromString(Tag.PatientName, "John^Doe", bigEndian = true).toBytes shouldBe patientNameJohnDoe(bigEndian = true)
+    Element.fromString(Tag.PatientName, "John^Doe", explicitVR = false).toBytes shouldBe patientNameJohnDoe(explicitVR = false)
+    Element.fromStrings(Tag.PatientName, VR.PN, Seq("John^Doe", "Jane^Doe")).toBytes shouldBe element(Tag.PatientName, "John^Doe\\Jane^Doe")
+
+    Element.fromString(Tag.DimensionIndexPointer, "00A01234").toBytes shouldBe element(Tag.DimensionIndexPointer, tagToBytesLE(0x00A01234), bigEndian = false, explicitVR = true)
+    Element.fromString(Tag.RecommendedDisplayFrameRateInFloat, "3.1415").toBytes shouldBe element(Tag.RecommendedDisplayFrameRateInFloat, floatToBytes(3.1415F, bigEndian = false), bigEndian = false, explicitVR = true)
+    Element.fromString(Tag.TimeRange, "3.1415").toBytes shouldBe element(Tag.TimeRange, doubleToBytes(3.1415, bigEndian = false), bigEndian = false, explicitVR = true)
+    Element.fromString(Tag.ReferencePixelX0, "-1024").toBytes shouldBe element(Tag.ReferencePixelX0, intToBytesLE(-1024), bigEndian = false, explicitVR = true)
+    Element.fromString(Tag.TagAngleSecondAxis, "-1024").toBytes shouldBe element(Tag.TagAngleSecondAxis, shortToBytesLE(-1024.toShort), bigEndian = false, explicitVR = true)
+    Element.fromString(Tag.PrivateDataElementValueMultiplicity, "4294967295").toBytes shouldBe element(Tag.PrivateDataElementValueMultiplicity, longToBytesLE(4294967295L).dropRight(4), bigEndian = false, explicitVR = true)
+    Element.fromString(Tag.PrivateGroupReference, "65535").toBytes shouldBe element(Tag.PrivateGroupReference, intToBytesLE(65535).dropRight(2), bigEndian = false, explicitVR = true)
+  }
+
+  it should "produce the expected bytes from short(s)" in {
+    println(intToBytesLE(java.lang.Short.toUnsignedInt(512.toShort)))
+    Element.fromShort(Tag.Rows, 512.toShort).toBytes shouldBe rows()
+    Element.fromShort(Tag.Rows, 512.toShort, bigEndian = true).toBytes shouldBe rows(bigEndian = true)
+    Element.fromShort(Tag.Rows, 512.toShort, explicitVR = false).toBytes shouldBe rows(explicitVR = false)
+    Element.fromShorts(Tag.Rows, VR.US, Seq(512, 256).map(_.toShort)).toBytes shouldBe element(Tag.Rows, shortToBytesLE(512.toShort) ++ shortToBytesLE(256.toShort), bigEndian = false, explicitVR = true)
+
+    Element.fromShort(Tag.RecommendedDisplayFrameRateInFloat, 42.toShort).toBytes shouldBe element(Tag.RecommendedDisplayFrameRateInFloat, floatToBytes(42F, bigEndian = false), bigEndian = false, explicitVR = true)
+    Element.fromShort(Tag.TimeRange, 42.toShort).toBytes shouldBe element(Tag.TimeRange, doubleToBytes(42, bigEndian = false), bigEndian = false, explicitVR = true)
+    Element.fromShort(Tag.ReferencePixelX0, -1024.toShort).toBytes shouldBe element(Tag.ReferencePixelX0, intToBytesLE(-1024), bigEndian = false, explicitVR = true)
+    Element.fromShort(Tag.TagAngleSecondAxis, -1024.toShort).toBytes shouldBe element(Tag.TagAngleSecondAxis, shortToBytesLE(-1024.toShort), bigEndian = false, explicitVR = true)
+    Element.fromShort(Tag.PrivateDataElementValueMultiplicity, 42.toShort).toBytes shouldBe element(Tag.PrivateDataElementValueMultiplicity, longToBytesLE(42).dropRight(4), bigEndian = false, explicitVR = true)
+    Element.fromShort(Tag.PrivateGroupReference, 42.toShort).toBytes shouldBe element(Tag.PrivateGroupReference, intToBytesLE(42).dropRight(2), bigEndian = false, explicitVR = true)
+  }
+
+  it should "produce the expected bytes from int(s)" in {
+    Element.fromInt(Tag.DataPointRows, 1234).toBytes shouldBe dataPointRows()
+    Element.fromInt(Tag.DataPointRows, 1234, bigEndian = true).toBytes shouldBe dataPointRows(bigEndian = true)
+    Element.fromInt(Tag.DataPointRows, 1234, explicitVR = false).toBytes shouldBe dataPointRows(explicitVR = false)
+    Element.fromInts(Tag.DataPointRows, VR.UL, Seq(512, 256)).toBytes shouldBe element(Tag.DataPointRows, intToBytesLE(512) ++ intToBytesLE(256), bigEndian = false, explicitVR = true)
+
+    Element.fromInt(Tag.DimensionIndexPointer, 0x00A01234).toBytes shouldBe element(Tag.DimensionIndexPointer, tagToBytesLE(0x00A01234), bigEndian = false, explicitVR = true)
+    Element.fromInt(Tag.RecommendedDisplayFrameRateInFloat, 42).toBytes shouldBe element(Tag.RecommendedDisplayFrameRateInFloat, floatToBytes(42F, bigEndian = false), bigEndian = false, explicitVR = true)
+    Element.fromInt(Tag.TimeRange, 42).toBytes shouldBe element(Tag.TimeRange, doubleToBytes(42, bigEndian = false), bigEndian = false, explicitVR = true)
+    Element.fromInt(Tag.ReferencePixelX0, -1024).toBytes shouldBe element(Tag.ReferencePixelX0, intToBytesLE(-1024), bigEndian = false, explicitVR = true)
+    Element.fromInt(Tag.TagAngleSecondAxis, -1024).toBytes shouldBe element(Tag.TagAngleSecondAxis, shortToBytesLE(-1024.toShort), bigEndian = false, explicitVR = true)
+    Element.fromInt(Tag.PrivateDataElementValueMultiplicity, 42).toBytes shouldBe element(Tag.PrivateDataElementValueMultiplicity, longToBytesLE(42).dropRight(4), bigEndian = false, explicitVR = true)
+    Element.fromInt(Tag.PrivateGroupReference, 65535).toBytes shouldBe element(Tag.PrivateGroupReference, intToBytesLE(65535).dropRight(2), bigEndian = false, explicitVR = true)
+  }
+
+  it should "produce the expected bytes from long(s)" in {
+    Element.fromLongs(Tag.DataPointRows, Seq(512L, 256L)).toBytes shouldBe element(Tag.DataPointRows, longToBytesLE(512) ++ longToBytesLE(256), bigEndian = false, explicitVR = true)
   }
 
 }

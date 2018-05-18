@@ -134,7 +134,7 @@ object CharacterSets {
   }
 
   def apply(specificCharacterSetBytes: ByteString): CharacterSets =
-    apply(Element.explicitLE(Tag.SpecificCharacterSet, VR.CS, specificCharacterSetBytes))
+    apply(Element(Tag.SpecificCharacterSet, specificCharacterSetBytes))
 
   def isVrAffectedBySpecificCharacterSet(vr: VR): Boolean =
     vr match {

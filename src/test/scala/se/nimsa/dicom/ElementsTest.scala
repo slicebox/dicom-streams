@@ -21,12 +21,12 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
 
   override def afterAll(): Unit = system.terminate()
 
-  val studyDate: Element = Element.explicitLE(Tag.StudyDate, VR.DA, ByteString(20041230))
-  val patientName: Element = Element.explicitLE(Tag.PatientName, VR.PN, ByteString("John^Doe"))
-  val patientID1: Element = Element.explicitLE(Tag.PatientID, VR.LO, ByteString("12345678"))
-  val patientID2: Element = Element.explicitLE(Tag.PatientID, VR.LO, ByteString("87654321"))
-  val patientID3: Element = Element.explicitLE(Tag.PatientID, VR.LO, ByteString("18273645"))
-  val seq: Element = Element.explicitLE(Tag.DerivationCodeSequence, VR.SQ, ByteString.empty)
+  val studyDate: Element = Element(Tag.StudyDate, ByteString(20041230))
+  val patientName: Element = Element(Tag.PatientName, ByteString("John^Doe"))
+  val patientID1: Element = Element(Tag.PatientID, ByteString("12345678"))
+  val patientID2: Element = Element(Tag.PatientID, ByteString("87654321"))
+  val patientID3: Element = Element(Tag.PatientID, ByteString("18273645"))
+  val seq: Element = Element(Tag.DerivationCodeSequence, ByteString.empty)
 
   val studyDateTag: TagPath = TagPath.fromTag(Tag.StudyDate)
   val patientNameTag: TagPath = TagPath.fromTag(Tag.PatientName)
@@ -81,8 +81,8 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
   }
 
   it should "insert elements in the correct position" in {
-    val characterSets = Element.explicitLE(Tag.SpecificCharacterSet, VR.CS, ByteString("CS1 "))
-    val modality = Element.explicitLE(Tag.Modality, VR.CS, ByteString("NM"))
+    val characterSets = Element(Tag.SpecificCharacterSet, ByteString("CS1 "))
+    val modality = Element(Tag.Modality, ByteString("NM"))
     val characterSetsTag = TagPath.fromTag(Tag.SpecificCharacterSet)
     val modalityTag = TagPath.fromTag(Tag.Modality)
     elements.update(patientIDTag, patientID3).data shouldBe Map(

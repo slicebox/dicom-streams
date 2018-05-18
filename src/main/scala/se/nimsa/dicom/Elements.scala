@@ -127,12 +127,12 @@ case class Elements(characterSets: CharacterSets, data: Map[TagPath, Element]) {
 
             if (change > 0) { // item
               val item = tagToBytes(Tag.Item, element.bigEndian) ++ ByteString(0xFF, 0xFF, 0xFF, 0xFF)
-              item ++ element.bytes :: Nil
+              item ++ element.toBytes :: Nil
             } else if (change < 0) { // delimitation
               val delim = tagToBytes(Tag.ItemDelimitationItem, element.bigEndian) ++ ByteString(0, 0, 0, 0)
-              delim ++ element.bytes :: Nil
+              delim ++ element.toBytes :: Nil
             } else
-              element.bytes :: Nil
+              element.toBytes :: Nil
         }
       })
 

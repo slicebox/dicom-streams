@@ -6,21 +6,8 @@ object TestData {
 
   val preamble: ByteString = ByteString.fromArray(new Array[Byte](128)) ++ ByteString("DICM")
 
-  def element(tag: Int, value: String, bigEndian: Boolean = false, explicitVR: Boolean = true): ByteString =
-    element(tag, ByteString(value), bigEndian, explicitVR)
-
-  def element(tag: Int, value: ByteString, bigEndian: Boolean, explicitVR: Boolean): ByteString = {
-    val vr = Dictionary.vrOf(tag)
-    val paddedValue = padToEvenLength(value, vr)
-    val length = paddedValue.length
-    if (explicitVR)
-      if (vr.headerLength == 8)
-        tagToBytes(tag, bigEndian) ++ ByteString(vr.toString) ++ shortToBytes(length.toShort, bigEndian) ++ paddedValue
-      else
-        tagToBytes(tag, bigEndian) ++ ByteString(vr.toString()) ++ ByteString(0, 0) ++ intToBytes(length, bigEndian) ++ paddedValue
-    else
-      tagToBytes(tag, bigEndian) ++ intToBytes(length, bigEndian) ++ paddedValue
-  }
+  def element(tag: Int, value: String, bigEndian: Boolean = false, explicitVR: Boolean = true): ByteString = Element.fromString(tag, value, bigEndian, explicitVR).toBytes
+  def element(tag: Int, value: ByteString, bigEndian: Boolean, explicitVR: Boolean): ByteString = Element(tag, value, bigEndian, explicitVR).toBytes
 
   def fmiGroupLength(fmis: ByteString*): ByteString = element(Tag.FileMetaInformationGroupLength, intToBytesLE(fmis.map(_.length).sum), bigEndian = false, explicitVR = true)
 
