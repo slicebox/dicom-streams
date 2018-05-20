@@ -10,7 +10,7 @@ import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import se.nimsa.dicom.TestData._
 import se.nimsa.dicom.streams.ElementFolds._
 import se.nimsa.dicom.streams.TestUtils._
-import se.nimsa.dicom.{Tag, TagPath}
+import se.nimsa.dicom._
 
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContextExecutor}

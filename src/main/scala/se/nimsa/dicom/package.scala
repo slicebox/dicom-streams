@@ -23,6 +23,8 @@ import se.nimsa.dicom.VR.VR
 
 package object dicom {
 
+  val indeterminateLength = 0xFFFFFFFF
+
   private val hexDigits = Array('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F')
 
   def groupNumber(tag: Int): Int = tag >>> 16
@@ -86,4 +88,17 @@ package object dicom {
     bytes ++ padding
   }
 
+  val itemLE: ByteString = tagToBytesLE(Tag.Item) ++ intToBytesLE(indeterminateLength)
+  val itemBE: ByteString = tagToBytesBE(Tag.Item) ++ intToBytesBE(indeterminateLength)
+  def item(bigEndian: Boolean = false): ByteString = if (bigEndian) itemBE else itemLE
+  def item(length: Int): ByteString = tagToBytesLE(Tag.Item) ++ intToBytesLE(length)
+  def item(length: Int, bigEndian: Boolean): ByteString = tagToBytes(Tag.Item, bigEndian) ++ intToBytes(length, bigEndian)
+
+  val itemDelimitationLE: ByteString = tagToBytesLE(Tag.ItemDelimitationItem) ++ intToBytesLE(0x00000000)
+  val itemDelimitationBE: ByteString = tagToBytesBE(Tag.ItemDelimitationItem) ++ intToBytesBE(0x00000000)
+  def itemDelimitation(bigEndian: Boolean = false): ByteString = if (bigEndian) itemDelimitationBE else itemDelimitationLE
+
+  val sequenceDelimitationLE: ByteString = tagToBytesLE(Tag.SequenceDelimitationItem) ++ intToBytesLE(0x00000000)
+  val sequenceDelimitationBE: ByteString = tagToBytesBE(Tag.SequenceDelimitationItem) ++ intToBytesBE(0x00000000)
+  def sequenceDelimitation(bigEndian: Boolean = false): ByteString = if (bigEndian) sequenceDelimitationBE else sequenceDelimitationLE
 }
