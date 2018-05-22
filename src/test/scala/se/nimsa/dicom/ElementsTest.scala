@@ -2,7 +2,7 @@ package se.nimsa.dicom
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.{Sink, Source}
+import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{AsyncFlatSpecLike, BeforeAndAfterAll, Matchers}
@@ -141,19 +141,26 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
       patientNameJohnDoe() ++ // attribute
       pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragmentsEnd()
 
-    val elementsBytes = Await.result(
+    val elements = Await.result(
       Source.single(bytes)
         .via(parseFlow)
         .via(elementsFlow)
-        .runWith(elementsSink)
-        .flatMap(_.toBytes.runWith(Sink.reduce[ByteString](_ ++ _))),
+        .runWith(elementsSink),
       5.seconds)
 
+    println(elements)
+
+    val elementsBytes = Await.result(
+      elements
+        .toBytes
+        .runWith(Sink.reduce[ByteString](_ ++ _)),
+      5.seconds
+    )
     elementsBytes shouldBe bytes
   }
 
   it should "return an empty byte string when aggregating bytes with no data" in {
-    Elements.empty.toBytes shouldBe ByteString.empty
+    Await.result(Elements.empty.toBytes.runWith(Sink.fold(ByteString.empty)(_ ++ _)), 5.seconds) shouldBe ByteString.empty
   }
 
   it should "render an informative string representation" in {
