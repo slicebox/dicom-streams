@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-package se.nimsa
+package se.nimsa.dicom
 
 import java.nio.{ByteBuffer, ByteOrder}
 
 import akka.util.ByteString
-import se.nimsa.dicom.VR.VR
+import se.nimsa.dicom.data.VR.VR
 
-package object dicom {
+package object data {
 
   val indeterminateLength = 0xFFFFFFFF
 
@@ -71,7 +71,7 @@ package object dicom {
   def intToUnsignedLong(i: Int): Long = i & 0xFFFFFFFFL
   def shortToUnsignedInt(i: Short): Int = i & 0xFFFF
 
-  def truncate(n: Int, bytes: ByteString, bigEndian: Boolean) = if (bigEndian) bytes.drop(n) else bytes.dropRight(n)
+  def truncate(n: Int, bytes: ByteString, bigEndian: Boolean): ByteString = if (bigEndian) bytes.drop(n) else bytes.dropRight(n)
 
   def tagToString(tag: Int): String = new String(Array('(',
     hexDigits(tag >>> 28), hexDigits(tag >>> 24 & 15), hexDigits(tag >>> 20 & 15), hexDigits(tag >>> 16 & 15), ',',

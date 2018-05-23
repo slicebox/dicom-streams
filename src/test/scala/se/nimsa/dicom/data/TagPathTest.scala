@@ -1,7 +1,7 @@
-package se.nimsa.dicom
+package se.nimsa.dicom.data
 
 import org.scalatest.{FlatSpec, Matchers}
-import se.nimsa.dicom.TagPath.EmptyTagPath
+import se.nimsa.dicom.data.TagPath.EmptyTagPath
 
 class TagPathTest extends FlatSpec with Matchers {
 

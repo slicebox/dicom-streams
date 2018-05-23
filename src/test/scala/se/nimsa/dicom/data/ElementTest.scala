@@ -1,12 +1,11 @@
-package se.nimsa.dicom
+package se.nimsa.dicom.data
 
 import java.time.{LocalDate, ZoneOffset, ZonedDateTime}
 
 import akka.util.ByteString
 import org.scalatest.{FlatSpec, Matchers}
-import se.nimsa.dicom.Element.{ComponentGroup, PatientName}
-import se.nimsa.dicom.TestData._
-import se.nimsa.dicom.VR.VR
+import se.nimsa.dicom.data.TestData._
+import se.nimsa.dicom.data.VR.VR
 
 class ElementTest extends FlatSpec with Matchers {
 

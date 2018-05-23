@@ -19,8 +19,8 @@ package se.nimsa.dicom.streams
 import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
 import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
 import akka.util.ByteString
-import se.nimsa.dicom.DicomParsing.{Info, _}
-import se.nimsa.dicom.Tag
+import se.nimsa.dicom.data.DicomParsing.{Info, _}
+import se.nimsa.dicom.data.Tag
 import se.nimsa.dicom.streams.DicomFlows.ValidationContext
 
 /**

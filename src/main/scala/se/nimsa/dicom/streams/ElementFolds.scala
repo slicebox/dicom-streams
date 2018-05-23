@@ -3,8 +3,9 @@ package se.nimsa.dicom.streams
 import akka.NotUsed
 import akka.stream.scaladsl.{Flow, Keep, Sink}
 import akka.util.ByteString
-import se.nimsa.dicom._
-import DicomParts._
+import se.nimsa.dicom.data.DicomElements.Elements
+import se.nimsa.dicom.data.DicomParts._
+import se.nimsa.dicom.data._
 
 import scala.concurrent.Future
 
@@ -25,11 +26,11 @@ object ElementFolds {
   }
 
   object TpElement {
-    def empty(tagPath: TagPath, header: DicomHeader) =
+    def empty(tagPath: TagPath, header: HeaderPart) =
       TpElement(tagPath, Element(header.tag, header.bigEndian, header.vr, header.explicitVR, header.length, ByteString.empty))
-    def empty(tagPath: TagPath, sequence: DicomSequence) =
+    def empty(tagPath: TagPath, sequence: SequencePart) =
       TpElement(tagPath, Element(sequence.tag, sequence.bigEndian, VR.SQ, sequence.explicitVR, sequence.length, ByteString.empty))
-    def empty(tagPath: TagPath, fragments: DicomFragments) =
+    def empty(tagPath: TagPath, fragments: FragmentsPart) =
       TpElement(tagPath, Element(fragments.tag, fragments.bigEndian, fragments.vr, explicitVR = true, fragments.length, ByteString.empty))
   }
 
@@ -44,27 +45,27 @@ object ElementFolds {
       var currentFragment: Option[TpElement] = None
 
       override def onPart(part: DicomPart): List[TpElement] = part match {
-        case header: DicomHeader =>
+        case header: HeaderPart =>
           currentValue = Some(TpElement.empty(tagPath, header))
           Nil
-        case sequence: DicomSequence =>
+        case sequence: SequencePart =>
           TpElement.empty(tagPath, sequence) :: Nil
-        case fragments: DicomFragments =>
+        case fragments: FragmentsPart =>
           currentFragment = Some(TpElement.empty(tagPath, fragments))
           Nil
-        case fragmentsItem: DicomFragmentsItem =>
+        case fragmentsItem: FragmentsItemPart =>
           currentFragment = currentFragment.map(fragment => fragment.copy(
             tagPath = tagPath,
             element = fragment.element.copy(length = fragmentsItem.length, value = ByteString.empty)
           ))
           Nil
-        case _: DicomFragmentsDelimitation =>
+        case _: FragmentsDelimitationPart =>
           currentFragment = None
           Nil
-        case valueChunk: DicomValueChunk if currentFragment.isDefined =>
+        case valueChunk: ValueChunk if currentFragment.isDefined =>
           currentFragment = currentFragment.map(_ ++ valueChunk.bytes)
           if (valueChunk.last) currentFragment.map(_ :: Nil).getOrElse(Nil) else Nil
-        case valueChunk: DicomValueChunk =>
+        case valueChunk: ValueChunk =>
           currentValue = currentValue.map(_ ++ valueChunk.bytes)
           if (valueChunk.last) currentValue.map(_ :: Nil).getOrElse(Nil) else Nil
         case _ => Nil

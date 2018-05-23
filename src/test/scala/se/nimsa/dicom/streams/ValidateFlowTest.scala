@@ -7,14 +7,14 @@ import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
-import se.nimsa.dicom._
+import se.nimsa.dicom.data.UID
 
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContextExecutor}
 
 class ValidateFlowTest extends TestKit(ActorSystem("ValidateFlowSpec")) with FlatSpecLike with Matchers with BeforeAndAfterAll {
 
-  import se.nimsa.dicom.TestData._
+  import se.nimsa.dicom.data.TestData._
   import se.nimsa.dicom.streams.DicomFlows._
 
   implicit val materializer: ActorMaterializer = ActorMaterializer()

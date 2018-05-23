@@ -10,8 +10,9 @@ import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
-import se.nimsa.dicom.TagPath.EmptyTagPath
-import se.nimsa.dicom._
+import se.nimsa.dicom.data._
+import se.nimsa.dicom.data.TagPath.EmptyTagPath
+import se.nimsa.dicom.data.{Tag, TagPath}
 import se.nimsa.dicom.streams.ParseFlow.parseFlow
 
 import scala.concurrent.duration.DurationInt
@@ -20,9 +21,9 @@ import scala.concurrent.{Await, ExecutionContextExecutor}
 class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecLike with Matchers with BeforeAndAfterAll {
 
   import DicomFlows._
-  import DicomParts._
   import TestUtils._
-  import se.nimsa.dicom.TestData._
+  import se.nimsa.dicom.data.DicomParts._
+  import se.nimsa.dicom.data.TestData._
 
   implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val ec: ExecutionContextExecutor = system.dispatcher
@@ -37,18 +38,18 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
     val source = Source.single(bytes)
       .via(parseFlow)
       .via(DicomFlowFactory.create(new DicomFlow[DicomPart] {
-        override def onFragmentsEnd(part: DicomFragmentsDelimitation): List[DicomPart] = TestPart("Fragments End") :: Nil
-        override def onFragmentsItemStart(part: DicomFragmentsItem): List[DicomPart] = TestPart("Fragments Item Start") :: Nil
-        override def onFragmentsStart(part: DicomFragments): List[DicomPart] = TestPart("Fragments Start") :: Nil
-        override def onHeader(part: DicomHeader): List[DicomPart] = TestPart("Header") :: Nil
-        override def onPreamble(part: DicomPreamble): List[DicomPart] = TestPart("Preamble") :: Nil
-        override def onSequenceEnd(part: DicomSequenceDelimitation): List[DicomPart] = TestPart("Sequence End") :: Nil
-        override def onSequenceItemEnd(part: DicomSequenceItemDelimitation): List[DicomPart] = TestPart("Sequence Item End") :: Nil
-        override def onSequenceItemStart(part: DicomSequenceItem): List[DicomPart] = TestPart("Sequence Item Start") :: Nil
-        override def onSequenceStart(part: DicomSequence): List[DicomPart] = TestPart("Sequence Start") :: Nil
-        override def onValueChunk(part: DicomValueChunk): List[DicomPart] = TestPart("Value Chunk") :: Nil
-        override def onDeflatedChunk(part: DicomDeflatedChunk): List[DicomPart] = Nil
-        override def onUnknownPart(part: DicomUnknownPart): List[DicomPart] = Nil
+        override def onFragmentsEnd(part: FragmentsDelimitationPart): List[DicomPart] = TestPart("Fragments End") :: Nil
+        override def onFragmentsItemStart(part: FragmentsItemPart): List[DicomPart] = TestPart("Fragments Item Start") :: Nil
+        override def onFragmentsStart(part: FragmentsPart): List[DicomPart] = TestPart("Fragments Start") :: Nil
+        override def onHeader(part: HeaderPart): List[DicomPart] = TestPart("Header") :: Nil
+        override def onPreamble(part: PreamblePart): List[DicomPart] = TestPart("Preamble") :: Nil
+        override def onSequenceEnd(part: SequenceDelimitationPart): List[DicomPart] = TestPart("Sequence End") :: Nil
+        override def onSequenceItemEnd(part: ItemDelimitationPart): List[DicomPart] = TestPart("Sequence Item End") :: Nil
+        override def onSequenceItemStart(part: SequenceItemPart): List[DicomPart] = TestPart("Sequence Item Start") :: Nil
+        override def onSequenceStart(part: SequencePart): List[DicomPart] = TestPart("Sequence Start") :: Nil
+        override def onValueChunk(part: ValueChunk): List[DicomPart] = TestPart("Value Chunk") :: Nil
+        override def onDeflatedChunk(part: DeflatedChunk): List[DicomPart] = Nil
+        override def onUnknownPart(part: UnknownPart): List[DicomPart] = Nil
         override def onPart(part: DicomPart): List[DicomPart] = Nil
       }))
 
@@ -83,12 +84,12 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
     val source = Source.single(bytes)
       .via(parseFlow)
       .via(DicomFlowFactory.create(new IdentityFlow with GuaranteedDelimitationEvents[DicomPart] {
-        override def onSequenceItemEnd(part: DicomSequenceItemDelimitation): List[DicomPart] = {
+        override def onSequenceItemEnd(part: ItemDelimitationPart): List[DicomPart] = {
           part.bytes.length shouldBe expectedDelimitationLengths.head
           expectedDelimitationLengths = expectedDelimitationLengths.tail
           super.onSequenceItemEnd(part)
         }
-        override def onSequenceEnd(part: DicomSequenceDelimitation): List[DicomPart] = {
+        override def onSequenceEnd(part: SequenceDelimitationPart): List[DicomPart] = {
           part.bytes.length shouldBe expectedDelimitationLengths.head
           expectedDelimitationLengths = expectedDelimitationLengths.tail
           super.onSequenceEnd(part)
@@ -222,11 +223,11 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
       .via(parseFlow)
       .via(DicomFlowFactory.create(new IdentityFlow with GuaranteedDelimitationEvents[DicomPart]))
       .via(DicomFlowFactory.create(new IdentityFlow with GuaranteedDelimitationEvents[DicomPart] {
-        override def onSequenceItemEnd(part: DicomSequenceItemDelimitation): List[DicomPart] = {
+        override def onSequenceItemEnd(part: ItemDelimitationPart): List[DicomPart] = {
           nItemDelims += 1
           super.onSequenceItemEnd(part)
         }
-        override def onSequenceEnd(part: DicomSequenceDelimitation): List[DicomPart] = {
+        override def onSequenceEnd(part: SequenceDelimitationPart): List[DicomPart] = {
           nSeqDelims += 1
           super.onSequenceEnd(part)
         }
@@ -246,7 +247,7 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
     val source = Source.single(bytes)
       .via(parseFlow)
       .via(DicomFlowFactory.create(new IdentityFlow with GuaranteedValueEvent[DicomPart] {
-        override def onValueChunk(part: DicomValueChunk): List[DicomPart] = {
+        override def onValueChunk(part: ValueChunk): List[DicomPart] = {
           part.bytes.length shouldBe expectedChunkLengths.head
           expectedChunkLengths = expectedChunkLengths.tail
           super.onValueChunk(part)
@@ -269,7 +270,7 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
       .via(parseFlow)
       .via(DicomFlowFactory.create(new IdentityFlow with GuaranteedValueEvent[DicomPart]))
       .via(DicomFlowFactory.create(new IdentityFlow with GuaranteedValueEvent[DicomPart] {
-        override def onValueChunk(part: DicomValueChunk): List[DicomPart] = {
+        override def onValueChunk(part: ValueChunk): List[DicomPart] = {
           nEvents += 1
           super.onValueChunk(part)
         }
@@ -448,7 +449,7 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
   }
 
   it should "track an entire file without exception" in {
-    val file = new File(getClass.getResource("CT0055.dcm").toURI)
+    val file = new File(getClass.getResource("../data/test001.dcm").toURI)
     val source = FileIO.fromPath(file.toPath)
       .via(parseFlow)
       .via(DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with TagPathTracking[DicomPart] {

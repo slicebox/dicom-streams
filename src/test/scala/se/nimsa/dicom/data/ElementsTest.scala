@@ -1,18 +1,18 @@
-package se.nimsa.dicom
+package se.nimsa.dicom.data
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.{Keep, Sink, Source}
+import akka.stream.scaladsl.{Sink, Source}
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{AsyncFlatSpecLike, BeforeAndAfterAll, Matchers}
-import se.nimsa.dicom.TestData.{studyDate => testStudyDate, _}
-import se.nimsa.dicom.streams.ElementFolds.TpElement
-import se.nimsa.dicom.streams.ElementFolds._
+import se.nimsa.dicom.data.DicomElements.Elements
+import se.nimsa.dicom.data.TestData.{studyDate => testStudyDate, _}
+import se.nimsa.dicom.streams.ElementFolds.{TpElement, _}
 import se.nimsa.dicom.streams.ParseFlow.parseFlow
 
-import scala.concurrent.{Await, ExecutionContextExecutor}
 import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContextExecutor}
 
 class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSpecLike with Matchers with BeforeAndAfterAll {
 

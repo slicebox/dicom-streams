@@ -7,16 +7,17 @@ import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
-import se.nimsa.dicom._
+import se.nimsa.dicom.data._
+import se.nimsa.dicom.data.{Tag, TagPath, VR}
 
 import scala.concurrent.ExecutionContextExecutor
 
 class ModifyFlowTest extends TestKit(ActorSystem("ModifyFlowSpec")) with FlatSpecLike with Matchers with BeforeAndAfterAll {
 
   import ModifyFlow._
-  import DicomParts._
   import TestUtils._
-  import se.nimsa.dicom.TestData._
+  import se.nimsa.dicom.data.DicomParts._
+  import se.nimsa.dicom.data.TestData._
 
   implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val ec: ExecutionContextExecutor = system.dispatcher

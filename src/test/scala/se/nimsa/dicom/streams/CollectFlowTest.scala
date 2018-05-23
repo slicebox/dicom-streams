@@ -7,9 +7,9 @@ import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
-import se.nimsa.dicom.DicomParts.{DicomPart, ElementsPart}
-import se.nimsa.dicom.{Tag, TagPath}
-import se.nimsa.dicom.TestData._
+import se.nimsa.dicom.data.DicomParts.{ElementsPart, DicomPart}
+import se.nimsa.dicom.data.TestData._
+import se.nimsa.dicom.data.{Tag, TagPath}
 import se.nimsa.dicom.streams.CollectFlow._
 import se.nimsa.dicom.streams.ParseFlow.parseFlow
 import se.nimsa.dicom.streams.TestUtils._

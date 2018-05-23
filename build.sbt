@@ -32,10 +32,10 @@ libraryDependencies ++= {
 updateOptions := updateOptions.value.withCachedResolution(true)
 
 sourceGenerators in Compile += Def.task {
-  val tagFile = (sourceManaged in Compile).value / "se" / "nimsa" / "dicom" / "Tag.scala"
-  val keywordFile = (sourceManaged in Compile).value / "se" / "nimsa" / "dicom" / "Keyword.scala"
-  val uidFile = (sourceManaged in Compile).value / "se" / "nimsa" / "dicom" / "UID.scala"
-  val dictionaryFile = (sourceManaged in Compile).value / "se" / "nimsa" / "dicom" / "Dictionary.scala"
+  val tagFile = (sourceManaged in Compile).value / "se" / "nimsa" / "dicom" / "data" / "Tag.scala"
+  val keywordFile = (sourceManaged in Compile).value / "se" / "nimsa" / "dicom" / "data" / "Keyword.scala"
+  val uidFile = (sourceManaged in Compile).value / "se" / "nimsa" / "dicom" / "data" / "UID.scala"
+  val dictionaryFile = (sourceManaged in Compile).value / "se" / "nimsa" / "dicom" / "data" / "Dictionary.scala"
   IO.write(tagFile, generateTag())
   IO.write(keywordFile, generateKeyword())
   IO.write(uidFile, generateUID())

@@ -29,7 +29,7 @@ import scala.util.control.{NoStackTrace, NonFatal}
   * This class is borrowed (with minor modifications) from the
   * <a href="https://github.com/akka/akka/blob/master/akka-stream/src/main/scala/akka/stream/impl/io/ByteStringParser.scala">AKKA internal API</a>.
   * It provides a stateful parser from a stream of byte chunks to a stream of objects of type <code>T</code>. The main
-  * addition made to this class is the possiblity to handle deflated byte streams which may be inflated on the fly before
+  * addition made to this class is the possiblity to handle deflated byte data which may be inflated on the fly before
   * parsing.
   * @tparam T the type created by this parser
   */

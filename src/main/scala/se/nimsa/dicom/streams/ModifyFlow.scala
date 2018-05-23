@@ -19,10 +19,10 @@ package se.nimsa.dicom.streams
 import akka.NotUsed
 import akka.stream.scaladsl.Flow
 import akka.util.ByteString
-import se.nimsa.dicom.DicomParsing.isFileMetaInformation
-import se.nimsa.dicom.DicomParts._
-import se.nimsa.dicom.TagPath.{EmptyTagPath, TagPathTag}
-import se.nimsa.dicom.{Dictionary, TagPath, VR}
+import se.nimsa.dicom.data.DicomParsing.isFileMetaInformation
+import se.nimsa.dicom.data.DicomParts._
+import se.nimsa.dicom.data.TagPath.{EmptyTagPath, TagPathTag}
+import se.nimsa.dicom.data.{Dictionary, TagPath, VR}
 
 object ModifyFlow {
 
@@ -67,7 +67,7 @@ object ModifyFlow {
     *
     * Note that modified DICOM data may not be valid. This function does not ensure values are padded to even length and
     * changing an element may lead to invalid group length elements such as MediaStorageSOPInstanceUID. There are
-    * utility functions in `se.nimsa.ddcm4che.streams` for padding values and flows for adjusting group lengths.
+    * utility functions in `se.nimsa.ddcm4che.data` for padding values and flows for adjusting group lengths.
     *
     * @param modifications Any number of `TagModification`s each specifying a tag path, a modification function, and
     *                      a Boolean indicating whether absent values will be inserted or skipped.
@@ -79,19 +79,19 @@ object ModifyFlow {
       val sortedModifications: List[TagModification] = modifications.toList.sortWith((a, b) => a.tagPath < b.tagPath)
 
       var currentModification: Option[TagModification] = None // current modification
-      var currentHeader: Option[DicomHeader] = None // header of current element being modified
+      var currentHeader: Option[HeaderPart] = None // header of current element being modified
       var latestTagPath: TagPath = EmptyTagPath // last seen new tag path
       var value: ByteString = ByteString.empty // value of current element being modified
       var bigEndian = false // endianness of current element
       var explicitVR = true // VR representation of current element
 
-      def updateSyntax(header: DicomHeader): Unit = {
+      def updateSyntax(header: HeaderPart): Unit = {
         bigEndian = header.bigEndian
         explicitVR = header.explicitVR
       }
 
       def valueOrNot(bytes: ByteString): List[DicomPart] =
-        if (bytes.isEmpty) Nil else DicomValueChunk(bigEndian, bytes, last = true) :: Nil
+        if (bytes.isEmpty) Nil else ValueChunk(bigEndian, bytes, last = true) :: Nil
 
       def headerAndValueParts(tagPath: TagPath, modification: ByteString => ByteString): List[DicomPart] = {
         val valueBytes = modification(ByteString.empty)
@@ -99,7 +99,7 @@ object ModifyFlow {
         if (vr == VR.UN) throw new IllegalArgumentException("Tag is not present in dictionary, cannot determine value representation")
         if (vr == VR.SQ) throw new IllegalArgumentException("Cannot insert sequences")
         val isFmi = isFileMetaInformation(tagPath.tag)
-        val header = DicomHeader(tagPath.tag, vr, valueBytes.length, isFmi, bigEndian, explicitVR)
+        val header = HeaderPart(tagPath.tag, vr, valueBytes.length, isFmi, bigEndian, explicitVR)
         header :: valueOrNot(valueBytes)
       }
 
@@ -115,7 +115,7 @@ object ModifyFlow {
         .filter(m => isInDataset(m.tagPath, tagPath))
         .flatMap(m => headerAndValueParts(m.tagPath, m.modification))
 
-      def findModifyPart(header: DicomHeader): List[DicomPart] = sortedModifications
+      def findModifyPart(header: HeaderPart): List[DicomPart] = sortedModifications
         .find(m => m.matches(tagPath))
         .map { tagModification =>
           if (header.length > 0) {
@@ -133,19 +133,19 @@ object ModifyFlow {
 
       override def onPart(part: DicomPart): List[DicomPart] =
         part match {
-          case header: DicomHeader =>
+          case header: HeaderPart =>
             updateSyntax(header)
             val insertParts = findInsertParts
             val modifyPart = findModifyPart(header)
             latestTagPath = tagPath
             insertParts ::: modifyPart
 
-          case sequence: DicomSequence =>
+          case sequence: SequencePart =>
             val insertParts = findInsertParts
             latestTagPath = tagPath
             insertParts ::: sequence :: Nil
 
-          case chunk: DicomValueChunk =>
+          case chunk: ValueChunk =>
             if (currentModification.isDefined && currentHeader.isDefined) {
               value = value ++ chunk.bytes
               if (chunk.last) {

@@ -7,10 +7,11 @@ import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
-import se.nimsa.dicom.TestData._
+import se.nimsa.dicom.data.TestData._
 import se.nimsa.dicom.streams.ElementFolds._
 import se.nimsa.dicom.streams.TestUtils._
-import se.nimsa.dicom._
+import se.nimsa.dicom.data._
+import se.nimsa.dicom.data.{Tag, TagPath}
 
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContextExecutor}

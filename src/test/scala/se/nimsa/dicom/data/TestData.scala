@@ -1,7 +1,6 @@
-package se.nimsa.dicom
+package se.nimsa.dicom.data
 
 import akka.util.ByteString
-import se.nimsa.dicom
 
 object TestData {
 

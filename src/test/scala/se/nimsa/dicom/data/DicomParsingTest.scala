@@ -1,4 +1,4 @@
-package se.nimsa.dicom
+package se.nimsa.dicom.data
 
 import java.nio.ByteBuffer
 
@@ -8,7 +8,7 @@ import org.scalatest.{FlatSpecLike, Matchers}
 class DicomParsingTest extends FlatSpecLike with Matchers {
 
   import DicomParsing._
-  import se.nimsa.dicom.TestData._
+  import TestData._
   
   "DicomParsing" should "parse headers for explicit VR little endian" in {
     val bytes = patientNameJohnDoe()

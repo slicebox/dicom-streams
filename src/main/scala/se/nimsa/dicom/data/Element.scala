@@ -1,13 +1,14 @@
-package se.nimsa.dicom
+package se.nimsa.dicom.data
 
 import java.time._
 import java.time.format.{DateTimeFormatterBuilder, SignStyle}
 import java.time.temporal.ChronoField._
 
 import akka.util.ByteString
-import se.nimsa.dicom.VR._
-import se.nimsa.dicom.DicomParsing.isFileMetaInformation
-import DicomParts.DicomHeader
+import se.nimsa.dicom.data.DicomParsing.isFileMetaInformation
+import se.nimsa.dicom.data.DicomParts.HeaderPart
+import se.nimsa.dicom.data.VR._
+import se.nimsa.dicom.data.DicomParsing._
 
 /**
   * This class describes a DICOM data element (or attribute).
@@ -21,8 +22,6 @@ import DicomParts.DicomHeader
   */
 case class Element private[dicom](tag: Int, bigEndian: Boolean, vr: VR, explicitVR: Boolean, length: Long, value: ByteString) {
 
-  import Element._
-
   /**
     * For each component value of this element's value, return it's string representation
     *
@@ -31,17 +30,17 @@ case class Element private[dicom](tag: Int, bigEndian: Boolean, vr: VR, explicit
     */
   def toStrings(characterSets: CharacterSets = CharacterSets.defaultOnly): Seq[String] = if (value.isEmpty) Seq.empty else
     vr match {
-      case AT => parseAT.map(tagToString)
-      case FL => parseFL.map(_.toString)
-      case FD => parseFD.map(_.toString)
-      case SL => parseSL.map(_.toString)
-      case SS => parseSS.map(_.toString)
-      case UL => parseSL.map(Integer.toUnsignedString)
-      case US => parseSS.map(java.lang.Short.toUnsignedInt).map(_.toString)
+      case AT => parseAT(value, bigEndian).map(tagToString)
+      case FL => parseFL(value, bigEndian).map(_.toString)
+      case FD => parseFD(value, bigEndian).map(_.toString)
+      case SL => parseSL(value, bigEndian).map(_.toString)
+      case SS => parseSS(value, bigEndian).map(_.toString)
+      case UL => parseSL(value, bigEndian).map(Integer.toUnsignedString)
+      case US => parseSS(value, bigEndian).map(java.lang.Short.toUnsignedInt).map(_.toString)
       case OB => Seq(value.map(byteToHexString).mkString(" "))
       case OW => Seq(split(value, 2).map(bytesToShort(_, bigEndian)).map(shortToHexString).mkString(" "))
-      case OF => Seq(parseFL.mkString(" "))
-      case OD => Seq(parseFD.mkString(" "))
+      case OF => Seq(parseFL(value, bigEndian).mkString(" "))
+      case OD => Seq(parseFD(value, bigEndian).mkString(" "))
       case ST | LT | UT => Seq(trimPadding(characterSets.decode(vr, value), vr.paddingByte))
       case _ => split(characterSets.decode(vr, value)).map(trim)
     }
@@ -60,14 +59,14 @@ case class Element private[dicom](tag: Int, bigEndian: Boolean, vr: VR, explicit
     *         short representation, an empty sequence is returned.
     */
   def toShorts: Seq[Short] = vr match {
-    case FL => parseFL.map(_.toShort)
-    case FD => parseFD.map(_.toShort)
-    case SL => parseSL.map(_.toShort)
-    case SS => parseSS
-    case UL => parseUL.map(_.toShort)
-    case US => parseUS.map(_.toShort)
-    case DS => parseDS.map(_.toShort)
-    case IS => parseIS.map(_.toShort)
+    case FL => parseFL(value, bigEndian).map(_.toShort)
+    case FD => parseFD(value, bigEndian).map(_.toShort)
+    case SL => parseSL(value, bigEndian).map(_.toShort)
+    case SS => parseSS(value, bigEndian)
+    case UL => parseUL(value, bigEndian).map(_.toShort)
+    case US => parseUS(value, bigEndian).map(_.toShort)
+    case DS => parseDS(value).map(_.toShort)
+    case IS => parseIS(value).map(_.toShort)
     case _ => Seq.empty
   }
 
@@ -76,15 +75,15 @@ case class Element private[dicom](tag: Int, bigEndian: Boolean, vr: VR, explicit
     *         int representation, an empty sequence is returned.
     */
   def toInts: Seq[Int] = vr match {
-    case AT => parseAT
-    case FL => parseFL.map(_.toInt)
-    case FD => parseFD.map(_.toInt)
-    case SL => parseSL
-    case SS => parseSS.map(_.toInt)
-    case UL => parseUL.map(_.toInt)
-    case US => parseUS
-    case DS => parseDS.map(_.toInt)
-    case IS => parseIS.map(_.toInt)
+    case AT => parseAT(value, bigEndian)
+    case FL => parseFL(value, bigEndian).map(_.toInt)
+    case FD => parseFD(value, bigEndian).map(_.toInt)
+    case SL => parseSL(value, bigEndian)
+    case SS => parseSS(value, bigEndian).map(_.toInt)
+    case UL => parseUL(value, bigEndian).map(_.toInt)
+    case US => parseUS(value, bigEndian)
+    case DS => parseDS(value).map(_.toInt)
+    case IS => parseIS(value).map(_.toInt)
     case _ => Seq.empty
   }
 
@@ -93,14 +92,14 @@ case class Element private[dicom](tag: Int, bigEndian: Boolean, vr: VR, explicit
     *         long representation, an empty sequence is returned.
     */
   def toLongs: Seq[Long] = vr match {
-    case FL => parseFL.map(_.toLong)
-    case FD => parseFD.map(_.toLong)
-    case SL => parseSL.map(_.toLong)
-    case SS => parseSS.map(_.toLong)
-    case UL => parseUL
-    case US => parseUS.map(_.toLong)
-    case DS => parseDS.map(_.toLong)
-    case IS => parseIS
+    case FL => parseFL(value, bigEndian).map(_.toLong)
+    case FD => parseFD(value, bigEndian).map(_.toLong)
+    case SL => parseSL(value, bigEndian).map(_.toLong)
+    case SS => parseSS(value, bigEndian).map(_.toLong)
+    case UL => parseUL(value, bigEndian)
+    case US => parseUS(value, bigEndian).map(_.toLong)
+    case DS => parseDS(value).map(_.toLong)
+    case IS => parseIS(value)
     case _ => Seq.empty
   }
 
@@ -109,14 +108,14 @@ case class Element private[dicom](tag: Int, bigEndian: Boolean, vr: VR, explicit
     *         float representation, an empty sequence is returned.
     */
   def toFloats: Seq[Float] = vr match {
-    case FL => parseFL
-    case FD => parseFD.map(_.toFloat)
-    case SL => parseSL.map(_.toFloat)
-    case SS => parseSS.map(_.toFloat)
-    case UL => parseUL.map(_.toFloat)
-    case US => parseUS.map(_.toFloat)
-    case DS => parseDS.map(_.toFloat)
-    case IS => parseIS.map(_.toFloat)
+    case FL => parseFL(value, bigEndian)
+    case FD => parseFD(value, bigEndian).map(_.toFloat)
+    case SL => parseSL(value, bigEndian).map(_.toFloat)
+    case SS => parseSS(value, bigEndian).map(_.toFloat)
+    case UL => parseUL(value, bigEndian).map(_.toFloat)
+    case US => parseUS(value, bigEndian).map(_.toFloat)
+    case DS => parseDS(value).map(_.toFloat)
+    case IS => parseIS(value).map(_.toFloat)
     case _ => Seq.empty
   }
 
@@ -125,14 +124,14 @@ case class Element private[dicom](tag: Int, bigEndian: Boolean, vr: VR, explicit
     *         double representation, an empty sequence is returned.
     */
   def toDoubles: Seq[Double] = vr match {
-    case FL => parseFL.map(_.toDouble)
-    case FD => parseFD
-    case SL => parseSL.map(_.toDouble)
-    case SS => parseSS.map(_.toDouble)
-    case UL => parseUL.map(_.toDouble)
-    case US => parseUS.map(_.toDouble)
-    case DS => parseDS
-    case IS => parseIS.map(_.toDouble)
+    case FL => parseFL(value, bigEndian).map(_.toDouble)
+    case FD => parseFD(value, bigEndian)
+    case SL => parseSL(value, bigEndian).map(_.toDouble)
+    case SS => parseSS(value, bigEndian).map(_.toDouble)
+    case UL => parseUL(value, bigEndian).map(_.toDouble)
+    case US => parseUS(value, bigEndian).map(_.toDouble)
+    case DS => parseDS(value)
+    case IS => parseIS(value).map(_.toDouble)
     case _ => Seq.empty
   }
 
@@ -141,8 +140,8 @@ case class Element private[dicom](tag: Int, bigEndian: Boolean, vr: VR, explicit
     *         `LocalDate` representation, an empty sequence is returned.
     */
   def toDates: Seq[LocalDate] = vr match {
-    case DA => parseDA
-    case DT => parseDT(systemZone).map(_.toLocalDate)
+    case DA => parseDA(value)
+    case DT => parseDT(value, systemZone).map(_.toLocalDate)
     case _ => Seq.empty
   }
 
@@ -151,8 +150,8 @@ case class Element private[dicom](tag: Int, bigEndian: Boolean, vr: VR, explicit
     *         `ZonedDateTime` representation, an empty sequence is returned.
     */
   def toDateTimes(zoneOffset: ZoneOffset = systemZone): Seq[ZonedDateTime] = vr match {
-    case DA => parseDA.map(_.atStartOfDay(zoneOffset))
-    case DT => parseDT(zoneOffset)
+    case DA => parseDA(value).map(_.atStartOfDay(zoneOffset))
+    case DT => parseDT(value, zoneOffset)
     case _ => Seq.empty
   }
 
@@ -161,7 +160,7 @@ case class Element private[dicom](tag: Int, bigEndian: Boolean, vr: VR, explicit
     *         `PatientName`` representation, an empty sequence is returned.
     */
   def toPatientNames(characterSets: CharacterSets = CharacterSets.defaultOnly): Seq[PatientName] = vr match {
-    case PN => parsePN(characterSets)
+    case PN => parsePN(value, characterSets)
     case _ => Seq.empty
   }
 
@@ -205,34 +204,6 @@ case class Element private[dicom](tag: Int, bigEndian: Boolean, vr: VR, explicit
     */
   def toPatientName(characterSets: CharacterSets = CharacterSets.defaultOnly): Option[PatientName] = toPatientNames(characterSets).headOption
 
-  private def parseAT: Seq[Int] = split(value, 4).map(b => bytesToTag(b, bigEndian))
-
-  private def parseSL: Seq[Int] = split(value, 4).map(bytesToInt(_, bigEndian))
-
-  private def parseUL: Seq[Long] = parseSL.map(intToUnsignedLong)
-
-  private def parseSS: Seq[Short] = split(value, 2).map(bytesToShort(_, bigEndian))
-
-  private def parseUS: Seq[Int] = parseSS.map(shortToUnsignedInt)
-
-  private def parseFL: Seq[Float] = split(value, 4).map(bytesToFloat(_, bigEndian))
-
-  private def parseFD: Seq[Double] = split(value, 8).map(bytesToDouble(_, bigEndian))
-
-  private def parseDS: Seq[Double] = split(value.utf8String).map(trim).flatMap(s => try Option(java.lang.Double.parseDouble(s)) catch {
-    case _: Throwable => None
-  })
-
-  private def parseIS: Seq[Long] = split(value.utf8String).map(trim).flatMap(s => try Option(java.lang.Long.parseLong(s)) catch {
-    case _: Throwable => None
-  })
-
-  private def parseDA: Seq[LocalDate] = split(value.utf8String).flatMap(parseDate)
-
-  private def parseDT(zoneOffset: ZoneOffset): Seq[ZonedDateTime] = split(value.utf8String).flatMap(parseDateTime(_, zoneOffset))
-
-  private def parsePN(characterSets: CharacterSets): Seq[PatientName] = split(characterSets.decode(VR.PN, value)).map(trimPadding(_, vr.paddingByte)).flatMap(parsePatientName)
-
   /**
     * Return a copy of this element with its value updated. Length will be updated automatically.
     *
@@ -247,7 +218,7 @@ case class Element private[dicom](tag: Int, bigEndian: Boolean, vr: VR, explicit
   /**
     * The `DicomHeader` representation of header data in this `Element`
     */
-  def header: DicomHeader = DicomHeader(tag, vr, length, isFileMetaInformation(tag), bigEndian, explicitVR)
+  def header: HeaderPart = HeaderPart(tag, vr, length, isFileMetaInformation(tag), bigEndian, explicitVR)
 
   /**
     * @return The DICOM byte array representation of this element
@@ -260,82 +231,11 @@ case class Element private[dicom](tag: Int, bigEndian: Boolean, vr: VR, explicit
 
 object Element {
 
-  final lazy val multiValueDelimiter = """\"""
-  final lazy val multiValueDelimiterRegex = """\\"""
-
-  final private lazy val dateFormat1 = new DateTimeFormatterBuilder()
+  final private lazy val dateFormatForEncoding = new DateTimeFormatterBuilder()
     .appendValue(YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
     .appendPattern("MMdd")
     .toFormatter
 
-  final private lazy val dateFormat2 = new DateTimeFormatterBuilder()
-    .appendValue(YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
-    .appendPattern("['.']MM['.']dd")
-    .toFormatter
-
-  final private lazy val dateTimeFormat = new DateTimeFormatterBuilder()
-    .appendValue(YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
-    .appendPattern("[MM[dd[HH[mm[ss[")
-    .appendFraction(MICRO_OF_SECOND, 1, 6, true)
-    .appendPattern("]]]]]]")
-    .parseDefaulting(MONTH_OF_YEAR, 1)
-    .parseDefaulting(DAY_OF_MONTH, 1)
-    .parseDefaulting(HOUR_OF_DAY, 0)
-    .parseDefaulting(MINUTE_OF_HOUR, 0)
-    .parseDefaulting(SECOND_OF_MINUTE, 0)
-    .parseDefaulting(MICRO_OF_SECOND, 0)
-    .toFormatter
-
-  final private lazy val dateTimeZoneFormat = new DateTimeFormatterBuilder()
-    .append(dateTimeFormat)
-    .appendPattern("[Z]")
-    .toFormatter
-
-  private def systemZone: ZoneOffset = ZonedDateTime.now().getOffset
-
-  def parseDate(s: String): Option[LocalDate] =
-    try Option(LocalDate.parse(s.trim, dateFormat2)) catch {
-      case _: Throwable => None
-    }
-
-  def parseDateTime(s: String, zoneOffset: ZoneOffset): Option[ZonedDateTime] = {
-    val trimmed = s.trim
-    try Option(ZonedDateTime.parse(trimmed, dateTimeZoneFormat)) catch {
-      case _: Throwable => try Option(LocalDateTime.parse(trimmed, dateTimeFormat).atZone(zoneOffset)) catch {
-        case _: Throwable => None
-      }
-    }
-  }
-
-  case class ComponentGroup(alphabetic: String, ideographic: String, phonetic: String) {
-    override def toString: String = s"$alphabetic=$ideographic=$phonetic".replaceAll("=+$", "")
-  }
-
-  case class PatientName(familyName: ComponentGroup, givenName: ComponentGroup, middleName: ComponentGroup, prefix: ComponentGroup, suffix: ComponentGroup) {
-    override def toString: String = s"$familyName^$givenName^$middleName^$prefix^$suffix".replaceAll("\\^+$", "")
-  }
-
-  def parsePatientName(value: String): Option[PatientName] = {
-    def ensureLength(s: Seq[String], n: Int) = s ++ Seq.fill(math.max(0, n - s.length))("")
-
-    val comps = ensureLength(value.split("""\^"""), 5)
-      .map(s => ensureLength(s.split("="), 3).map(trim))
-      .map(c => ComponentGroup(c.head, c(1), c(2)))
-
-    Option(PatientName(comps.head, comps(1), comps(2), comps(3), comps(4)))
-  }
-
-  private def split(bytes: ByteString, size: Int): Seq[ByteString] = bytes.grouped(size).filter(_.length == size).toSeq
-  private def split(s: String): Seq[String] = s.split(multiValueDelimiterRegex)
-
-  private def trim(s: String): String = s.trim
-  private def trimPadding(s: String, paddingByte: Byte): String = {
-    var index = s.length - 1
-    while (index >= 0 && s(index) <= paddingByte)
-      index -= 1
-    val n = s.length - 1 - index
-    if (n > 0) s.dropRight(n) else s
-  }
 
   private def combine(vr: VR, values: Seq[ByteString]): ByteString = vr match {
     case AT | FL | FD | SL | SS | UL | US | OB | OW | OF | OD => values.reduce(_ ++ _)
@@ -444,7 +344,7 @@ object Element {
 
   private def dateBytes(vr: VR, value: LocalDate): ByteString = vr match {
     case AT | FL | FD | SL | SS | UL | US | OB | OW | OF | OD => throw new IllegalArgumentException(s"Cannot create value of VR $vr from date")
-    case _ => ByteString(value.format(dateFormat1))
+    case _ => ByteString(value.format(dateFormatForEncoding))
   }
   def fromDate(tag: Int, vr: VR, value: LocalDate, bigEndian: Boolean, explicitVR: Boolean): Element = apply(tag, vr, dateBytes(vr, value), bigEndian, explicitVR)
   def fromDate(tag: Int, value: LocalDate, bigEndian: Boolean = false, explicitVR: Boolean = true): Element = fromDate(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)

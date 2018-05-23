@@ -89,7 +89,7 @@ object DicomSourceGenerators {
         .map(a => s"""  final val ${a.keyword} = 0x${a.tagString.replaceAll("x", "0").replaceAll(nonHex, "")}${if (a.retired) " // retired" else ""}""")
         .mkString("\r\n")
 
-    s"""package se.nimsa.dicom
+    s"""package se.nimsa.dicom.data
        |
        |object Tag {
        |
@@ -124,7 +124,7 @@ object DicomSourceGenerators {
 
     val splitValue = tagKeywordMappings._2.head._1
 
-    s"""package se.nimsa.dicom
+    s"""package se.nimsa.dicom.data
        |
        |import scala.annotation.switch
        |
@@ -174,7 +174,7 @@ object DicomSourceGenerators {
       .filter(_._1 != "Retired")
       .distinct
 
-    s"""package se.nimsa.dicom
+    s"""package se.nimsa.dicom.data
        |
        |object UID {
        |
@@ -204,7 +204,7 @@ object DicomSourceGenerators {
 
     val splitValue = tagVrMappings._2.head._1
 
-    s"""package se.nimsa.dicom
+    s"""package se.nimsa.dicom.data
        |
        |import VR._
        |import scala.annotation.switch

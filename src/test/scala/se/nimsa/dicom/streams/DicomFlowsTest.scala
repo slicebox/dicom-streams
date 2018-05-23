@@ -9,9 +9,9 @@ import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
-import se.nimsa.dicom._
-import se.nimsa.dicom.TestData._
-import DicomParts._
+import se.nimsa.dicom.data.DicomParts.DicomPart
+import se.nimsa.dicom.data.TestData._
+import se.nimsa.dicom.data._
 import se.nimsa.dicom.streams.ParseFlow._
 import se.nimsa.dicom.streams.DicomFlows._
 import se.nimsa.dicom.streams.ModifyFlow._
@@ -113,7 +113,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   it should "discard group length elements except 0002,0000 when testing with dicom file" in {
-    val file = new File(getClass.getResource("CT0055.dcm").toURI)
+    val file = new File(getClass.getResource("../data/test001.dcm").toURI)
     val source = FileIO.fromPath(file.toPath)
       .via(parseFlow)
       .via(groupLengthDiscardFilter)
@@ -142,7 +142,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   it should "discard file meta information when testing with dicom files" in {
-    val file = new File(getClass.getResource("CT0055.dcm").toURI)
+    val file = new File(getClass.getResource("../data/test001.dcm").toURI)
     val source = FileIO.fromPath(file.toPath)
       .via(parseFlow)
       .via(fmiDiscardFilter)
@@ -184,7 +184,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   it should "filter elements matching the blacklist condition when testing with sample dicom files" in {
-    val file = new File(getClass.getResource("CT0055.dcm").toURI)
+    val file = new File(getClass.getResource("../data/test001.dcm").toURI)
     val source = FileIO.fromPath(file.toPath)
       .via(new ParseFlow())
       .via(tagFilter(_ => false)(tagPath => !DicomParsing.isFileMetaInformation(tagPath.tag)))
@@ -233,7 +233,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   it should "filter leave the dicom file unchanged when blacklist condition does not match any elements" in {
-    val file = new File(getClass.getResource("CT0055.dcm").toURI)
+    val file = new File(getClass.getResource("../data/test001.dcm").toURI)
     val source = FileIO.fromPath(file.toPath)
       .via(new ParseFlow())
       .via(tagFilter(_ => true)(tagPath => !DicomParsing.isPrivate(tagPath.tag)))
@@ -263,7 +263,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   it should "filter elements not matching the whitelist condition when testing with sample dicom files" in {
-    val file = new File(getClass.getResource("CT0055.dcm").toURI)
+    val file = new File(getClass.getResource("../data/test001.dcm").toURI)
     val source = FileIO.fromPath(file.toPath)
       .via(parseFlow)
       .via(tagFilter(_ => false)(tagPath => tagPath.tag == Tag.PatientName))

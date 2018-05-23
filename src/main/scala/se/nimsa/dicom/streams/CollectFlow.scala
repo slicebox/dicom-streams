@@ -3,8 +3,9 @@ package se.nimsa.dicom.streams
 import akka.NotUsed
 import akka.stream.scaladsl.Flow
 import akka.util.ByteString
-import se.nimsa.dicom.DicomParts._
-import se.nimsa.dicom._
+import se.nimsa.dicom.data.DicomElements.Elements
+import se.nimsa.dicom.data.DicomParts._
+import se.nimsa.dicom.data._
 
 object CollectFlow {
 
@@ -87,27 +88,27 @@ object CollectFlow {
             throw new DicomStreamException("Error collecting elements: max buffer size exceeded")
 
           part match {
-            case DicomValueChunkMarker =>
-            case DicomSequenceDelimitationMarker =>
-            case _: DicomSequenceItemDelimitationMarker =>
+            case ValueChunkMarker =>
+            case SequenceDelimitationPartMarker =>
+            case _: ItemDelimitationPartMarker =>
             case _ =>
               buffer = buffer :+ part
               currentBufferSize = currentBufferSize + part.bytes.size
           }
 
           part match {
-            case _: DicomHeader if stopCondition(tagPath) =>
+            case _: HeaderPart if stopCondition(tagPath) =>
               elementsAndBuffer()
 
-            case header: DicomHeader if tagCondition(tagPath) || header.tag == Tag.SpecificCharacterSet =>
+            case header: HeaderPart if tagCondition(tagPath) || header.tag == Tag.SpecificCharacterSet =>
               currentElement = Some(Element(tagPath.tag, header.bigEndian, header.vr, header.explicitVR, header.length, ByteString.empty))
               Nil
 
-            case _: DicomHeader =>
+            case _: HeaderPart =>
               currentElement = None
               Nil
 
-            case valueChunk: DicomValueChunk =>
+            case valueChunk: ValueChunk =>
 
               currentElement match {
                 case Some(element) =>

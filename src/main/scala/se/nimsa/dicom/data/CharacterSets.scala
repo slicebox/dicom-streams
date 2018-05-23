@@ -1,9 +1,9 @@
-package se.nimsa.dicom
+package se.nimsa.dicom.data
 
 import java.nio.charset.{Charset, StandardCharsets}
 
 import akka.util.ByteString
-import se.nimsa.dicom.VR.VR
+import se.nimsa.dicom.data.VR.VR
 
 /**
   * Class for decoding DICOM character data according to one or more character sets as specified by the

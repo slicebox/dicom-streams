@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package se.nimsa.dicom
+package se.nimsa.dicom.data
 
 import scala.annotation.tailrec
 
@@ -35,6 +35,7 @@ sealed trait TagPath {
     @tailrec
     def toList(path: TagPath, tail: List[TagPath]): List[TagPath] =
       if (path.isRoot) path :: tail else toList(path.previous, path :: tail)
+
     if (isEmpty) Nil else toList(path = this, tail = Nil)
   }
 
@@ -217,6 +218,7 @@ sealed trait TagPath {
   def depth: Int = {
     @tailrec
     def depth(path: TagPath, d: Int): Int = if (path.isRoot) d else depth(path.previous, d + 1)
+
     if (isEmpty) 0 else depth(this, 1)
   }
 
@@ -233,6 +235,7 @@ sealed trait TagPath {
 
   /**
     * Drop n steps of this path from the left
+    *
     * @param n the number of steps to omit, counted from the lef-most root path
     * @return a new TagPath
     */
@@ -257,11 +260,13 @@ sealed trait TagPath {
           }
           case _ => EmptyTagPath // cannot happen
         }
+
     drop(path = this, i = depth - n - 1)
   }
 
   /**
     * The first n steps of this path, counted from the left
+    *
     * @param n the number of steps to take, counted from the left-most root path
     * @return a new TagPath
     */
@@ -269,6 +274,7 @@ sealed trait TagPath {
     @tailrec
     def take(path: TagPath, i: Int): TagPath =
       if (i <= 0) path else take(path.previous, i - 1)
+
     take(path = this, i = depth - n)
   }
 
@@ -284,6 +290,7 @@ sealed trait TagPath {
       val part = head + tail
       if (path.isRoot) part else toTagPathString(path.previous, "." + part)
     }
+
     if (isEmpty) "<empty path>" else toTagPathString(path = this, tail = "")
   }
 
@@ -394,15 +401,21 @@ object TagPath {
     */
   def parse(s: String): TagPath = {
     def isSeq(s: String) = s.length > 11
+
     def parseTagNumber(s: String) = Integer.parseInt(s.substring(1, 5) + s.substring(6, 10), 16)
+
     def parseIndex(s: String) = if (s.charAt(12) == '*') None else Some(Integer.parseInt(s.substring(12, s.length - 1)))
+
     def createTag(s: String) = TagPath.fromTag(parseTagNumber(s))
+
     def createSeq(s: String) = parseIndex(s)
       .map(index => TagPath.fromSequence(parseTagNumber(s), index))
       .getOrElse(TagPath.fromSequence(parseTagNumber(s)))
+
     def addSeq(s: String, path: TagPathTrunk) = parseIndex(s)
       .map(index => path.thenSequence(parseTagNumber(s), index))
       .getOrElse(path.thenSequence(parseTagNumber(s)))
+
     def addTag(s: String, path: TagPathTrunk) = path.thenTag(parseTagNumber(s))
 
     val tags = if (s.indexOf('.') > 0) s.split("\\.").toList else List(s)
