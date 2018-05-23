@@ -53,16 +53,16 @@ object ElementFolds {
         case fragments: FragmentsPart =>
           currentFragment = Some(TpElement.empty(tagPath, fragments))
           Nil
-        case fragmentsItem: FragmentsItemPart =>
+        case item: ItemPart if inFragments =>
           currentFragment = currentFragment.map(fragment => fragment.copy(
             tagPath = tagPath,
-            element = fragment.element.copy(length = fragmentsItem.length, value = ByteString.empty)
+            element = fragment.element.copy(length = item.length, value = ByteString.empty)
           ))
           Nil
-        case _: FragmentsDelimitationPart =>
+        case _: SequenceDelimitationPart if inFragments =>
           currentFragment = None
           Nil
-        case valueChunk: ValueChunk if currentFragment.isDefined =>
+        case valueChunk: ValueChunk if inFragments =>
           currentFragment = currentFragment.map(_ ++ valueChunk.bytes)
           if (valueChunk.last) currentFragment.map(_ :: Nil).getOrElse(Nil) else Nil
         case valueChunk: ValueChunk =>

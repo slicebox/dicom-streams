@@ -140,7 +140,7 @@ class ParseFlow(chunkSize: Int = 8192, stopTag: Option[Int] = None, inflate: Boo
               InDatasetHeader(state, inflater)
           case FragmentsPart(_, _, _, bigEndian, _) => InFragments(FragmentsState(fragmentIndex = 0, bigEndian, state.explicitVR), inflater)
           case SequencePart(_, _, _, _, _) => InDatasetHeader(state.copy(itemIndex = 0), inflater)
-          case SequenceItemPart(index, _, _, _) => InDatasetHeader(state.copy(itemIndex = index), inflater)
+          case ItemPart(index, _, _, _) => InDatasetHeader(state.copy(itemIndex = index), inflater)
           case ItemDelimitationPart(index, _, _) => InDatasetHeader(state.copy(itemIndex = index), inflater)
           case _ => InDatasetHeader(state, inflater)
         }.getOrElse(FinishedParser)
@@ -183,7 +183,7 @@ class ParseFlow(chunkSize: Int = 8192, stopTag: Option[Int] = None, inflate: Boo
               else
                 this.copy(state = state.copy(fragmentIndex = state.fragmentIndex + 1))
             ParseResult(
-              Some(FragmentsItemPart(state.fragmentIndex + 1, valueLength, state.bigEndian, reader.take(headerLength))),
+              Some(ItemPart(state.fragmentIndex + 1, valueLength, state.bigEndian, reader.take(headerLength))),
               nextState
             )
 
@@ -191,7 +191,7 @@ class ParseFlow(chunkSize: Int = 8192, stopTag: Option[Int] = None, inflate: Boo
             if (valueLength != 0) {
               log.warning(s"Unexpected fragments delimitation length $valueLength")
             }
-            ParseResult(Some(FragmentsDelimitationPart(state.bigEndian, reader.take(headerLength))), InDatasetHeader(DatasetHeaderState(0, state.bigEndian, state.explicitVR), inflater))
+            ParseResult(Some(SequenceDelimitationPart(state.bigEndian, reader.take(headerLength))), InDatasetHeader(DatasetHeaderState(0, state.bigEndian, state.explicitVR), inflater))
 
           case _ =>
             log.warning(s"Unexpected element (${tagToString(tag)}) in fragments with length=$valueLength")
@@ -273,7 +273,7 @@ class ParseFlow(chunkSize: Int = 8192, stopTag: Option[Int] = None, inflate: Boo
           Some(HeaderPart(tag, updatedVr2, valueLength, isFmi = false, state.bigEndian, state.explicitVR, bytes))
       } else
         tag match {
-          case 0xFFFEE000 => Some(SequenceItemPart(state.itemIndex + 1, valueLength, state.bigEndian, reader.take(8)))
+          case 0xFFFEE000 => Some(ItemPart(state.itemIndex + 1, valueLength, state.bigEndian, reader.take(8)))
           case 0xFFFEE00D => Some(ItemDelimitationPart(state.itemIndex, state.bigEndian, reader.take(8)))
           case 0xFFFEE0DD => Some(SequenceDelimitationPart(state.bigEndian, reader.take(8)))
           case _ => Some(UnknownPart(state.bigEndian, reader.take(headerLength))) // cannot happen

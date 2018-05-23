@@ -56,25 +56,23 @@ core class implementing a common base interface. The base interface for DICOM fl
 created using the `DicomFlowFactory.create` method. The `DicomFlow` interface defines a series of events, one for each
 type of `DicomPart` that is produced when parsing DICOM data with `DicomParseFlow`. The core events are:
 ```scala
-  def onPreamble(part: DicomPreamble): List[DicomPart]
-  def onHeader(part: DicomHeader): List[DicomPart]
-  def onValueChunk(part: DicomValueChunk): List[DicomPart]
-  def onSequenceStart(part: DicomSequence): List[DicomPart]
-  def onSequenceEnd(part: DicomSequenceDelimitation): List[DicomPart]
-  def onFragmentsStart(part: DicomFragments): List[DicomPart]
-  def onFragmentsEnd(part: DicomFragmentsDelimitation): List[DicomPart]
-  def onSequenceItemStart(part: DicomSequenceItem): List[DicomPart]
-  def onSequenceItemEnd(part: DicomSequenceItemDelimitation): List[DicomPart]
-  def onFragmentsItemStart(part: DicomFragmentsItem): List[DicomPart]
-  def onDeflatedChunk(part: DicomDeflatedChunk): List[DicomPart]
-  def onUnknownPart(part: DicomUnknownPart): List[DicomPart]
+  def onPreamble(part: PreamblePart): List[DicomPart]
+  def onHeader(part: HeaderPart): List[DicomPart]
+  def onValueChunk(part: ValueChunk): List[DicomPart]
+  def onSequence(part: SequencePart): List[DicomPart]
+  def onSequenceDelimitation(part: SequenceDelimitationPart): List[DicomPart]
+  def onFragments(part: FragmentsPart): List[DicomPart]
+  def onItem(part: ItemPart): List[DicomPart]
+  def onItemDelimitation(part: ItemDelimitationPart): List[DicomPart]
+  def onDeflatedChunk(part: DeflatedChunk): List[DicomPart]
+  def onUnknown(part: UnknownPart): List[DicomPart]
   def onPart(part: DicomPart): List[DicomPart]
 ```
 Default behavior to these events are implemented in core classes. The most natural behavior is to simply pass parts on
 down the stream, e.g. 
 ```scala
-  def onPreamble(part: DicomPreamble): List[DicomPart] = part :: Nil
-  def onHeader(part: DicomHeader): List[DicomPart] = part :: Nil
+  def onPreamble(part: PreamblePart): List[DicomPart] = part :: Nil
+  def onHeader(part: HeaderPart): List[DicomPart] = part :: Nil
   ...
 ```
 This behavior is implemented in the `IdentityFlow` core class. Another option is to defer handling to the `onPart` method

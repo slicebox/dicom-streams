@@ -333,27 +333,27 @@ object DicomFlows {
         val indeterminateBytes = ByteString(0xFF, 0xFF, 0xFF, 0xFF)
         val zeroBytes = ByteString(0x00, 0x00, 0x00, 0x00)
 
-        override def onSequenceStart(part: SequencePart): List[DicomPart] =
-          super.onSequenceStart(part).map {
+        override def onSequence(part: SequencePart): List[DicomPart] =
+          super.onSequence(part).map {
             case s: SequencePart if s.hasLength => part.copy(length = -1, bytes = part.bytes.dropRight(4) ++ indeterminateBytes)
             case p => p
           }
 
-        override def onSequenceEnd(part: SequenceDelimitationPart): List[DicomPart] =
-          super.onSequenceEnd(part) ::: (
+        override def onSequenceDelimitation(part: SequenceDelimitationPart): List[DicomPart] =
+          super.onSequenceDelimitation(part) ::: (
             if (part.bytes.isEmpty)
               SequenceDelimitationPart(part.bigEndian, tagToBytes(Tag.SequenceDelimitationItem, part.bigEndian) ++ zeroBytes) :: Nil
             else
               Nil)
 
-        override def onSequenceItemStart(part: SequenceItemPart): List[DicomPart] =
-          super.onSequenceItemStart(part).map {
-            case i: SequenceItemPart if i.hasLength => part.copy(length = -1, bytes = part.bytes.dropRight(4) ++ indeterminateBytes)
+        override def onItem(part: ItemPart): List[DicomPart] =
+          super.onItem(part).map {
+            case i: ItemPart if !inFragments && i.hasLength => part.copy(length = -1, bytes = part.bytes.dropRight(4) ++ indeterminateBytes)
             case p => p
           }
 
-        override def onSequenceItemEnd(part: ItemDelimitationPart): List[DicomPart] =
-          super.onSequenceItemEnd(part) ::: (
+        override def onItemDelimitation(part: ItemDelimitationPart): List[DicomPart] =
+          super.onItemDelimitation(part) ::: (
             if (part.bytes.isEmpty)
               ItemDelimitationPart(part.index, part.bigEndian, tagToBytes(Tag.ItemDelimitationItem, part.bigEndian) ++ zeroBytes) :: Nil
             else
@@ -469,8 +469,8 @@ object DicomFlows {
           SequenceDelimitationPart(bigEndian = false,
             tagToBytesLE(Tag.SequenceDelimitationItem) ++ ByteString(0, 0, 0, 0)) :: Nil
 
-        case i: SequenceItemPart =>
-          SequenceItemPart(i.index, i.length, bigEndian = false,
+        case i: ItemPart =>
+          ItemPart(i.index, i.length, bigEndian = false,
             tagToBytesLE(Tag.Item) ++ i.bytes.takeRight(4).reverse) :: Nil
 
         case i: ItemDelimitationPart =>
@@ -484,10 +484,6 @@ object DicomFlows {
           } else currentVr = None
           FragmentsPart(f.tag, f.length, f.vr, bigEndian = false,
             tagToBytesLE(f.tag) ++ f.bytes.drop(4).take(4) ++ f.bytes.takeRight(4).reverse) :: Nil
-
-        case _: FragmentsDelimitationPart =>
-          FragmentsDelimitationPart(bigEndian = false,
-            tagToBytesLE(Tag.SequenceDelimitationItem) ++ ByteString(0, 0, 0, 0)) :: Nil
 
         case p => p :: Nil
       }

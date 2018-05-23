@@ -73,17 +73,7 @@ object DicomParts {
 
   case class DeflatedChunk(bigEndian: Boolean, bytes: ByteString) extends DicomPart
 
-  trait ItemPart extends LengthPart {
-    def index: Int
-    def length: Long
-  }
-
-  case class SequenceItemPart(index: Int, length: Long, bigEndian: Boolean, bytes: ByteString) extends ItemPart {
-    override def toString = s"${getClass.getSimpleName} index = $index length = $length ${if (bigEndian) "(big endian) " else ""}$bytes"
-  }
-
-  // FIXME
-  case class FragmentsItemPart(index: Int, length: Long, bigEndian: Boolean, bytes: ByteString) extends ItemPart {
+  case class ItemPart(index: Int, length: Long, bigEndian: Boolean, bytes: ByteString) extends LengthPart {
     override def toString = s"${getClass.getSimpleName} index = $index length = $length ${if (bigEndian) "(big endian) " else ""}$bytes"
   }
 
@@ -98,9 +88,6 @@ object DicomParts {
   case class FragmentsPart(tag: Int, length: Long, vr: VR, bigEndian: Boolean, bytes: ByteString) extends DicomPart with TagPart with LengthPart {
     override def toString = s"${getClass.getSimpleName} ${tagToString(tag)} $vr ${if (bigEndian) "(big endian) " else ""}$bytes"
   }
-
-  // FIXME
-  case class FragmentsDelimitationPart(bigEndian: Boolean, bytes: ByteString) extends DicomPart
 
   case class UnknownPart(bigEndian: Boolean, bytes: ByteString) extends DicomPart
 

@@ -33,15 +33,13 @@ abstract class DicomFlow[Out] {
   def onPreamble(part: PreamblePart): List[Out]
   def onHeader(part: HeaderPart): List[Out]
   def onValueChunk(part: ValueChunk): List[Out]
-  def onSequenceStart(part: SequencePart): List[Out]
-  def onSequenceEnd(part: SequenceDelimitationPart): List[Out]
-  def onFragmentsStart(part: FragmentsPart): List[Out]
-  def onFragmentsEnd(part: FragmentsDelimitationPart): List[Out]
-  def onSequenceItemStart(part: SequenceItemPart): List[Out]
-  def onSequenceItemEnd(part: ItemDelimitationPart): List[Out]
-  def onFragmentsItemStart(part: FragmentsItemPart): List[Out]
+  def onSequence(part: SequencePart): List[Out]
+  def onSequenceDelimitation(part: SequenceDelimitationPart): List[Out]
+  def onFragments(part: FragmentsPart): List[Out]
+  def onItem(part: ItemPart): List[Out]
+  def onItemDelimitation(part: ItemDelimitationPart): List[Out]
   def onDeflatedChunk(part: DeflatedChunk): List[Out]
-  def onUnknownPart(part: UnknownPart): List[Out]
+  def onUnknown(part: UnknownPart): List[Out]
   def onPart(part: DicomPart): List[Out]
 
   /**
@@ -59,15 +57,13 @@ abstract class DicomFlow[Out] {
     case part: PreamblePart => onPreamble(part)
     case part: HeaderPart => onHeader(part)
     case part: ValueChunk => onValueChunk(part)
-    case part: SequencePart => onSequenceStart(part)
-    case part: SequenceDelimitationPart => onSequenceEnd(part)
-    case part: FragmentsPart => onFragmentsStart(part)
-    case part: FragmentsDelimitationPart => onFragmentsEnd(part)
-    case part: SequenceItemPart => onSequenceItemStart(part)
-    case part: ItemDelimitationPart => onSequenceItemEnd(part)
-    case part: FragmentsItemPart => onFragmentsItemStart(part)
+    case part: SequencePart => onSequence(part)
+    case part: SequenceDelimitationPart => onSequenceDelimitation(part)
+    case part: FragmentsPart => onFragments(part)
+    case part: ItemPart => onItem(part)
+    case part: ItemDelimitationPart => onItemDelimitation(part)
     case part: DeflatedChunk => onDeflatedChunk(part)
-    case part: UnknownPart => onUnknownPart(part)
+    case part: UnknownPart => onUnknown(part)
     case part => onPart(part)
   }
 }
@@ -80,16 +76,14 @@ class IdentityFlow extends DicomFlow[DicomPart] {
   def onPreamble(part: PreamblePart): List[DicomPart] = part :: Nil
   def onHeader(part: HeaderPart): List[DicomPart] = part :: Nil
   def onValueChunk(part: ValueChunk): List[DicomPart] = part :: Nil
-  def onSequenceStart(part: SequencePart): List[DicomPart] = part :: Nil
-  def onSequenceEnd(part: SequenceDelimitationPart): List[DicomPart] = part :: Nil
-  def onFragmentsStart(part: FragmentsPart): List[DicomPart] = part :: Nil
-  def onFragmentsEnd(part: FragmentsDelimitationPart): List[DicomPart] = part :: Nil
+  def onSequence(part: SequencePart): List[DicomPart] = part :: Nil
+  def onSequenceDelimitation(part: SequenceDelimitationPart): List[DicomPart] = part :: Nil
+  def onFragments(part: FragmentsPart): List[DicomPart] = part :: Nil
+  def onItem(part: ItemPart): List[DicomPart] = part :: Nil
+  def onItemDelimitation(part: ItemDelimitationPart): List[DicomPart] = part :: Nil
   def onDeflatedChunk(part: DeflatedChunk): List[DicomPart] = part :: Nil
-  def onUnknownPart(part: UnknownPart): List[DicomPart] = part :: Nil
+  def onUnknown(part: UnknownPart): List[DicomPart] = part :: Nil
   def onPart(part: DicomPart): List[DicomPart] = part :: Nil
-  def onSequenceItemStart(part: SequenceItemPart): List[DicomPart] = part :: Nil
-  def onSequenceItemEnd(part: ItemDelimitationPart): List[DicomPart] = part :: Nil
-  def onFragmentsItemStart(part: FragmentsItemPart): List[DicomPart] = part :: Nil
 }
 
 /**
@@ -101,15 +95,13 @@ abstract class DeferToPartFlow[Out] extends DicomFlow[Out] {
   def onPreamble(part: PreamblePart): List[Out] = onPart(part)
   def onHeader(part: HeaderPart): List[Out] = onPart(part)
   def onValueChunk(part: ValueChunk): List[Out] = onPart(part)
-  def onSequenceStart(part: SequencePart): List[Out] = onPart(part)
-  def onSequenceEnd(part: SequenceDelimitationPart): List[Out] = onPart(part)
-  def onFragmentsStart(part: FragmentsPart): List[Out] = onPart(part)
-  def onFragmentsEnd(part: FragmentsDelimitationPart): List[Out] = onPart(part)
+  def onSequence(part: SequencePart): List[Out] = onPart(part)
+  def onSequenceDelimitation(part: SequenceDelimitationPart): List[Out] = onPart(part)
+  def onFragments(part: FragmentsPart): List[Out] = onPart(part)
   def onDeflatedChunk(part: DeflatedChunk): List[Out] = onPart(part)
-  def onUnknownPart(part: UnknownPart): List[Out] = onPart(part)
-  def onSequenceItemStart(part: SequenceItemPart): List[Out] = onPart(part)
-  def onSequenceItemEnd(part: ItemDelimitationPart): List[Out] = onPart(part)
-  def onFragmentsItemStart(part: FragmentsItemPart): List[Out] = onPart(part)
+  def onUnknown(part: UnknownPart): List[Out] = onPart(part)
+  def onItem(part: ItemPart): List[Out] = onPart(part)
+  def onItemDelimitation(part: ItemDelimitationPart): List[Out] = onPart(part)
   def onPart(part: DicomPart): List[Out]
 }
 
@@ -156,14 +148,14 @@ trait EndEvent[Out] extends DicomFlow[Out] {
 trait InFragments[Out] extends DicomFlow[Out] {
   protected var inFragments: Boolean = false
 
-  abstract override def onFragmentsStart(part: FragmentsPart): List[Out] = {
+  abstract override def onFragments(part: FragmentsPart): List[Out] = {
     inFragments = true
-    super.onFragmentsStart(part)
+    super.onFragments(part)
   }
 
-  abstract override def onFragmentsEnd(part: FragmentsDelimitationPart): List[Out] = {
+  abstract override def onSequenceDelimitation(part: SequenceDelimitationPart): List[Out] = {
     inFragments = false
-    super.onFragmentsEnd(part)
+    super.onSequenceDelimitation(part)
   }
 }
 
@@ -173,7 +165,7 @@ object ValueChunkMarker extends ValueChunk(bigEndian = false, ByteString.empty, 
   * This mixin makes sure the `onValueChunk` event is called also for empty elements. This special case requires
   * special handling since empty elements consist of a `DicomHeader`, but is not followed by a `DicomValueChunk`.
   */
-trait GuaranteedValueEvent[Out] extends DicomFlow[Out] {
+trait GuaranteedValueEvent[Out] extends InFragments[Out] {
 
   abstract override def onHeader(part: HeaderPart): List[Out] =
     if (part.length == 0)
@@ -181,11 +173,11 @@ trait GuaranteedValueEvent[Out] extends DicomFlow[Out] {
     else
       super.onHeader(part)
 
-  abstract override def onFragmentsItemStart(part: FragmentsItemPart): List[Out] =
-    if (part.length == 0)
-      super.onFragmentsItemStart(part) ::: onValueChunk(ValueChunkMarker)
+  abstract override def onItem(part: ItemPart): List[Out] =
+    if (inFragments && part.length == 0)
+      super.onItem(part) ::: onValueChunk(ValueChunkMarker)
     else
-      super.onFragmentsItemStart(part)
+      super.onItem(part)
 
   abstract override def onValueChunk(part: ValueChunk): List[Out] =
     super.onValueChunk(part).filterNot(_ == ValueChunkMarker)
@@ -201,12 +193,12 @@ class ItemDelimitationPartMarker(item: Int) extends ItemDelimitationPart(item, b
   * makes it easier to create DICOM flows that react to the beginning and ending of sequences and items, as no special
   * care has to be taken for DICOM data with determinate length sequences and items.
   */
-trait GuaranteedDelimitationEvents[Out] extends DicomFlow[Out] {
+trait GuaranteedDelimitationEvents[Out] extends InFragments[Out] {
   var partStack: List[(LengthPart, Long)] = Nil
 
   def subtractLength(part: DicomPart): List[(LengthPart, Long)] =
     partStack.map {
-      case (item: SequenceItemPart, bytesLeft) => (item, bytesLeft - part.bytes.length)
+      case (item: ItemPart, bytesLeft) => (item, bytesLeft - part.bytes.length)
       case (sequence, bytesLeft) => (sequence, bytesLeft - part.bytes.length)
     }
 
@@ -214,13 +206,13 @@ trait GuaranteedDelimitationEvents[Out] extends DicomFlow[Out] {
     val delimits: List[DicomPart] = partStack
       .filter(_._2 <= 0) // find items and sequences that have ended
       .map { // create delimiters for those
-      case (item: SequenceItemPart, _) => new ItemDelimitationPartMarker(item.index)
+      case (item: ItemPart, _) => new ItemDelimitationPartMarker(item.index)
       case (_, _) => SequenceDelimitationPartMarker
     }
     partStack = partStack.filter(_._2 > 0) // only keep items and sequences with bytes left to subtract
     delimits.flatMap { // call events, any items will be inserted in stream
-      case d: SequenceDelimitationPart => onSequenceEnd(d)
-      case d: ItemDelimitationPart => onSequenceItemEnd(d)
+      case d: SequenceDelimitationPart => onSequenceDelimitation(d)
+      case d: ItemDelimitationPart => onItemDelimitation(d)
     }
   }
 
@@ -229,31 +221,29 @@ trait GuaranteedDelimitationEvents[Out] extends DicomFlow[Out] {
     handle(part) ::: maybeDelimit()
   }
 
-  abstract override def onSequenceStart(part: SequencePart): List[Out] =
+  abstract override def onSequence(part: SequencePart): List[Out] =
     if (part.hasLength) {
       partStack = (part, part.length) +: subtractLength(part)
-      super.onSequenceStart(part) ::: maybeDelimit()
-    } else subtractAndEmit(part, super.onSequenceStart)
+      super.onSequence(part) ::: maybeDelimit()
+    } else subtractAndEmit(part, super.onSequence)
 
-  abstract override def onSequenceItemStart(part: SequenceItemPart): List[Out] =
-    if (part.hasLength) {
+  abstract override def onItem(part: ItemPart): List[Out] =
+    if (!inFragments && part.hasLength) {
       partStack = (part, part.length) +: subtractLength(part)
-      super.onSequenceItemStart(part) ::: maybeDelimit()
-    } else subtractAndEmit(part, super.onSequenceItemStart)
+      super.onItem(part) ::: maybeDelimit()
+    } else subtractAndEmit(part, super.onItem)
 
-  abstract override def onSequenceEnd(part: SequenceDelimitationPart): List[Out] =
+  abstract override def onSequenceDelimitation(part: SequenceDelimitationPart): List[Out] =
     subtractAndEmit(part, (p: SequenceDelimitationPart) =>
-      super.onSequenceEnd(p).filterNot(_ == SequenceDelimitationPartMarker))
+      super.onSequenceDelimitation(p).filterNot(_ == SequenceDelimitationPartMarker))
 
-  abstract override def onSequenceItemEnd(part: ItemDelimitationPart): List[Out] =
+  abstract override def onItemDelimitation(part: ItemDelimitationPart): List[Out] =
     subtractAndEmit(part, (p: ItemDelimitationPart) =>
-      super.onSequenceItemEnd(p).filterNot(_.isInstanceOf[ItemDelimitationPartMarker]))
+      super.onItemDelimitation(p).filterNot(_.isInstanceOf[ItemDelimitationPartMarker]))
 
   abstract override def onHeader(part: HeaderPart): List[Out] = subtractAndEmit(part, super.onHeader)
   abstract override def onValueChunk(part: ValueChunk): List[Out] = subtractAndEmit(part, super.onValueChunk)
-  abstract override def onFragmentsStart(part: FragmentsPart): List[Out] = subtractAndEmit(part, super.onFragmentsStart)
-  abstract override def onFragmentsItemStart(part: FragmentsItemPart): List[Out] = subtractAndEmit(part, super.onFragmentsItemStart)
-  abstract override def onFragmentsEnd(part: FragmentsDelimitationPart): List[Out] = subtractAndEmit(part, super.onFragmentsEnd)
+  abstract override def onFragments(part: FragmentsPart): List[Out] = subtractAndEmit(part, super.onFragments)
 }
 
 /**
@@ -273,42 +263,38 @@ trait TagPathTracking[Out] extends DicomFlow[Out] with GuaranteedValueEvent[Out]
     super.onHeader(part)
   }
 
-  abstract override def onFragmentsStart(part: FragmentsPart): List[Out] = {
+  abstract override def onFragments(part: FragmentsPart): List[Out] = {
     tagPath = tagPath match {
       case t: TagPathSequenceItem => t.thenTag(part.tag)
       case t => t.previous.thenTag(part.tag)
     }
-    super.onFragmentsStart(part)
+    super.onFragments(part)
   }
 
-  abstract override def onFragmentsEnd(part: FragmentsDelimitationPart): List[Out] = {
-    super.onFragmentsEnd(part)
-  }
-
-  abstract override def onSequenceStart(part: SequencePart): List[Out] = {
+  abstract override def onSequence(part: SequencePart): List[Out] = {
     tagPath = tagPath match {
       case t: TagPathSequenceItem => t.thenSequence(part.tag)
       case t => t.previous.thenSequence(part.tag)
     }
-    super.onSequenceStart(part)
+    super.onSequence(part)
   }
 
-  abstract override def onSequenceEnd(part: SequenceDelimitationPart): List[Out] = {
-    tagPath = tagPath.previous.thenSequence(tagPath.tag)
-    super.onSequenceEnd(part)
+  abstract override def onSequenceDelimitation(part: SequenceDelimitationPart): List[Out] = {
+    if (!inFragments) tagPath = tagPath.previous.thenSequence(tagPath.tag)
+    super.onSequenceDelimitation(part)
   }
 
-  abstract override def onSequenceItemStart(part: SequenceItemPart): List[Out] = {
-    tagPath = tagPath.previous.thenSequence(tagPath.tag, part.index)
-    super.onSequenceItemStart(part)
+  abstract override def onItem(part: ItemPart): List[Out] = {
+    if (!inFragments) tagPath = tagPath.previous.thenSequence(tagPath.tag, part.index)
+    super.onItem(part)
   }
 
-  abstract override def onSequenceItemEnd(part: ItemDelimitationPart): List[Out] = {
+  abstract override def onItemDelimitation(part: ItemDelimitationPart): List[Out] = {
     tagPath = tagPath match {
       case t: TagPathSequenceItem => tagPath.previous.thenSequence(t.tag, t.item)
       case t => t.previous
     }
-    super.onSequenceItemEnd(part)
+    super.onItemDelimitation(part)
   }
 
 }
