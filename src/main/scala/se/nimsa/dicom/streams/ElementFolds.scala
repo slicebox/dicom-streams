@@ -3,11 +3,11 @@ package se.nimsa.dicom.streams
 import akka.NotUsed
 import akka.stream.scaladsl.{Flow, Keep, Sink}
 import akka.util.ByteString
-import se.nimsa.dicom.data.DicomElements.Elements
 import se.nimsa.dicom.data.DicomParts._
-import se.nimsa.dicom.data._
+import se.nimsa.dicom.data.Elements._
+import se.nimsa.dicom.data.{Elements, _}
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 /**
   * Flow, Sink etc that combine DICOM parts into data element aggregates.
@@ -15,78 +15,117 @@ import scala.concurrent.Future
 object ElementFolds {
 
   /**
-    * Helper class that keeps track of an element and its tag path in a dataset
-    *
-    * @param tagPath tag path in dataset
-    * @param element the element
-    */
-  case class TpElement(tagPath: TagPath, element: Element) {
-    def ++(bytes: ByteString): TpElement =
-      copy(element = element.copy(value = element.value ++ bytes))
-  }
-
-  object TpElement {
-    def empty(tagPath: TagPath, header: HeaderPart) =
-      TpElement(tagPath, Element(header.tag, header.bigEndian, header.vr, header.explicitVR, header.length, ByteString.empty))
-    def empty(tagPath: TagPath, sequence: SequencePart) =
-      TpElement(tagPath, Element(sequence.tag, sequence.bigEndian, VR.SQ, sequence.explicitVR, sequence.length, ByteString.empty))
-    def empty(tagPath: TagPath, fragments: FragmentsPart) =
-      TpElement(tagPath, Element(fragments.tag, fragments.bigEndian, fragments.vr, explicitVR = true, fragments.length, ByteString.empty))
-  }
-
-  /**
     * @return a `Flow` that aggregates `DicomPart`s into data elements. Each element holds header and complete value
-    *         information. Items, and sequence and item delimitations are not output, as their occurrence is implicit
-    *         from the change in tag path between two elements.
+    *         information.
     */
-  def elementsFlow: Flow[DicomPart, TpElement, NotUsed] =
-    DicomFlowFactory.create(new DeferToPartFlow[TpElement] with TagPathTracking[TpElement] {
-      var currentValue: Option[TpElement] = None
-      var currentFragment: Option[TpElement] = None
+  def elementsFlow: Flow[DicomPart, Element, NotUsed] =
+    DicomFlowFactory.create(new DeferToPartFlow[Element] with GuaranteedDelimitationEvents[Element] with GuaranteedValueEvent[Element] {
+      var bytes: ByteString = ByteString.empty
+      var currentValue: Option[ValueElement] = None
+      var currentFragment: Option[FragmentElement] = None
 
-      override def onPart(part: DicomPart): List[TpElement] = part match {
+      override def onPart(part: DicomPart): List[Element] = part match {
+
+        // Begin aggregate values
         case header: HeaderPart =>
-          currentValue = Some(TpElement.empty(tagPath, header))
-          Nil
-        case sequence: SequencePart =>
-          TpElement.empty(tagPath, sequence) :: Nil
-        case fragments: FragmentsPart =>
-          currentFragment = Some(TpElement.empty(tagPath, fragments))
+          currentValue = Option(ValueElement.empty(header.tag, header.vr, header.bigEndian, header.explicitVR))
+          bytes = ByteString.empty
           Nil
         case item: ItemPart if inFragments =>
-          currentFragment = currentFragment.map(fragment => fragment.copy(
-            tagPath = tagPath,
-            element = fragment.element.copy(length = item.length, value = ByteString.empty)
-          ))
+          currentFragment = Option(FragmentElement.empty(item.index, item.length, item.bigEndian))
+          bytes = ByteString.empty
           Nil
-        case _: SequenceDelimitationPart if inFragments =>
-          currentFragment = None
-          Nil
-        case valueChunk: ValueChunk if inFragments =>
-          currentFragment = currentFragment.map(_ ++ valueChunk.bytes)
-          if (valueChunk.last) currentFragment.map(_ :: Nil).getOrElse(Nil) else Nil
+
+        // aggregate, emit if at end
         case valueChunk: ValueChunk =>
-          currentValue = currentValue.map(_ ++ valueChunk.bytes)
-          if (valueChunk.last) currentValue.map(_ :: Nil).getOrElse(Nil) else Nil
+          bytes = bytes ++ valueChunk.bytes
+          if (valueChunk.last)
+            if (inFragments)
+              currentFragment.map(_.copy(value = Value(bytes)) :: Nil).getOrElse(Nil)
+            else
+              currentValue.map(_.copy(value = Value(bytes)) :: Nil).getOrElse(Nil)
+          else
+            Nil
+
+        // types that directly map to elements
+        case sequence: SequencePart =>
+          SequenceElement(sequence.tag, sequence.length, sequence.bigEndian, sequence.explicitVR) :: Nil
+        case fragments: FragmentsPart =>
+          FragmentsElement(fragments.tag, fragments.vr, fragments.bigEndian, fragments.explicitVR) :: Nil
+        case item: ItemPart =>
+          ItemElement(item.index, item.length, item.bigEndian) :: Nil
+        case itemDelimitation: ItemDelimitationPart =>
+          ItemDelimitationElement(itemDelimitation.index, itemDelimitation.bigEndian) :: Nil
+        case sequenceDelimitation: SequenceDelimitationPart =>
+          SequenceDelimitationElement(sequenceDelimitation.bigEndian) :: Nil
+
         case _ => Nil
       }
     })
 
+  /**
+    * Data holder for `elementsSink`
+    */
+  private case class ElementsSinkData(elementsStack: Seq[Elements] = Seq(Elements.empty()),
+                                      sequenceStack: Seq[Sequence] = Seq.empty,
+                                      fragments: Option[Fragments] = None) {
+    def updated(elements: Elements): ElementsSinkData = copy(elementsStack = elements +: elementsStack.tail)
+    def updated(sequence: Sequence): ElementsSinkData = copy(sequenceStack = sequence +: sequenceStack.tail)
+    def updated(fragments: Option[Fragments]): ElementsSinkData = copy(fragments = fragments)
+    def pushElements(elements: Elements): ElementsSinkData = copy(elementsStack = elements +: elementsStack)
+    def pushSequence(sequence: Sequence): ElementsSinkData = copy(sequenceStack = sequence +: sequenceStack)
+    def popElements(): ElementsSinkData = copy(elementsStack = elementsStack.tail)
+    def popSequence(): ElementsSinkData = copy(sequenceStack = sequenceStack.tail)
+    def hasSequence: Boolean = sequenceStack.nonEmpty
+    def hasFragments: Boolean = fragments.nonEmpty
+  }
 
   /**
     * A `Sink` that combines data elements into an `Elements` structure. If the `SpecificCharacterSet` element occurs,
-    * the character sets of the `Elements` structure is updated accordingly.
+    * the character sets of the `Elements` structure is updated accordingly. If the `TimezoneOffsetFromUTC` element
+    * occurs, the zone offset is updated accordingly.
     */
-  val elementsSink: Sink[TpElement, Future[Elements]] = Flow[TpElement]
-    .fold(Elements.empty) {
-      case (elements, tagPathElement) =>
-        if (tagPathElement.tagPath == TagPath.fromTag(Tag.SpecificCharacterSet))
-          elements
-            .updateCharacterSets(CharacterSets(tagPathElement.element.value))
-            .update(tagPathElement.tagPath, tagPathElement.element)
-        else
-          elements
-            .update(tagPathElement.tagPath, tagPathElement.element)
-    }
-    .toMat(Sink.head)(Keep.right)
+  def elementsSink(implicit ec: ExecutionContext): Sink[Element, Future[Elements]] = Flow[Element]
+    .toMat(
+      Sink.fold[ElementsSinkData, Element](ElementsSinkData()) { case (sinkData, element) =>
+        element match {
+
+          case valueElement: ValueElement =>
+            val elements = sinkData.elementsStack.head
+            sinkData.updated(elements.setElement(valueElement))
+
+          case fragments: FragmentsElement =>
+            sinkData.updated(Some(Fragments.empty(fragments)))
+
+          case fragmentElement: FragmentElement =>
+            val updatedFragments = sinkData.fragments.map(_ + Fragment.fromElement(fragmentElement))
+            sinkData.updated(updatedFragments)
+
+          case _: SequenceDelimitationElement if sinkData.hasFragments =>
+            val updatedElements = sinkData.elementsStack.head.setFragments(sinkData.fragments.get)
+            sinkData.updated(updatedElements).updated(None)
+
+          case sequenceElement: SequenceElement =>
+            sinkData.pushSequence(Sequence.empty(sequenceElement))
+
+          case itemElement: ItemElement if sinkData.hasSequence =>
+            val sequence = sinkData.sequenceStack.head + Item.empty(itemElement)
+            val elements = sinkData.elementsStack.head
+            val newElements = Elements.empty(elements.characterSets, elements.zoneOffset)
+            sinkData.pushElements(newElements).updated(sequence)
+
+          case _: ItemDelimitationElement if sinkData.hasSequence =>
+            val sequence = sinkData.sequenceStack.head + sinkData.elementsStack.head
+            sinkData.popElements().updated(sequence)
+
+          case _: SequenceDelimitationElement if sinkData.hasSequence =>
+            val updatedElements = sinkData.elementsStack.head.setSequence(sinkData.sequenceStack.head)
+            sinkData.updated(updatedElements).popSequence()
+
+          case _ =>
+            sinkData
+        }
+      }
+        .mapMaterializedValue(_.map(_.elementsStack.headOption.getOrElse(Elements.empty())))
+    )(Keep.right)
 }

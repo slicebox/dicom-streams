@@ -3,6 +3,7 @@ package se.nimsa.dicom.data
 import java.nio.charset.{Charset, StandardCharsets}
 
 import akka.util.ByteString
+import se.nimsa.dicom.data.Elements.ValueElement
 import se.nimsa.dicom.data.VR.VR
 
 /**
@@ -128,13 +129,13 @@ object CharacterSets {
   val defaultCharsetObj = new CharsetObj(defaultCharset, 1, None)
   val defaultOnly = new CharacterSets(Array[String](""))
 
-  def apply(specificCharacterSetElement: Element): CharacterSets = {
-    val s = specificCharacterSetElement.toStrings(CharacterSets.defaultOnly)
+  def apply(specificCharacterSetValue: ValueElement): CharacterSets = {
+    val s = specificCharacterSetValue.value.toStrings(specificCharacterSetValue.vr, specificCharacterSetValue.bigEndian, defaultOnly)
     if (s.isEmpty || s.length == 1 && s.head.isEmpty) defaultOnly else new CharacterSets(s)
   }
 
   def apply(specificCharacterSetBytes: ByteString): CharacterSets =
-    apply(Element(Tag.SpecificCharacterSet, specificCharacterSetBytes))
+    apply(ValueElement(Tag.SpecificCharacterSet, VR.CS, Value(specificCharacterSetBytes), bigEndian = false, explicitVR = true))
 
   def isVrAffectedBySpecificCharacterSet(vr: VR): Boolean =
     vr match {

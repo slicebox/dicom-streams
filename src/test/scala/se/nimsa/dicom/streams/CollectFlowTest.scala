@@ -7,7 +7,7 @@ import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
-import se.nimsa.dicom.data.DicomParts.{ElementsPart, DicomPart}
+import se.nimsa.dicom.data.DicomParts.{DicomPart, ElementsPart}
 import se.nimsa.dicom.data.TestData._
 import se.nimsa.dicom.data.{Tag, TagPath}
 import se.nimsa.dicom.streams.CollectFlow._
@@ -35,9 +35,9 @@ class CollectFlowTest extends TestKit(ActorSystem("CollectFlowSpec")) with FlatS
       .expectNextChainingPF {
         case e: ElementsPart =>
           e.label shouldBe "tag"
-          e.data should have size 2
-          e.elements.head.header.tag shouldBe Tag.StudyDate
-          e.elements(1).header.tag shouldBe Tag.PatientName
+          e.elements should have size 2
+          e.elements(Tag.StudyDate) should not be empty
+          e.elements(Tag.PatientName) should not be empty
       }
       .expectHeader(Tag.StudyDate)
       .expectValueChunk()
@@ -56,7 +56,7 @@ class CollectFlowTest extends TestKit(ActorSystem("CollectFlowSpec")) with FlatS
     source.runWith(TestSink.probe[DicomPart])
       .request(1)
       .expectNextChainingPF {
-        case e: ElementsPart => e.data shouldBe empty
+        case e: ElementsPart => e.elements.isEmpty shouldBe true
       }
       .expectDicomComplete()
   }
@@ -71,7 +71,7 @@ class CollectFlowTest extends TestKit(ActorSystem("CollectFlowSpec")) with FlatS
     source.runWith(TestSink.probe[DicomPart])
       .request(1)
       .expectNextChainingPF {
-        case e: ElementsPart => e.data shouldBe empty
+        case e: ElementsPart => e.elements.isEmpty shouldBe true
       }
       .expectHeader(Tag.PatientName)
       .expectValueChunk()
@@ -92,9 +92,9 @@ class CollectFlowTest extends TestKit(ActorSystem("CollectFlowSpec")) with FlatS
       .expectNextChainingPF {
         case e: ElementsPart =>
           e.label shouldBe "tag"
-          e.data should have size 2
-          e.elements.head.header.tag shouldBe Tag.StudyDate
-          e.elements.last.header.tag shouldBe Tag.PatientName
+          e.elements.size shouldBe 2
+          e.elements(Tag.StudyDate) should not be empty
+          e.elements(Tag.PatientName) should not be empty
       }
       .expectHeader(Tag.StudyDate)
       .expectValueChunk()

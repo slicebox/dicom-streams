@@ -5,10 +5,9 @@ import java.util.zip.Deflater
 import akka.stream.testkit.TestSubscriber
 import akka.util.ByteString
 import se.nimsa.dicom.data.DicomParts._
-import se.nimsa.dicom.data._
-import se.nimsa.dicom.data.TagPath
+import se.nimsa.dicom.data.Elements._
 import se.nimsa.dicom.data.VR.VR
-import se.nimsa.dicom.streams.ElementFolds.TpElement
+import se.nimsa.dicom.data._
 
 object TestUtils {
 
@@ -184,21 +183,44 @@ object TestUtils {
       }
   }
 
-  type ElementProbe = TestSubscriber.Probe[TpElement]
+  type ElementProbe = TestSubscriber.Probe[Element]
 
   implicit class DicomElementProbe(probe: ElementProbe) {
-    def expectElement(tagPath: TagPath): ElementProbe = probe
+    def expectElement(tag: Int): ElementProbe = probe
       .request(1)
       .expectNextChainingPF {
-        case e: TpElement if e.tagPath == tagPath => true
-        case p => throw new RuntimeException(s"Expected Element with tagPath $tagPath, got $p")
+        case e: ValueElement if e.tag == tag => true
+        case e: SequenceElement if e.tag == tag => true
+        case e: FragmentsElement if e.tag == tag => true
+        case p => throw new RuntimeException(s"Expected Element with tag $tag, got $p")
       }
 
-    def expectElement(tagPath: TagPath, value: ByteString): ElementProbe = probe
+    def expectElement(tag: Int, value: ByteString): ElementProbe = probe
       .request(1)
       .expectNextChainingPF {
-        case e: TpElement if e.tagPath == tagPath && e.element.value == value => true
-        case p => throw new RuntimeException(s"Expected Element with tagPath $tagPath and value $value, got $p")
+        case e: ValueElement if e.tag == tag && e.value.bytes == value => true
+        case p => throw new RuntimeException(s"Expected Element with tag $tag and value $value, got $p")
+      }
+
+    def expectFragments(tag: Int): ElementProbe = probe
+      .request(1)
+      .expectNextChainingPF {
+        case e: FragmentsElement if e.tag == tag => true
+        case p => throw new RuntimeException(s"Expected Fragments with tag $tag, got $p")
+      }
+
+    def expectFragment(length: Long): ElementProbe = probe
+      .request(1)
+      .expectNextChainingPF {
+        case e: FragmentElement if e.length == length => true
+        case p => throw new RuntimeException(s"Expected Fragment with length $length, got $p")
+      }
+
+    def expectSequenceDelimitation(): ElementProbe = probe
+      .request(1)
+      .expectNextChainingPF {
+        case e: SequenceDelimitationElement => true
+        case p => throw new RuntimeException(s"Expected SequencdDelimitationElement, got $p")
       }
 
     def expectDicomComplete(): ElementProbe = probe

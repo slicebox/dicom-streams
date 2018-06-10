@@ -1,13 +1,14 @@
 package se.nimsa.dicom.data
 
 import akka.util.ByteString
+import se.nimsa.dicom.data.Elements.ValueElement
 
 object TestData {
 
   val preamble: ByteString = ByteString.fromArray(new Array[Byte](128)) ++ ByteString("DICM")
 
-  def element(tag: Int, value: String, bigEndian: Boolean = false, explicitVR: Boolean = true): ByteString = Element.fromString(tag, value, bigEndian, explicitVR).toBytes
-  def element(tag: Int, value: ByteString, bigEndian: Boolean, explicitVR: Boolean): ByteString = Element(tag, value, bigEndian, explicitVR).toBytes
+  def element(tag: Int, value: String, bigEndian: Boolean = false, explicitVR: Boolean = true): ByteString = ValueElement(tag, Dictionary.vrOf(tag), Value.fromString(Dictionary.vrOf(tag), value, bigEndian), bigEndian, explicitVR).toBytes
+  def element(tag: Int, value: ByteString, bigEndian: Boolean, explicitVR: Boolean): ByteString = ValueElement(tag, Dictionary.vrOf(tag), Value(value), bigEndian, explicitVR).toBytes
 
   def fmiGroupLength(fmis: ByteString*): ByteString = element(Tag.FileMetaInformationGroupLength, intToBytesLE(fmis.map(_.length).sum), bigEndian = false, explicitVR = true)
 

@@ -7,14 +7,13 @@ import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
+import se.nimsa.dicom.data.Elements.Element
+import se.nimsa.dicom.data.Tag
 import se.nimsa.dicom.data.TestData._
 import se.nimsa.dicom.streams.ElementFolds._
 import se.nimsa.dicom.streams.TestUtils._
-import se.nimsa.dicom.data._
-import se.nimsa.dicom.data.{Tag, TagPath}
 
-import scala.concurrent.duration.DurationInt
-import scala.concurrent.{Await, ExecutionContextExecutor}
+import scala.concurrent.ExecutionContextExecutor
 
 class ElementFoldsTest extends TestKit(ActorSystem("ElementFoldsSpec")) with FlatSpecLike with Matchers with BeforeAndAfterAll {
 
@@ -23,16 +22,16 @@ class ElementFoldsTest extends TestKit(ActorSystem("ElementFoldsSpec")) with Fla
 
   override def afterAll(): Unit = system.terminate()
 
-  "A DICOM attributes flow" should "combine headers and value chunks into attributes" in {
+  "A DICOM elements flow" should "combine headers and value chunks into elements" in {
     val bytes = patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
       .via(elementsFlow)
 
-    source.runWith(TestSink.probe[TpElement])
-      .expectElement(TagPath.fromTag(Tag.PatientName))
-      .expectElement(TagPath.fromTag(Tag.StudyDate))
+    source.runWith(TestSink.probe[Element])
+      .expectElement(Tag.PatientName)
+      .expectElement(Tag.StudyDate)
       .expectDicomComplete()
   }
 
@@ -43,9 +42,11 @@ class ElementFoldsTest extends TestKit(ActorSystem("ElementFoldsSpec")) with Fla
       .via(new ParseFlow())
       .via(elementsFlow)
 
-    source.runWith(TestSink.probe[TpElement])
-      .expectElement(TagPath.fromTag(Tag.PixelData), ByteString(1,2,3,4))
-      .expectElement(TagPath.fromTag(Tag.PixelData), ByteString(5,6,7,8))
+    source.runWith(TestSink.probe[Element])
+      .expectFragments(Tag.PixelData)
+      .expectFragment(4)
+      .expectFragment(4)
+      .expectSequenceDelimitation()
       .expectDicomComplete()
   }
 
@@ -57,52 +58,14 @@ class ElementFoldsTest extends TestKit(ActorSystem("ElementFoldsSpec")) with Fla
       .via(new ParseFlow())
       .via(elementsFlow)
 
-    source.runWith(TestSink.probe[TpElement])
-      .expectElement(TagPath.fromTag(Tag.StudyDate), ByteString.empty)
-      .expectElement(TagPath.fromTag(Tag.PatientName), ByteString("John^Doe"))
-      .expectElement(TagPath.fromTag(Tag.PixelData), ByteString.empty)
-      .expectElement(TagPath.fromTag(Tag.PixelData), ByteString(5,6,7,8))
+    source.runWith(TestSink.probe[Element])
+      .expectElement(Tag.StudyDate, ByteString.empty)
+      .expectElement(Tag.PatientName, ByteString("John^Doe"))
+      .expectFragments(Tag.PixelData)
+      .expectFragment(0)
+      .expectFragment(4)
+      .expectSequenceDelimitation()
       .expectDicomComplete()
-  }
-
-  "The elements sink" should "aggregate all elements" in {
-    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ // FMI
-      patientNameJohnDoe() ++ // attribute
-      sequence(Tag.DerivationCodeSequence) ++ item() ++ studyDate() ++ itemEnd() ++ item() ++ // sequence
-      sequence(Tag.DerivationCodeSequence, 24) ++ item(16) ++ studyDate() ++ // nested sequence (determinate length)
-      itemEnd() ++ sequenceEnd() ++
-      pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragmentsEnd()
-
-    val elements = Await.result(
-      Source.single(bytes)
-      .via(new ParseFlow())
-      .via(elementsFlow)
-      .runWith(elementsSink), 5.seconds)
-
-    elements.data should have size 8
-
-    elements.tagPaths shouldBe List(
-      TagPath.fromTag(Tag.FileMetaInformationGroupLength),
-      TagPath.fromTag(Tag.TransferSyntaxUID),
-      TagPath.fromSequence(Tag.DerivationCodeSequence),
-      TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.StudyDate),
-      TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenSequence(Tag.DerivationCodeSequence),
-      TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.StudyDate),
-      TagPath.fromTag(Tag.PatientName),
-      TagPath.fromTag(Tag.PixelData)
-    )
-  }
-
-  it should "update the character sets field if element is present" in {
-    val bytes = characterSetsJis() ++ studyDate() ++ patientNameJohnDoe()
-
-    val elements = Await.result(
-      Source.single(bytes)
-        .via(new ParseFlow())
-        .via(elementsFlow)
-        .runWith(elementsSink), 5.seconds)
-
-    elements.characterSets.charsetNames shouldBe Seq("ISO 2022 IR 13", "ISO 2022 IR 87")
   }
 
 }

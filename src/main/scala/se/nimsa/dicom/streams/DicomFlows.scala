@@ -22,7 +22,9 @@ import akka.NotUsed
 import akka.stream.scaladsl.{Flow, Source}
 import akka.util.ByteString
 import se.nimsa.dicom.data.CharacterSets.utf8Charset
+import se.nimsa.dicom.data.DicomParsing.defaultCharacterSet
 import se.nimsa.dicom.data.DicomParts._
+import se.nimsa.dicom.data.Elements.ValueElement
 import se.nimsa.dicom.data.TagPath.EmptyTagPath
 import se.nimsa.dicom.data.VR.VR
 import se.nimsa.dicom.data._
@@ -277,16 +279,21 @@ object DicomFlows {
 
       {
         case fmiElements: ElementsPart if fmiElements.label == "fmigrouplength" =>
-          if (fmiElements.data.nonEmpty) {
-            val element = fmiElements.data.head._2
-            val fmiElementsNoLength = fmiElements.filter(_ != TagPath.fromTag(Tag.FileMetaInformationGroupLength))
+          val elements = fmiElements.elements
+          if (elements.data.nonEmpty) {
+            val bigEndian = elements.data.headOption.exists {
+              case (_, e: ValueElement) => e.bigEndian
+              case _ => false
+            }
+            val explicitVR = elements.data.headOption.forall {
+              case (_, e: ValueElement) => e.explicitVR
+              case _ => true
+            }
+            val fmiElementsNoLength = elements.filterTags(_ != Tag.FileMetaInformationGroupLength)
             val length = fmiElementsNoLength.data.values.map(_.toBytes.length).sum
-            val lengthBytes = tagToBytes(Tag.FileMetaInformationGroupLength, element.bigEndian) ++
-              (if (element.explicitVR) ByteString("UL") ++ shortToBytes(4, element.bigEndian) else intToBytes(4, element.bigEndian))
-            val lengthHeader = HeaderPart(Tag.FileMetaInformationGroupLength, VR.UL, 4, isFmi = true, element.bigEndian, element.explicitVR, lengthBytes)
-            val lengthChunk = ValueChunk(element.bigEndian, intToBytes(length, element.bigEndian), last = true)
-            val fmiParts = fmiElementsNoLength.elements.flatMap(element => element.header :: ValueChunk(element.bigEndian, element.value, last = true) :: Nil)
-            fmi = lengthHeader :: lengthChunk :: fmiParts
+            val lengthHeader = HeaderPart(Tag.FileMetaInformationGroupLength, VR.UL, 4, isFmi = true, bigEndian, explicitVR)
+            val lengthChunk = ValueChunk(bigEndian, intToBytes(length, bigEndian), last = true)
+            fmi = lengthHeader :: lengthChunk :: fmiElementsNoLength.toParts
           }
           Nil
 
@@ -377,13 +384,16 @@ object DicomFlows {
     .statefulMapConcat {
 
       () =>
-        var characterSets: CharacterSets = CharacterSets.defaultOnly
+        var characterSets: CharacterSets = defaultCharacterSet
         var currentHeader: Option[HeaderPart] = None
         var currentValue = ByteString.empty
 
       {
         case attr: ElementsPart if attr.label == "toutf8" =>
-          characterSets = attr(Tag.SpecificCharacterSet).map(a => CharacterSets(a.value)).getOrElse(characterSets)
+          characterSets = attr.elements(Tag.SpecificCharacterSet).map {
+            case e: ValueElement => CharacterSets(e)
+            case _ => characterSets
+          }.getOrElse(characterSets)
           Nil
         case header: HeaderPart =>
           if (header.length > 0 && CharacterSets.isVrAffectedBySpecificCharacterSet(header.vr)) {
@@ -482,7 +492,7 @@ object DicomFlows {
             carryBytes = ByteString.empty
             currentVr = Some(f.vr)
           } else currentVr = None
-          FragmentsPart(f.tag, f.length, f.vr, bigEndian = false,
+          FragmentsPart(f.tag, f.length, f.vr, bigEndian = false, explicitVR = true,
             tagToBytesLE(f.tag) ++ f.bytes.drop(4).take(4) ++ f.bytes.takeRight(4).reverse) :: Nil
 
         case p => p :: Nil

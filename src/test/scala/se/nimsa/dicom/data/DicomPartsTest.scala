@@ -3,7 +3,6 @@ package se.nimsa.dicom.data
 import org.scalatest.{FlatSpecLike, Matchers}
 import se.nimsa.dicom.data.TestData._
 
-
 class DicomPartsTest extends FlatSpecLike with Matchers {
 
   import DicomParts._
@@ -91,10 +90,4 @@ class DicomPartsTest extends FlatSpecLike with Matchers {
     bytes shouldBe pixelData(100, bigEndian = true).take(12)
   }
 
-  "ElementsPart" should "aggregate the bytes of all its elements" in {
-    new ElementsPart("label", CharacterSets.defaultOnly, Map(
-      TagPath.fromTag(Tag.PatientName) -> Element(Tag.PatientName, patientNameJohnDoe().drop(8)),
-      TagPath.fromTag(Tag.PatientID) -> Element(Tag.PatientID, patientID().drop(8))
-    )).bytes shouldBe (patientNameJohnDoe() ++ patientID())
-  }
 }

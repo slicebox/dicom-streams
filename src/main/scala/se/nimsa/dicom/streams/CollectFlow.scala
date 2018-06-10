@@ -2,10 +2,9 @@ package se.nimsa.dicom.streams
 
 import akka.NotUsed
 import akka.stream.scaladsl.Flow
-import akka.util.ByteString
-import se.nimsa.dicom.data.DicomElements.Elements
 import se.nimsa.dicom.data.DicomParts._
-import se.nimsa.dicom.data._
+import se.nimsa.dicom.data.Elements.ValueElement
+import se.nimsa.dicom.data.{Elements, _}
 
 object CollectFlow {
 
@@ -60,12 +59,12 @@ object CollectFlow {
 
       var reachedEnd = false
       var currentBufferSize = 0
-      var currentElement: Option[Element] = None
+      var currentElement: Option[ValueElement] = None
       var buffer: List[DicomPart] = Nil
-      var elements: Elements = Elements.empty
+      var elements: Elements = Elements.empty()
 
       def elementsAndBuffer(): List[DicomPart] = {
-        val parts = new ElementsPart(label, elements.characterSets, elements.data) :: buffer
+        val parts = ElementsPart(label, elements) :: buffer
 
         reachedEnd = true
         buffer = Nil
@@ -101,7 +100,7 @@ object CollectFlow {
               elementsAndBuffer()
 
             case header: HeaderPart if tagCondition(tagPath) || header.tag == Tag.SpecificCharacterSet =>
-              currentElement = Some(Element(tagPath.tag, header.bigEndian, header.vr, header.explicitVR, header.length, ByteString.empty))
+              currentElement = Some(ValueElement(header.tag, header.vr, Value.empty, header.bigEndian, header.explicitVR))
               Nil
 
             case _: HeaderPart =>
@@ -118,7 +117,7 @@ object CollectFlow {
                     if (updatedElement.tag == Tag.SpecificCharacterSet)
                       elements = elements.updateCharacterSets(CharacterSets(updatedElement.toBytes))
                     if (tagCondition(tagPath))
-                      elements = elements(tagPath) = updatedElement
+                      elements = elements(updatedElement.tag) = updatedElement
                     currentElement = None
                   }
                   Nil

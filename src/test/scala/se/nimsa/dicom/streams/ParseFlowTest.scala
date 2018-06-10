@@ -402,7 +402,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
 
   it should "handle values with length larger than the signed int range" in {
     val length = Int.MaxValue.toLong + 1
-    val bytes = ByteString(0xe0, 0x7f, 0x10, 0x00, 0x4f, 0x57, 0, 0) ++ intToBytes(length.toInt, bigEndian = false)
+    val bytes = ByteString(0xe0, 0x7f, 0x10, 0x00, 0x4f, 0x57, 0, 0) ++ intToBytes(length.toInt)
 
     val source = Source.single(bytes)
       .via(new ParseFlow())

@@ -1,7 +1,6 @@
 package se.nimsa.dicom.data
 
 import akka.util.ByteString
-import se.nimsa.dicom.data.DicomElements.Elements
 import se.nimsa.dicom.data.VR.VR
 
 object DicomParts {
@@ -85,14 +84,14 @@ object DicomParts {
 
   case class SequenceDelimitationPart(bigEndian: Boolean, bytes: ByteString) extends DicomPart
 
-  case class FragmentsPart(tag: Int, length: Long, vr: VR, bigEndian: Boolean, bytes: ByteString) extends DicomPart with TagPart with LengthPart {
+  case class FragmentsPart(tag: Int, length: Long, vr: VR, bigEndian: Boolean, explicitVR: Boolean, bytes: ByteString) extends DicomPart with TagPart with LengthPart {
     override def toString = s"${getClass.getSimpleName} ${tagToString(tag)} $vr ${if (bigEndian) "(big endian) " else ""}$bytes"
   }
 
   case class UnknownPart(bigEndian: Boolean, bytes: ByteString) extends DicomPart
 
-  class ElementsPart(val label: String, characterSets: CharacterSets, data: Map[TagPath, Element]) extends Elements(characterSets, data) with DicomPart {
+  case class ElementsPart(label: String, elements: Elements) extends DicomPart {
     override def bigEndian: Boolean = false
-    override def bytes: ByteString = elements.foldLeft(ByteString.empty)(_ ++ _.toBytes)
+    override def bytes: ByteString = ByteString.empty
   }
 }

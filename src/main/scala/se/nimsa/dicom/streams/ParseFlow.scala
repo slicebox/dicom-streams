@@ -138,7 +138,7 @@ class ParseFlow(chunkSize: Int = 8192, stopTag: Option[Int] = None, inflate: Boo
               InValue(ValueState(bigEndian, length, InDatasetHeader(state, inflater)))
             else
               InDatasetHeader(state, inflater)
-          case FragmentsPart(_, _, _, bigEndian, _) => InFragments(FragmentsState(fragmentIndex = 0, bigEndian, state.explicitVR), inflater)
+          case FragmentsPart(_, _, _, bigEndian, _, _) => InFragments(FragmentsState(fragmentIndex = 0, bigEndian, state.explicitVR), inflater)
           case SequencePart(_, _, _, _, _) => InDatasetHeader(state.copy(itemIndex = 0), inflater)
           case ItemPart(index, _, _, _) => InDatasetHeader(state.copy(itemIndex = index), inflater)
           case ItemDelimitationPart(index, _, _) => InDatasetHeader(state.copy(itemIndex = index), inflater)
@@ -268,7 +268,7 @@ class ParseFlow(chunkSize: Int = 8192, stopTag: Option[Int] = None, inflate: Boo
         if (updatedVr2 == VR.SQ)
           Some(SequencePart(tag, valueLength, state.bigEndian, state.explicitVR, bytes))
         else if (valueLength == -1)
-          Some(FragmentsPart(tag, valueLength, updatedVr2, state.bigEndian, bytes))
+          Some(FragmentsPart(tag, valueLength, updatedVr2, state.bigEndian, state.explicitVR, bytes))
         else
           Some(HeaderPart(tag, updatedVr2, valueLength, isFmi = false, state.bigEndian, state.explicitVR, bytes))
       } else

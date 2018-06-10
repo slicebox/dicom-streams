@@ -245,7 +245,18 @@ trait DicomParsing {
     .appendPattern("[Z]")
     .toFormatter
 
+  final val dateFormatForEncoding = new DateTimeFormatterBuilder()
+    .appendValue(YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
+    .appendPattern("MMdd")
+    .toFormatter
+
+  val defaultCharacterSet: CharacterSets = CharacterSets.defaultOnly
+
   def systemZone: ZoneOffset = ZonedDateTime.now().getOffset
+
+  def formatDate(date: LocalDate): String = date.format(dateFormatForEncoding)
+
+  def formatDateTime(dateTime: ZonedDateTime): String = dateTime.format(dateTimeZoneFormat)
 
   def parseDate(s: String): Option[LocalDate] =
     try Option(LocalDate.parse(s.trim, dateFormat)) catch {
@@ -260,6 +271,11 @@ trait DicomParsing {
       }
     }
   }
+
+  def parseZoneOffset(s: String): Option[ZoneOffset] =
+    try Option(ZoneOffset.of(s)) catch {
+      case _: Throwable => None
+    }
 
   def parsePatientName(s: String): Option[PatientName] = {
     def ensureLength(ss: Seq[String], n: Int) = ss ++ Seq.fill(math.max(0, n - ss.length))("")
