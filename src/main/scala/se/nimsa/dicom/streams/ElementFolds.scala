@@ -66,15 +66,15 @@ object ElementFolds {
   /**
     * Data holder for `elementsSink`
     */
-  private case class ElementsSinkData(elementsStack: Seq[Elements] = Seq(Elements.empty()),
+  private case class ElementsSinkData(builderStack: Seq[ElementsBuilder] = Seq(new ElementsBuilder()),
                                       sequenceStack: Seq[Sequence] = Seq.empty,
                                       fragments: Option[Fragments] = None) {
-    def updated(elements: Elements): ElementsSinkData = copy(elementsStack = elements +: elementsStack.tail)
+    def updated(builder: ElementsBuilder): ElementsSinkData = copy(builderStack = builder +: builderStack.tail)
     def updated(sequence: Sequence): ElementsSinkData = copy(sequenceStack = sequence +: sequenceStack.tail)
     def updated(fragments: Option[Fragments]): ElementsSinkData = copy(fragments = fragments)
-    def pushElements(elements: Elements): ElementsSinkData = copy(elementsStack = elements +: elementsStack)
+    def pushBuilder(builder: ElementsBuilder): ElementsSinkData = copy(builderStack = builder +: builderStack)
     def pushSequence(sequence: Sequence): ElementsSinkData = copy(sequenceStack = sequence +: sequenceStack)
-    def popElements(): ElementsSinkData = copy(elementsStack = elementsStack.tail)
+    def popBuilder(): ElementsSinkData = copy(builderStack = builderStack.tail)
     def popSequence(): ElementsSinkData = copy(sequenceStack = sequenceStack.tail)
     def hasSequence: Boolean = sequenceStack.nonEmpty
     def hasFragments: Boolean = fragments.nonEmpty
@@ -91,8 +91,9 @@ object ElementFolds {
         element match {
 
           case valueElement: ValueElement =>
-            val elements = sinkData.elementsStack.head
-            sinkData.updated(elements.setElement(valueElement))
+            val builder = sinkData.builderStack.head
+            builder(valueElement.tag) = valueElement
+            sinkData.updated(builder)
 
           case fragments: FragmentsElement =>
             sinkData.updated(Some(Fragments.empty(fragments)))
@@ -102,30 +103,34 @@ object ElementFolds {
             sinkData.updated(updatedFragments)
 
           case _: SequenceDelimitationElement if sinkData.hasFragments =>
-            val updatedElements = sinkData.elementsStack.head.setFragments(sinkData.fragments.get)
-            sinkData.updated(updatedElements).updated(None)
+            val fragments = sinkData.fragments.get
+            val builder = sinkData.builderStack.head
+            builder(fragments.tag) = fragments
+            sinkData.updated(builder).updated(None)
 
           case sequenceElement: SequenceElement =>
             sinkData.pushSequence(Sequence.empty(sequenceElement))
 
           case itemElement: ItemElement if sinkData.hasSequence =>
+            val builder = sinkData.builderStack.head
             val sequence = sinkData.sequenceStack.head + Item.empty(itemElement)
-            val elements = sinkData.elementsStack.head
-            val newElements = Elements.empty(elements.characterSets, elements.zoneOffset)
-            sinkData.pushElements(newElements).updated(sequence)
+            sinkData.pushBuilder(new ElementsBuilder(builder.characterSets, builder.zoneOffset)).updated(sequence)
 
           case _: ItemDelimitationElement if sinkData.hasSequence =>
-            val sequence = sinkData.sequenceStack.head + sinkData.elementsStack.head
-            sinkData.popElements().updated(sequence)
+            val elements = sinkData.builderStack.head.build()
+            val sequence = sinkData.sequenceStack.head + elements
+            sinkData.popBuilder().updated(sequence)
 
           case _: SequenceDelimitationElement if sinkData.hasSequence =>
-            val updatedElements = sinkData.elementsStack.head.setSequence(sinkData.sequenceStack.head)
-            sinkData.updated(updatedElements).popSequence()
+            val sequence = sinkData.sequenceStack.head
+            val builder = sinkData.builderStack.head
+            builder(sequence.tag) = sequence
+            sinkData.updated(builder).popSequence()
 
           case _ =>
             sinkData
         }
       }
-        .mapMaterializedValue(_.map(_.elementsStack.headOption.getOrElse(Elements.empty())))
+        .mapMaterializedValue(_.map(_.builderStack.headOption.map(_.build()).getOrElse(Elements.empty())))
     )(Keep.right)
 }

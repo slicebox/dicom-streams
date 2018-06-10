@@ -10,6 +10,7 @@ import se.nimsa.dicom.data.TagPath.{EmptyTagPath, TagPathSequenceItem, TagPathTa
 import se.nimsa.dicom.data.VR.VR
 
 import scala.collection.immutable.SortedMap
+import scala.collection.mutable
 
 /**
   * Representation of a group of `Element`s, each paired with the `TagPath` that describes their position within a
@@ -500,6 +501,24 @@ object Elements {
   object Fragments {
     def empty(tag: Int, vr: VR, bigEndian: Boolean = false, explicitVR: Boolean = true): Fragments = Fragments(tag, vr, bigEndian, explicitVR, Nil, Nil)
     def empty(element: FragmentsElement): Fragments = empty(element.tag, element.vr, element.bigEndian, element.explicitVR)
+  }
+
+  class ElementsBuilder(var characterSets: CharacterSets = CharacterSets.defaultOnly, var zoneOffset: ZoneOffset = systemZone) {
+    val data: mutable.Map[Int, ElementSet] = mutable.Map.empty
+    
+    def update(tag: Int, element: ElementSet): ElementsBuilder = {
+      element match {
+        case e: ValueElement if e.tag == Tag.SpecificCharacterSet =>
+          characterSets = CharacterSets(e)
+        case e: ValueElement if e.tag == Tag.TimezoneOffsetFromUTC =>
+          zoneOffset = parseZoneOffset(e.value.toUtf8String).getOrElse(zoneOffset)
+        case _ =>
+      }
+      data += (tag -> element)
+      this
+    }
+
+    def build(): Elements = Elements(characterSets, zoneOffset, SortedMap(data.toArray: _*))
   }
 
 }
