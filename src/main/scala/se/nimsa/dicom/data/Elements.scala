@@ -416,7 +416,7 @@ object Elements {
   }
 
 
-  case class Sequence private(tag: Int, length: Long, bigEndian: Boolean, explicitVR: Boolean, items: Array[Item]) extends ElementSet {
+  case class Sequence private(tag: Int, length: Long, bigEndian: Boolean, explicitVR: Boolean, items: List[Item]) extends ElementSet {
     val indeterminate: Boolean = length == indeterminateLength
 
     def item(index: Int): Option[Item] = try Option(items(index - 1)) catch {
@@ -430,7 +430,7 @@ object Elements {
     override def toBytes: ByteString = toElements.map(_.toBytes).reduce(_ ++ _)
 
     override def toElements: List[Element] = SequenceElement(tag, length, bigEndian, explicitVR) ::
-      items.zipWithIndex.flatMap { case (item, index) => item.toElements(index + 1) }.toList :::
+      items.zipWithIndex.flatMap { case (item, index) => item.toElements(index + 1) } :::
       (if (indeterminate) SequenceDelimitationElement(bigEndian) :: Nil else Nil)
 
     def size: Int = items.length
@@ -439,7 +439,7 @@ object Elements {
   }
 
   object Sequence {
-    def empty(tag: Int, length: Long, bigEndian: Boolean = false, explicitVR: Boolean = true): Sequence = Sequence(tag, length, bigEndian, explicitVR, Array.empty)
+    def empty(tag: Int, length: Long, bigEndian: Boolean = false, explicitVR: Boolean = true): Sequence = Sequence(tag, length, bigEndian, explicitVR, Nil)
     def empty(element: SequenceElement): Sequence = empty(element.tag, element.length, element.bigEndian, element.explicitVR)
   }
 
@@ -463,36 +463,42 @@ object Elements {
   }
 
 
-  case class Fragment(length: Long, value: Value, bigEndian: Boolean = false) {
+  case class Fragment(length: Long, value: Value, isOffsetsTable: Boolean, bigEndian: Boolean = false) {
     def toBytes(index: Int): ByteString = FragmentElement(index, length, value, bigEndian).toBytes
     def toElement(index: Int): FragmentElement = FragmentElement(index, length, value, bigEndian)
     def setValue(value: Value): Fragment = copy(value = value.ensurePadding(VR.OW))
   }
 
   object Fragment {
-    def fromElement(fragmentElement: FragmentElement): Fragment = Fragment(fragmentElement.length, fragmentElement.value, fragmentElement.bigEndian)
+    def fromElement(fragmentElement: FragmentElement): Fragment = Fragment(fragmentElement.length, fragmentElement.value, fragmentElement.index == 1, fragmentElement.bigEndian)
   }
 
 
-  case class Fragments private(tag: Int, vr: VR, bigEndian: Boolean, explicitVR: Boolean, fragments: Array[Fragment]) extends ElementSet {
+  case class Fragments private(tag: Int, vr: VR, bigEndian: Boolean, explicitVR: Boolean, offsets: List[Int], fragments: List[Fragment]) extends ElementSet {
     def fragment(index: Int): Option[Fragment] = try Option(fragments(index - 1)) catch {
       case _: Throwable => None
     }
-    def +(value: Fragment): Fragments = Fragments(tag, vr, bigEndian, explicitVR, fragments :+ value)
+
+    def +(fragment: Fragment): Fragments =
+      if (fragment.isOffsetsTable)
+        copy(offsets = fragment.value.bytes.grouped(4).map(bytesToInt(_, fragment.bigEndian)).toList)
+      else
+        copy(fragments = fragments :+ fragment)
 
     def toBytes: ByteString = toElements.map(_.toBytes).reduce(_ ++ _)
 
     def size: Int = fragments.length
 
     override def toElements: List[Element] = FragmentsElement(tag, vr, bigEndian, explicitVR) ::
-      fragments.zipWithIndex.map { case (fragment, index) => fragment.toElement(index + 1) }.toList :::
+      FragmentElement(1, 4L * offsets.length, Value(offsets.map(intToBytes(_, bigEndian)).foldLeft(ByteString.empty)(_ ++ _)), bigEndian) ::
+      fragments.zipWithIndex.map { case (fragment, index) => fragment.toElement(index + 2) } :::
       SequenceDelimitationElement(bigEndian) :: Nil
 
     def setFragment(index: Int, fragment: Fragment): Fragments = copy(fragments = fragments.updated(index - 1, fragment))
   }
 
   object Fragments {
-    def empty(tag: Int, vr: VR, bigEndian: Boolean = false, explicitVR: Boolean = true): Fragments = Fragments(tag, vr, bigEndian, explicitVR, Array.empty)
+    def empty(tag: Int, vr: VR, bigEndian: Boolean = false, explicitVR: Boolean = true): Fragments = Fragments(tag, vr, bigEndian, explicitVR, Nil, Nil)
     def empty(element: FragmentsElement): Fragments = empty(element.tag, element.vr, element.bigEndian, element.explicitVR)
   }
 

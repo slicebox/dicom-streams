@@ -28,7 +28,7 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with AsyncFlatSp
   val patientID1: ValueElement = ValueElement(Tag.PatientID, ByteString("12345678"))
   val patientID2: ValueElement = ValueElement(Tag.PatientID, ByteString("87654321"))
   val patientID3: ValueElement = ValueElement(Tag.PatientID, ByteString("18273645"))
-  val seq: Sequence = Sequence(Tag.DerivationCodeSequence, indeterminateLength, bigEndian = false, explicitVR = true, Array(
+  val seq: Sequence = Sequence(Tag.DerivationCodeSequence, indeterminateLength, bigEndian = false, explicitVR = true, List(
     Item(indeterminateLength, bigEndian = false, Elements(defaultCharacterSet, systemZone, SortedMap(Tag.PatientID -> patientID1))),
     Item(indeterminateLength, bigEndian = false, Elements(defaultCharacterSet, systemZone, SortedMap(Tag.PatientID -> patientID2)))
   ))
