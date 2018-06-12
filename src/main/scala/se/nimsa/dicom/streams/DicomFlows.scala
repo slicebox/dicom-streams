@@ -281,16 +281,10 @@ object DicomFlows {
         case fmiElements: ElementsPart if fmiElements.label == "fmigrouplength" =>
           val elements = fmiElements.elements
           if (elements.data.nonEmpty) {
-            val bigEndian = elements.data.headOption.exists {
-              case (_, e: ValueElement) => e.bigEndian
-              case _ => false
-            }
-            val explicitVR = elements.data.headOption.forall {
-              case (_, e: ValueElement) => e.explicitVR
-              case _ => true
-            }
-            val fmiElementsNoLength = elements.filterTags(_ != Tag.FileMetaInformationGroupLength)
-            val length = fmiElementsNoLength.data.values.map(_.toBytes.length).sum
+            val bigEndian = elements.data.headOption.exists(_.bigEndian)
+            val explicitVR = elements.data.headOption.forall(_.explicitVR)
+            val fmiElementsNoLength = elements.filter(_.tag != Tag.FileMetaInformationGroupLength)
+            val length = fmiElementsNoLength.data.map(_.toBytes.length).sum
             val lengthHeader = HeaderPart(Tag.FileMetaInformationGroupLength, VR.UL, 4, isFmi = true, bigEndian, explicitVR)
             val lengthChunk = ValueChunk(bigEndian, intToBytes(length, bigEndian), last = true)
             fmi = lengthHeader :: lengthChunk :: fmiElementsNoLength.toParts

@@ -9,8 +9,7 @@ import se.nimsa.dicom.data.Elements._
 import se.nimsa.dicom.data.TagPath.{EmptyTagPath, TagPathSequenceItem, TagPathTag, TagPathTrunk}
 import se.nimsa.dicom.data.VR.VR
 
-import scala.collection.immutable.SortedMap
-import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
 /**
   * Representation of a group of `Element`s, each paired with the `TagPath` that describes their position within a
@@ -20,7 +19,7 @@ import scala.collection.mutable
   * @param characterSets The character sets used for decoding text values
   * @param data          the `Map`ping of `TagPath` to `Element`
   */
-case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: SortedMap[Int, ElementSet]) {
+case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: Vector[ElementSet]) {
 
   def get[A](tag: Int, f: ValueElement => Option[A]): Option[A] = apply(tag).flatMap {
     case e: ValueElement => f(e)
@@ -80,9 +79,8 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
   }
 
 
-  def setElement(value: ValueElement): Elements = update(value.tag, value)
   def setValue(tag: Int, vr: VR, value: Value, bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
-    setElement(ValueElement(tag, vr, value, bigEndian, explicitVR))
+    set(ValueElement(tag, vr, value, bigEndian, explicitVR))
   def setBytes(tag: Int, vr: VR, value: ByteString, bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
     setValue(tag, vr, Value(value), bigEndian, explicitVR)
 
@@ -140,8 +138,8 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
   def setDouble(tag: Int, value: Double, bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
     setDouble(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
 
-  def setSequence(sequence: Sequence): Elements = update(sequence.tag, sequence)
-  def setFragments(fragments: Fragments): Elements = update(fragments.tag, fragments)
+  def setSequence(sequence: Sequence): Elements = set(sequence)
+  def setFragments(fragments: Fragments): Elements = set(fragments)
 
   /**
     * Get a single element, if present
@@ -149,7 +147,7 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
     * @param tag tag number the element, referring to the root dataset
     * @return optional Element
     */
-  def apply(tag: Int): Option[ElementSet] = data.get(tag)
+  def apply(tag: Int): Option[ElementSet] = data.find(_.tag == tag)
 
   /**
     * Find a element in this Elements described by a tag path
@@ -164,27 +162,46 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
   }
 
   /**
-    * @return the first element in this Elements, together with its tag
+    * @return the first element in this Elements
     */
-  def head: (Int, ElementSet) = data.head
+  def head: ElementSet = data.head
+
+  private def insertOrdered(element: ElementSet): Vector[ElementSet] = {
+    if (isEmpty) Vector(element) else {
+      val b = Vector.newBuilder[ElementSet]
+      var isBelow = true
+      data.foreach { e =>
+        if (isBelow && e.tag > element.tag) {
+          b += element
+          isBelow = false
+        }
+        if (e.tag == element.tag) {
+          b += element
+          isBelow = false
+        } else
+          b += e
+      }
+      if (isBelow) b += element
+      b.result()
+    }
+  }
 
   /**
     * Insert or update element in the root dataset with the specified tag number. If the element is Specific Character
     * Set or Timezone OFfset From UTC, this information will be updated accordingly.
     *
-    * @param tag     tag number where element is inserted or updated
     * @param element element to insert or update
     * @return a new Elements containing the updated element
     */
-  def update(tag: Int, element: ElementSet): Elements = element match {
+  def set(element: ElementSet): Elements = element match {
     case e: ValueElement if e.tag == Tag.SpecificCharacterSet =>
-      copy(characterSets = CharacterSets(e), data = data + (tag -> element))
+      copy(characterSets = CharacterSets(e), data = insertOrdered(e))
     case e: ValueElement if e.tag == Tag.TimezoneOffsetFromUTC =>
-      copy(zoneOffset = parseZoneOffset(e.value.toUtf8String).getOrElse(zoneOffset), data = data + (tag -> element))
-    case e => copy(data = data + (tag -> e))
+      copy(zoneOffset = parseZoneOffset(e.value.toUtf8String).getOrElse(zoneOffset), data = insertOrdered(e))
+    case e => copy(data = insertOrdered(e))
   }
 
-  def update(sequenceTag: Int, itemIndex: Int, updateFunction: Elements => Elements): Option[Elements] =
+  def updateNested(sequenceTag: Int, itemIndex: Int, updateFunction: Elements => Elements): Option[Elements] =
     for {
       s1 <- getSequence(sequenceTag)
       i1 <- s1.item(itemIndex)
@@ -196,14 +213,13 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
       setSequence(s2)
     }
 
-  def update(tagPath: TagPathTag, element: ElementSet): Elements = {
+  def set(tagPath: TagPathSequenceItem, element: ElementSet): Elements = {
     def find(elems: Elements, tagPath: List[TagPath]): Elements = {
       if (tagPath.isEmpty)
-        elems
+        elems.set(element)
       else
         tagPath.head match {
-          case tp: TagPathTag => elems.update(tp.tag, element)
-          case tp: TagPathSequenceItem => elems.update(tp.tag, tp.item, e => find(e, tagPath.tail)).getOrElse(elems)
+          case tp: TagPathSequenceItem => elems.updateNested(tp.tag, tp.item, e => find(e, tagPath.tail)).getOrElse(elems)
           case _ => throw new IllegalArgumentException("Unsupported tag path type")
         }
     }
@@ -212,20 +228,25 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
   }
 
   /**
-    * Update the character sets used to decode string data in this Elements
+    * Set the character sets used to decode string data in this Elements
     *
     * @param characterSets character sets to use in new Elements
     * @return a new Elements with the specified character sets
     */
-  def updateCharacterSets(characterSets: CharacterSets): Elements = copy(characterSets = characterSets)
+  def setCharacterSets(characterSets: CharacterSets): Elements = copy(characterSets = characterSets)
 
   /**
-    * Update the time zone offset used for date-time elements in this Elements
+    * Set the time zone offset used for date-time elements in this Elements
     *
     * @param zoneOffset time zone offset to be used for date-times without time zone specified
     * @return a new Elements with the specified time zone offset
     */
-  def updateZoneOffset(zoneOffset: ZoneOffset): Elements = copy(zoneOffset = zoneOffset)
+  def setZoneOffset(zoneOffset: ZoneOffset): Elements = copy(zoneOffset = zoneOffset)
+
+  /**
+    * @return a new Elements sorted by tag number. If already sorted, this function returns a copy
+    */
+  def sorted(): Elements = copy(data = data.sortBy(_.tag))
 
   /**
     * Remove element with the specified tag, if present
@@ -233,15 +254,7 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
     * @param tag tag for element to be removed
     * @return a new Elements
     */
-  def remove(tag: Int): Elements = copy(data = data - tag)
-
-  /**
-    * Keep only tags for which the supplied filter function returns `true`
-    *
-    * @param f filter function
-    * @return a new Elements
-    */
-  def filterTags(f: Int => Boolean): Elements = copy(data = data.filterKeys(f))
+  def remove(tag: Int): Elements = filter(_.tag != tag)
 
   /**
     * Keep only elements for which the supplied filter function returns `true`
@@ -249,12 +262,12 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
     * @param f filter function
     * @return a new Elements
     */
-  def filter(f: ((Int, ElementSet)) => Boolean): Elements = copy(data = data.filter(f))
+  def filter(f: ElementSet => Boolean): Elements = copy(data = data.filter(f))
 
   /**
-    * @return data as a sorted list of `ElementSet`s
+    * @return data as a list of `ElementSet`s
     */
-  def toList: List[ElementSet] = data.values.toList
+  def toList: List[ElementSet] = data.toList
 
   /**
     * @return data as a list of `Element`s
@@ -270,7 +283,7 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
     * @return a DICOM byte array representation of this Elements. This representation may be different from one used to
     *         produce this Elements as items and sequences are always of indeterminate length here.
     */
-  def toBytes: ByteString = data.map { case (_, elements) => elements.toBytes }.foldLeft(ByteString.empty)(_ ++ _)
+  def toBytes: ByteString = data.map(_.toBytes).foldLeft(ByteString.empty)(_ ++ _)
 
   /**
     * @return the number of elements in this Elements
@@ -289,35 +302,35 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
 
   private def toString(indent: String): String = {
     def space1(description: String): String = " " * Math.max(0, 40 - description.length)
+
     def space2(length: Long): String = " " * Math.max(0, 4 - length.toString.length)
+
     data
       .map {
-        case (_, element) => element match {
-          case e: ValueElement =>
-            val strings = e.value.toStrings(e.vr, e.bigEndian, characterSets)
-            val s = strings.mkString(multiValueDelimiter)
-            val vm = strings.length.toString
-            s"$indent${tagToString(e.tag)} ${e.vr} [$s] ${space1(s)} # ${space2(e.length)} ${e.length}, $vm ${Keyword.valueOf(e.tag)}"
-          case s: Sequence =>
-            val description = if (s.length == indeterminateLength) "Sequence with indeterminate length" else s"Sequence with explicit length ${s.length}"
-            s"$indent${tagToString(s.tag)} SQ ($description) ${space1(description)} # ${space2(s.length)} ${s.length}, 1 ${Keyword.valueOf(s.tag)}${System.lineSeparator}" +
-              s.items.map { i =>
-                val description = if (i.indeterminate) "Item with indeterminate length" else s"Item with explicit length ${i.length}"
-                s"$indent  ${tagToString(Tag.Item)} na ($description) ${space1(description)} # ${space2(i.length)} ${i.length}, 1 Item${System.lineSeparator}" +
-                  i.elements.toString(indent + "    ") +
-                  (if (i.indeterminate) s"${System.lineSeparator}$indent  ${tagToString(Tag.ItemDelimitationItem)} na ${" " * 43} #     0, 0 ItemDelimitationItem" else "")
-              }.mkString(System.lineSeparator) +
-              (if (s.indeterminate) s"${System.lineSeparator}$indent${tagToString(Tag.SequenceDelimitationItem)} na ${" " * 43} #     0, 0 SequenceDelimitationItem" else "")
-          case f: Fragments =>
-            val description = s"Fragments with ${f.size} fragment(s)"
-            s"$indent${tagToString(f.tag)} ${f.vr} ($description) ${space1(description)} #    na, 1 ${Keyword.valueOf(f.tag)}${System.lineSeparator}" +
-              f.fragments.map { f =>
-                val description = s"Fragment with length ${f.length}"
-                s"$indent  ${tagToString(Tag.Item)} na ($description) ${space1(description)} # ${space2(f.length)} ${f.length}, 1 Item"
-              }.mkString(System.lineSeparator) +
-              s"${System.lineSeparator}$indent${tagToString(Tag.SequenceDelimitationItem)} na ${" " * 43} #     0, 0 SequenceDelimitationItem"
-          case _ => ""
-        }
+        case e: ValueElement =>
+          val strings = e.value.toStrings(e.vr, e.bigEndian, characterSets)
+          val s = strings.mkString(multiValueDelimiter)
+          val vm = strings.length.toString
+          s"$indent${tagToString(e.tag)} ${e.vr} [$s] ${space1(s)} # ${space2(e.length)} ${e.length}, $vm ${Keyword.valueOf(e.tag)}"
+        case s: Sequence =>
+          val description = if (s.length == indeterminateLength) "Sequence with indeterminate length" else s"Sequence with explicit length ${s.length}"
+          s"$indent${tagToString(s.tag)} SQ ($description) ${space1(description)} # ${space2(s.length)} ${s.length}, 1 ${Keyword.valueOf(s.tag)}${System.lineSeparator}" +
+            s.items.map { i =>
+              val description = if (i.indeterminate) "Item with indeterminate length" else s"Item with explicit length ${i.length}"
+              s"$indent  ${tagToString(Tag.Item)} na ($description) ${space1(description)} # ${space2(i.length)} ${i.length}, 1 Item${System.lineSeparator}" +
+                i.elements.toString(indent + "    ") +
+                (if (i.indeterminate) s"${System.lineSeparator}$indent  ${tagToString(Tag.ItemDelimitationItem)} na ${" " * 43} #     0, 0 ItemDelimitationItem" else "")
+            }.mkString(System.lineSeparator) +
+            (if (s.indeterminate) s"${System.lineSeparator}$indent${tagToString(Tag.SequenceDelimitationItem)} na ${" " * 43} #     0, 0 SequenceDelimitationItem" else "")
+        case f: Fragments =>
+          val description = s"Fragments with ${f.size} fragment(s)"
+          s"$indent${tagToString(f.tag)} ${f.vr} ($description) ${space1(description)} #    na, 1 ${Keyword.valueOf(f.tag)}${System.lineSeparator}" +
+            f.fragments.map { f =>
+              val description = s"Fragment with length ${f.length}"
+              s"$indent  ${tagToString(Tag.Item)} na ($description) ${space1(description)} # ${space2(f.length)} ${f.length}, 1 Item"
+            }.mkString(System.lineSeparator) +
+            s"${System.lineSeparator}$indent${tagToString(Tag.SequenceDelimitationItem)} na ${" " * 43} #     0, 0 SequenceDelimitationItem"
+        case _ => ""
       }
       .mkString(System.lineSeparator)
   }
@@ -331,8 +344,11 @@ object Elements {
   /**
     * @return an Elements with no data and default character set only
     */
-  def empty(characterSets: CharacterSets = defaultCharacterSet, zoneOffset: ZoneOffset = systemZone): Elements =
-    Elements(characterSets, zoneOffset, SortedMap.empty)
+  def empty(characterSets: CharacterSets = defaultCharacterSet, zoneOffset: ZoneOffset = systemZone) =
+    Elements(characterSets, zoneOffset, Vector.empty)
+
+  def newBuilder(characterSets: CharacterSets = CharacterSets.defaultOnly, zoneOffset: ZoneOffset = systemZone) =
+    new ElementsBuilder(characterSets, zoneOffset)
 
   trait Element {
     val bigEndian: Boolean
@@ -341,6 +357,10 @@ object Elements {
   }
 
   trait ElementSet {
+    val tag: Int
+    val vr: VR
+    val bigEndian: Boolean
+    val explicitVR: Boolean
     def toBytes: ByteString
     def toElements: List[Element]
   }
@@ -418,6 +438,7 @@ object Elements {
 
 
   case class Sequence private(tag: Int, length: Long, bigEndian: Boolean, explicitVR: Boolean, items: List[Item]) extends ElementSet {
+    val vr: VR = VR.SQ
     val indeterminate: Boolean = length == indeterminateLength
 
     def item(index: Int): Option[Item] = try Option(items(index - 1)) catch {
@@ -503,9 +524,9 @@ object Elements {
     def empty(element: FragmentsElement): Fragments = empty(element.tag, element.vr, element.bigEndian, element.explicitVR)
   }
 
-  class ElementsBuilder(var characterSets: CharacterSets = CharacterSets.defaultOnly, var zoneOffset: ZoneOffset = systemZone) {
-    val data: mutable.Map[Int, ElementSet] = mutable.Map.empty
-    
+  class ElementsBuilder private[Elements](var characterSets: CharacterSets = CharacterSets.defaultOnly, var zoneOffset: ZoneOffset = systemZone) {
+    val data: ArrayBuffer[ElementSet] = ArrayBuffer.empty
+
     def update(tag: Int, element: ElementSet): ElementsBuilder = {
       element match {
         case e: ValueElement if e.tag == Tag.SpecificCharacterSet =>
@@ -514,11 +535,11 @@ object Elements {
           zoneOffset = parseZoneOffset(e.value.toUtf8String).getOrElse(zoneOffset)
         case _ =>
       }
-      data += (tag -> element)
+      data += element
       this
     }
 
-    def build(): Elements = Elements(characterSets, zoneOffset, SortedMap(data.toArray: _*))
+    def result(): Elements = Elements(characterSets, zoneOffset, data.toVector)
   }
 
 }

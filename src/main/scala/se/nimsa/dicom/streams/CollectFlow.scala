@@ -115,9 +115,9 @@ object CollectFlow {
                   currentElement = Some(updatedElement)
                   if (valueChunk.last) {
                     if (updatedElement.tag == Tag.SpecificCharacterSet)
-                      elements = elements.updateCharacterSets(CharacterSets(updatedElement.toBytes))
+                      elements = elements.setCharacterSets(CharacterSets(updatedElement.toBytes))
                     if (tagCondition(tagPath))
-                      elements = elements(updatedElement.tag) = updatedElement
+                      elements = elements.set(updatedElement)
                     currentElement = None
                   }
                   Nil

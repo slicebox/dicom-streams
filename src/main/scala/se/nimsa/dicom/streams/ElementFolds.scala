@@ -66,7 +66,7 @@ object ElementFolds {
   /**
     * Data holder for `elementsSink`
     */
-  private case class ElementsSinkData(builderStack: Seq[ElementsBuilder] = Seq(new ElementsBuilder()),
+  private case class ElementsSinkData(builderStack: Seq[ElementsBuilder] = Seq(Elements.newBuilder()),
                                       sequenceStack: Seq[Sequence] = Seq.empty,
                                       fragments: Option[Fragments] = None) {
     def updated(builder: ElementsBuilder): ElementsSinkData = copy(builderStack = builder +: builderStack.tail)
@@ -114,10 +114,10 @@ object ElementFolds {
           case itemElement: ItemElement if sinkData.hasSequence =>
             val builder = sinkData.builderStack.head
             val sequence = sinkData.sequenceStack.head + Item.empty(itemElement)
-            sinkData.pushBuilder(new ElementsBuilder(builder.characterSets, builder.zoneOffset)).updated(sequence)
+            sinkData.pushBuilder(Elements.newBuilder(builder.characterSets, builder.zoneOffset)).updated(sequence)
 
           case _: ItemDelimitationElement if sinkData.hasSequence =>
-            val elements = sinkData.builderStack.head.build()
+            val elements = sinkData.builderStack.head.result()
             val sequence = sinkData.sequenceStack.head + elements
             sinkData.popBuilder().updated(sequence)
 
@@ -131,6 +131,6 @@ object ElementFolds {
             sinkData
         }
       }
-        .mapMaterializedValue(_.map(_.builderStack.headOption.map(_.build()).getOrElse(Elements.empty())))
+        .mapMaterializedValue(_.map(_.builderStack.headOption.map(_.result()).getOrElse(Elements.empty())))
     )(Keep.right)
 }
