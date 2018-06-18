@@ -252,8 +252,6 @@ trait DicomParsing {
 
   val defaultCharacterSet: CharacterSets = CharacterSets.defaultOnly
 
-  def systemZone: ZoneOffset = ZonedDateTime.now().getOffset
-
   def formatDate(date: LocalDate): String = date.format(dateFormatForEncoding)
 
   def formatDateTime(dateTime: ZonedDateTime): String = dateTime.format(dateTimeZoneFormat)

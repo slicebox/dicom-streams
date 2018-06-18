@@ -17,6 +17,7 @@
 package se.nimsa.dicom
 
 import java.nio.{ByteBuffer, ByteOrder}
+import java.time.{ZoneOffset, ZonedDateTime}
 
 import akka.util.ByteString
 import se.nimsa.dicom.data.VR.VR
@@ -101,4 +102,6 @@ package object data {
   val sequenceDelimitationLE: ByteString = tagToBytesLE(Tag.SequenceDelimitationItem) ++ intToBytesLE(0x00000000)
   val sequenceDelimitationBE: ByteString = tagToBytesBE(Tag.SequenceDelimitationItem) ++ intToBytesBE(0x00000000)
   def sequenceDelimitation(bigEndian: Boolean = false): ByteString = if (bigEndian) sequenceDelimitationBE else sequenceDelimitationLE
+
+  def systemZone: ZoneOffset = ZonedDateTime.now().getOffset
 }

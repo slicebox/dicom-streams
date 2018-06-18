@@ -14,7 +14,7 @@ object ElementFlows {
     * @return a `Flow` that aggregates `DicomPart`s into data elements. Each element holds header and complete value
     *         information.
     */
-  def elementsFlow: Flow[DicomPart, Element, NotUsed] =
+  def elementFlow: Flow[DicomPart, Element, NotUsed] =
     DicomFlowFactory.create(new DeferToPartFlow[Element] with GuaranteedDelimitationEvents[Element] with GuaranteedValueEvent[Element] {
       var bytes: ByteString = ByteString.empty
       var currentValue: Option[ValueElement] = None

@@ -285,7 +285,7 @@ trait TagPathTracking[Out] extends DicomFlow[Out] with GuaranteedValueEvent[Out]
   }
 
   abstract override def onItem(part: ItemPart): List[Out] = {
-    if (!inFragments) tagPath = tagPath.previous.thenSequence(tagPath.tag, part.index)
+      if (!inFragments) tagPath = tagPath.previous.thenSequence(tagPath.tag, part.index)
     super.onItem(part)
   }
 

@@ -35,15 +35,15 @@ class ValueTest extends FlatSpec with Matchers {
   }
 
   "Formatting bytes into a single string" should "return empty string for empty byte string" in {
-    Value.empty.toSingleString(VR.SH) shouldBe empty
+    Value.empty.toString(VR.SH) shouldBe empty
   }
 
   it should "not split a string with DICOM multiple value delimiters" in {
-    Value(ByteString("one\\two\\three")).toSingleString(VR.SH) shouldBe "one\\two\\three"
+    Value(ByteString("one\\two\\three")).toSingleString(VR.SH) shouldBe Some("one\\two\\three")
   }
 
   it should "trim the string components" in {
-    Value(ByteString("   one two  ")).toSingleString(VR.SH) shouldBe "one two"
+    Value(ByteString("   one two  ")).toSingleString(VR.SH) shouldBe Some("one two")
   }
 
   "Parsing int values" should "return empty sequence for empty byte string" in {
@@ -259,63 +259,63 @@ class ValueTest extends FlatSpec with Matchers {
   }
 
   "String representations of elements" should "format OW values" in {
-    Value(ByteString(Array(1, 2, 3, 4, 5, 6, 7, 8).map(_.toByte))).toSingleString(VR.OW) shouldBe "0201 0403 0605 0807"
-    Value(ByteString(Array(1, 2, 3, 4, 5, 6, 7, 8).map(_.toByte))).toSingleString(VR.OW, bigEndian = true) shouldBe "0102 0304 0506 0708"
+    Value(ByteString(Array(1, 2, 3, 4, 5, 6, 7, 8).map(_.toByte))).toString(VR.OW) shouldBe Some("0201 0403 0605 0807")
+    Value(ByteString(Array(1, 2, 3, 4, 5, 6, 7, 8).map(_.toByte))).toString(VR.OW, bigEndian = true) shouldBe Some("0102 0304 0506 0708")
   }
 
   it should "format OB values" in {
-    Value(ByteString(Array(1, 2, 3, 4, 5, 6, 7, 8).map(_.toByte))).toSingleString(VR.OB) shouldBe "01 02 03 04 05 06 07 08"
+    Value(ByteString(Array(1, 2, 3, 4, 5, 6, 7, 8).map(_.toByte))).toString(VR.OB) shouldBe Some("01 02 03 04 05 06 07 08")
   }
 
   it should "format OF values" in {
-    Value(intToBytesLE(java.lang.Float.floatToIntBits(1.2F)) ++ intToBytesLE(java.lang.Float.floatToIntBits(56.78F))).toSingleString(VR.OF) shouldBe "1.2 56.78"
+    Value(intToBytesLE(java.lang.Float.floatToIntBits(1.2F)) ++ intToBytesLE(java.lang.Float.floatToIntBits(56.78F))).toString(VR.OF) shouldBe Some("1.2 56.78")
   }
 
   it should "format OD values" in {
-    Value(longToBytesLE(java.lang.Double.doubleToLongBits(1.2)) ++ longToBytesLE(java.lang.Double.doubleToLongBits(56.78))).toSingleString(VR.OD) shouldBe "1.2 56.78"
+    Value(longToBytesLE(java.lang.Double.doubleToLongBits(1.2)) ++ longToBytesLE(java.lang.Double.doubleToLongBits(56.78))).toString(VR.OD) shouldBe Some("1.2 56.78")
   }
 
   it should "format AT values" in {
-    Value(ByteString(Array(1, 2, 3, 4).map(_.toByte))).toSingleString(VR.AT) shouldBe "(0201,0403)"
+    Value(ByteString(Array(1, 2, 3, 4).map(_.toByte))).toString(VR.AT) shouldBe Some("(0201,0403)")
   }
 
   it should "format UL values" in {
-    Value(ByteString(Array(1, 2, 3, 4).map(_.toByte))).toSingleString(VR.UL) shouldBe 0x04030201.toString
-    Value(ByteString(Array(255, 255, 255, 255).map(_.toByte))).toSingleString(VR.UL) shouldBe 0xFFFFFFFFL.toString
+    Value(ByteString(Array(1, 2, 3, 4).map(_.toByte))).toString(VR.UL) shouldBe Some(0x04030201.toString)
+    Value(ByteString(Array(255, 255, 255, 255).map(_.toByte))).toString(VR.UL) shouldBe Some(0xFFFFFFFFL.toString)
   }
 
   it should "format US values" in {
-    Value(ByteString(Array(1, 2).map(_.toByte))).toSingleString(VR.US) shouldBe 0x0201.toString
-    Value(ByteString(Array(255, 255).map(_.toByte))).toSingleString(VR.US) shouldBe 0xFFFF.toString
+    Value(ByteString(Array(1, 2).map(_.toByte))).toString(VR.US) shouldBe Some(0x0201.toString)
+    Value(ByteString(Array(255, 255).map(_.toByte))).toString(VR.US) shouldBe Some(0xFFFF.toString)
   }
 
   it should "format SL values" in {
-    Value(ByteString(Array(1, 2, 3, 4).map(_.toByte))).toSingleString(VR.SL) shouldBe 0x04030201.toString
-    Value(ByteString(Array(255, 255, 255, 255).map(_.toByte))).toSingleString(VR.SL) shouldBe "-1"
+    Value(ByteString(Array(1, 2, 3, 4).map(_.toByte))).toString(VR.SL) shouldBe Some(0x04030201.toString)
+    Value(ByteString(Array(255, 255, 255, 255).map(_.toByte))).toString(VR.SL) shouldBe Some("-1")
   }
 
   it should "format SS values" in {
-    Value(ByteString(Array(1, 2).map(_.toByte))).toSingleString(VR.SS) shouldBe 0x0201.toString
-    Value(ByteString(Array(255, 255).map(_.toByte))).toSingleString(VR.SS) shouldBe "-1"
+    Value(ByteString(Array(1, 2).map(_.toByte))).toString(VR.SS) shouldBe Some(0x0201.toString)
+    Value(ByteString(Array(255, 255).map(_.toByte))).toString(VR.SS) shouldBe Some("-1")
   }
 
   it should "format FL values" in {
-    Value(intToBytesLE(java.lang.Float.floatToIntBits(math.Pi.toFloat))).toSingleString(VR.FL) shouldBe math.Pi.toFloat.toString
+    Value(intToBytesLE(java.lang.Float.floatToIntBits(math.Pi.toFloat))).toString(VR.FL) shouldBe Some(math.Pi.toFloat.toString)
   }
 
   it should "format FD values" in {
-    Value(longToBytesLE(java.lang.Double.doubleToLongBits(math.Pi))).toSingleString(VR.FD) shouldBe math.Pi.toString
+    Value(longToBytesLE(java.lang.Double.doubleToLongBits(math.Pi))).toString(VR.FD) shouldBe Some(math.Pi.toString)
   }
 
   it should "format ST values" in {
     val e = Value(ByteString("   Short text   \\   and some more   "))
     e.toStrings(VR.ST) should have length 1
-    e.toSingleString(VR.ST) shouldBe "   Short text   \\   and some more"
+    e.toSingleString(VR.ST) shouldBe Some("   Short text   \\   and some more")
   }
 
   it should "format DT values" in {
     val dt = "20040329053559.012345+0300"
-    Value(ByteString(dt)).toSingleString(VR.DT) shouldBe dt
+    Value(ByteString(dt)).toString(VR.DT) shouldBe Some(dt)
   }
 
   "Parsing a patient name" should "divide into parts and components" in {
@@ -363,9 +363,9 @@ class ValueTest extends FlatSpec with Matchers {
   }
 
   "Creating an element" should "produce the expected bytes from string(s)" in {
-    Value.fromString(VR.PN, "John^Doe").toSingleString(VR.PN) shouldBe "John^Doe"
-    Value.fromString(VR.PN, "John^Doe", bigEndian = true).toSingleString(VR.PN) shouldBe "John^Doe"
-    Value.fromString(VR.PN, "John^Doe").toSingleString(VR.PN) shouldBe "John^Doe"
+    Value.fromString(VR.PN, "John^Doe").toString(VR.PN) shouldBe Some("John^Doe")
+    Value.fromString(VR.PN, "John^Doe", bigEndian = true).toString(VR.PN) shouldBe Some("John^Doe")
+    Value.fromString(VR.PN, "John^Doe").toString(VR.PN) shouldBe Some("John^Doe")
     Value.fromStrings(VR.PN, Seq("John^Doe", "Jane^Doe")).toStrings(VR.PN) shouldBe Seq("John^Doe", "Jane^Doe")
 
     Value.fromString(VR.AT, "00A01234").toInt(VR.AT).get shouldBe 0x00A01234
@@ -458,7 +458,7 @@ class ValueTest extends FlatSpec with Matchers {
     Value.fromDates(VR.DA, Seq(date1, date2)).toDates() shouldBe Seq(date1, date2)
 
     Value.fromDate(VR.DT, date1).toDate().get shouldBe date1
-    Value.fromDate(VR.LT, date1).toSingleString(VR.LT) shouldBe "20040329"
+    Value.fromDate(VR.LT, date1).toString(VR.LT) shouldBe Some("20040329")
   }
 
   it should "produce the expected bytes from date-time(s)" in {
@@ -467,7 +467,7 @@ class ValueTest extends FlatSpec with Matchers {
     Value.fromDateTime(VR.DT, dt1).toDateTime().get shouldBe dt1
     Value.fromDateTimes(VR.DT, Seq(dt1, dt2)).toDateTimes() shouldBe Seq(dt1, dt2)
 
-    Value.fromDateTime(VR.LT, dt1).toSingleString(VR.LT) shouldBe "20040329115935.123456+0000"
+    Value.fromDateTime(VR.LT, dt1).toString(VR.LT) shouldBe Some("20040329115935.123456+0000")
   }
 
   it should "produce the expected bytes from patient name(s)" in {
@@ -476,7 +476,7 @@ class ValueTest extends FlatSpec with Matchers {
     Value.fromPatientName(VR.PN, pn1).toPatientName().get shouldBe pn1
     Value.fromPatientNames(VR.PN, Seq(pn1, pn2)).toPatientNames() shouldBe Seq(pn1, pn2)
 
-    Value.fromPatientName(VR.PN, pn1).toSingleString(VR.PN) shouldBe "family=i=p^given=i=p^middle=i=p^prefix=i=p^suffix=i=p"
+    Value.fromPatientName(VR.PN, pn1).toString(VR.PN) shouldBe Some("family=i=p^given=i=p^middle=i=p^prefix=i=p^suffix=i=p")
   }
 
 }

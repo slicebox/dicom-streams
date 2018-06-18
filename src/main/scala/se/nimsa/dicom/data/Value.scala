@@ -39,20 +39,6 @@ case class Value private[data](bytes: ByteString) {
     }
 
   /**
-    * Get the string representation of each component of this value, joined with the backslash character as separator
-    *
-    * @param characterSets Character sets used for string decoding
-    * @return a string repreentation of all components of this value
-    */
-  def toSingleString(vr: VR, bigEndian: Boolean = false, characterSets: CharacterSets = defaultCharacterSet): String =
-    toStrings(vr, bigEndian, characterSets).mkString(multiValueDelimiter)
-
-  /**
-    * @return a direct decoding to UTF8 from the bytes of this value
-    */
-  def toUtf8String: String = bytes.utf8String
-
-  /**
     * @return this value as a sequence of shorts. Casting is performed if necessary. If the value has no
     *         short representation, an empty sequence is returned.
     */
@@ -161,6 +147,28 @@ case class Value private[data](bytes: ByteString) {
     case PN => parsePN(bytes, characterSets)
     case _ => Seq.empty
   }
+
+  /**
+    * @return the first string representation of this value, if any
+    */
+  def toString(vr: VR, bigEndian: Boolean = false, characterSets: CharacterSets = defaultCharacterSet): Option[String] =
+    toStrings(vr, bigEndian, characterSets).headOption
+
+  /**
+    * Get the string representation of each component of this value, joined with the backslash character as separator
+    *
+    * @param characterSets Character sets used for string decoding
+    * @return a string repreentation of all components of this value, if any
+    */
+  def toSingleString(vr: VR, bigEndian: Boolean = false, characterSets: CharacterSets = defaultCharacterSet): Option[String] = {
+    val strings = toStrings(vr, bigEndian, characterSets)
+    if (strings.isEmpty) None else Option(strings.mkString(multiValueDelimiter))
+  }
+
+  /**
+    * @return a direct decoding to UTF8 from the bytes of this value
+    */
+  def toUtf8String: String = bytes.utf8String
 
   /**
     * @return the first short representation of this value, if any

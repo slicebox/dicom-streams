@@ -10,7 +10,7 @@ import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import se.nimsa.dicom.data.Elements.Element
 import se.nimsa.dicom.data.Tag
 import se.nimsa.dicom.data.TestData._
-import se.nimsa.dicom.streams.ElementFlows.elementsFlow
+import se.nimsa.dicom.streams.ElementFlows.elementFlow
 import se.nimsa.dicom.streams.TestUtils._
 
 import scala.concurrent.ExecutionContextExecutor
@@ -27,7 +27,7 @@ class ElementSinkTest extends TestKit(ActorSystem("ElementFoldsSpec")) with Flat
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
-      .via(elementsFlow)
+      .via(elementFlow)
 
     source.runWith(TestSink.probe[Element])
       .expectElement(Tag.PatientName)
@@ -40,7 +40,7 @@ class ElementSinkTest extends TestKit(ActorSystem("ElementFoldsSpec")) with Flat
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
-      .via(elementsFlow)
+      .via(elementFlow)
 
     source.runWith(TestSink.probe[Element])
       .expectFragments(Tag.PixelData)
@@ -56,7 +56,7 @@ class ElementSinkTest extends TestKit(ActorSystem("ElementFoldsSpec")) with Flat
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
-      .via(elementsFlow)
+      .via(elementFlow)
 
     source.runWith(TestSink.probe[Element])
       .expectElement(Tag.StudyDate, ByteString.empty)

@@ -6,10 +6,10 @@ import akka.stream.scaladsl.Source
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
-import se.nimsa.dicom.data.DicomParsing.{defaultCharacterSet, systemZone}
+import se.nimsa.dicom.data.DicomParsing.defaultCharacterSet
 import se.nimsa.dicom.data.Elements._
 import se.nimsa.dicom.data.TestData.{studyDate => testStudyDate, _}
-import se.nimsa.dicom.streams.ElementFlows.elementsFlow
+import se.nimsa.dicom.streams.ElementFlows.elementFlow
 import se.nimsa.dicom.streams.ElementSink._
 import se.nimsa.dicom.streams.ParseFlow.parseFlow
 
@@ -91,7 +91,7 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
     val elements = Await.result(
       Source.single(bytes)
         .via(parseFlow)
-        .via(elementsFlow)
+        .via(elementFlow)
         .runWith(elementSink),
       5.seconds)
 
