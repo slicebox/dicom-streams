@@ -10,12 +10,12 @@ import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import se.nimsa.dicom.data.Elements.Element
 import se.nimsa.dicom.data.Tag
 import se.nimsa.dicom.data.TestData._
-import se.nimsa.dicom.streams.ElementFolds._
+import se.nimsa.dicom.streams.ElementFlows.elementsFlow
 import se.nimsa.dicom.streams.TestUtils._
 
 import scala.concurrent.ExecutionContextExecutor
 
-class ElementFoldsTest extends TestKit(ActorSystem("ElementFoldsSpec")) with FlatSpecLike with Matchers with BeforeAndAfterAll {
+class ElementSinkTest extends TestKit(ActorSystem("ElementFoldsSpec")) with FlatSpecLike with Matchers with BeforeAndAfterAll {
 
   implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val ec: ExecutionContextExecutor = system.dispatcher

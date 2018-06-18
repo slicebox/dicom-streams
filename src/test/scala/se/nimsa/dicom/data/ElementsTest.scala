@@ -9,7 +9,8 @@ import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import se.nimsa.dicom.data.DicomParsing.{defaultCharacterSet, systemZone}
 import se.nimsa.dicom.data.Elements._
 import se.nimsa.dicom.data.TestData.{studyDate => testStudyDate, _}
-import se.nimsa.dicom.streams.ElementFolds._
+import se.nimsa.dicom.streams.ElementFlows.elementsFlow
+import se.nimsa.dicom.streams.ElementSink._
 import se.nimsa.dicom.streams.ParseFlow.parseFlow
 
 import scala.concurrent.duration.DurationInt
@@ -91,7 +92,7 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
       Source.single(bytes)
         .via(parseFlow)
         .via(elementsFlow)
-        .runWith(elementsSink),
+        .runWith(elementSink),
       5.seconds)
 
     elements.toBytes shouldBe bytes
