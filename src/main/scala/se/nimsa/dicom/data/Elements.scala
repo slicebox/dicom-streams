@@ -139,6 +139,33 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
   def setDouble(tag: Int, value: Double, bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
     setDouble(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
 
+  def setDates(tag: Int, vr: VR, values: Seq[LocalDate], bigEndian: Boolean, explicitVR: Boolean): Elements =
+    setValue(tag, vr, Value.fromDates(vr, values), bigEndian, explicitVR)
+  def setDates(tag: Int, values: Seq[LocalDate], bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
+    setDates(tag, Dictionary.vrOf(tag), values, bigEndian, explicitVR)
+  def setDate(tag: Int, vr: VR, value: LocalDate, bigEndian: Boolean, explicitVR: Boolean): Elements =
+    setValue(tag, vr, Value.fromDate(vr, value), bigEndian, explicitVR)
+  def setDate(tag: Int, value: LocalDate, bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
+    setDate(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
+
+  def setDateTimes(tag: Int, vr: VR, values: Seq[ZonedDateTime], bigEndian: Boolean, explicitVR: Boolean): Elements =
+    setValue(tag, vr, Value.fromDateTimes(vr, values), bigEndian, explicitVR)
+  def setDateTimes(tag: Int, values: Seq[ZonedDateTime], bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
+    setDateTimes(tag, Dictionary.vrOf(tag), values, bigEndian, explicitVR)
+  def setDateTime(tag: Int, vr: VR, value: ZonedDateTime, bigEndian: Boolean, explicitVR: Boolean): Elements =
+    setValue(tag, vr, Value.fromDateTime(vr, value), bigEndian, explicitVR)
+  def setDateTime(tag: Int, value: ZonedDateTime, bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
+    setDateTime(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
+
+  def setPatientNames(tag: Int, vr: VR, values: Seq[PatientName], bigEndian: Boolean, explicitVR: Boolean): Elements =
+    setValue(tag, vr, Value.fromPatientNames(vr, values), bigEndian, explicitVR)
+  def setPatientNames(tag: Int, values: Seq[PatientName], bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
+    setPatientNames(tag, Dictionary.vrOf(tag), values, bigEndian, explicitVR)
+  def setPatientName(tag: Int, vr: VR, value: PatientName, bigEndian: Boolean, explicitVR: Boolean): Elements =
+    setValue(tag, vr, Value.fromPatientName(vr, value), bigEndian, explicitVR)
+  def setPatientName(tag: Int, value: PatientName, bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
+    setPatientName(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
+
   def setSequence(sequence: Sequence): Elements = set(sequence)
   def setFragments(fragments: Fragments): Elements = set(fragments)
 
@@ -300,6 +327,12 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
     * @return 'true' if this Elements contains one or more elements
     */
   def nonEmpty: Boolean = !isEmpty
+
+  /**
+    * @param tag tag to test
+    * @return `true` if these elements contains an element with the input tag number
+    */
+  def hasElement(tag: Int): Boolean = data.map(_.tag).contains(tag)
 
   private def toString(indent: String): String = {
     def space1(description: String): String = " " * Math.max(0, 40 - description.length)
