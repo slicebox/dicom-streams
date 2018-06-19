@@ -5,7 +5,7 @@ import java.time.{LocalDate, ZoneOffset, ZonedDateTime}
 import akka.util.ByteString
 import se.nimsa.dicom.data.DicomParsing.{Element => _, _}
 import se.nimsa.dicom.data.DicomParts._
-import se.nimsa.dicom.data.Elements._
+import se.nimsa.dicom.data.Elements.{ValueElement, _}
 import se.nimsa.dicom.data.TagPath.{EmptyTagPath, TagPathSequenceItem, TagPathTag, TagPathTrunk}
 import se.nimsa.dicom.data.VR.VR
 
@@ -384,6 +384,19 @@ object Elements {
   def newBuilder(characterSets: CharacterSets = CharacterSets.defaultOnly, zoneOffset: ZoneOffset = systemZone) =
     new ElementsBuilder(characterSets, zoneOffset)
 
+  def fileMetaInformationElements(sopInstanceUID: String, sopClassUID: String, transferSyntax: String): List[ValueElement] = {
+    val fmiElements = List(
+      ValueElement(Tag.FileMetaInformationVersion, ByteString(0, 1)),
+      ValueElement(Tag.MediaStorageSOPClassUID, ByteString(sopClassUID)),
+      ValueElement(Tag.MediaStorageSOPInstanceUID, ByteString(sopInstanceUID)),
+      ValueElement(Tag.TransferSyntaxUID, ByteString(transferSyntax)),
+      ValueElement(Tag.ImplementationClassUID, ByteString(Implementation.classUid)),
+      ValueElement(Tag.ImplementationVersionName, ByteString(Implementation.versionName))
+    )
+    val groupLength = ValueElement(Tag.FileMetaInformationGroupLength, intToBytesLE(fmiElements.map(_.toBytes.length).sum))
+    groupLength :: fmiElements
+  }
+
   trait Element {
     val bigEndian: Boolean
     def toBytes: ByteString
@@ -561,7 +574,7 @@ object Elements {
   class ElementsBuilder private[Elements](var characterSets: CharacterSets = CharacterSets.defaultOnly, var zoneOffset: ZoneOffset = systemZone) {
     val data: ArrayBuffer[ElementSet] = ArrayBuffer.empty
 
-    def update(tag: Int, element: ElementSet): ElementsBuilder = {
+    def +=(element: ElementSet): ElementsBuilder = {
       element match {
         case e: ValueElement if e.tag == Tag.SpecificCharacterSet =>
           characterSets = CharacterSets(e)

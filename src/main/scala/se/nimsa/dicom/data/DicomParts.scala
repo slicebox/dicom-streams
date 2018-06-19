@@ -54,7 +54,7 @@ object DicomParts {
   }
 
   object HeaderPart {
-    def apply(tag: Int, vr: VR, length: Long, isFmi: Boolean, bigEndian: Boolean, explicitVR: Boolean): HeaderPart = {
+    def apply(tag: Int, vr: VR, length: Long, isFmi: Boolean = false, bigEndian: Boolean = false, explicitVR: Boolean = true): HeaderPart = {
       val headerBytes = if (explicitVR)
         if (vr.headerLength == 8)
           tagToBytes(tag, bigEndian) ++ ByteString(vr.toString) ++ shortToBytes(length.toShort, bigEndian)

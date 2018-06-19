@@ -6,9 +6,15 @@ version := "0.1-SNAPSHOT"
 organization := "se.nimsa"
 scalaVersion := "2.12.6"
 scalacOptions := Seq("-encoding", "UTF-8", "-Xlint", "-deprecation", "-unchecked", "-feature", "-target:jvm-1.8")
-scalacOptions in (Compile, doc) ++= Seq(
+scalacOptions in(Compile, doc) ++= Seq(
   "-no-link-warnings" // Suppresses problems with Scaladoc @throws links
 )
+
+// build info settings
+
+enablePlugins(BuildInfoPlugin)
+buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion)
+buildInfoPackage := "se.nimsa.dicom"
 
 // repos
 
@@ -32,10 +38,10 @@ libraryDependencies ++= {
 updateOptions := updateOptions.value.withCachedResolution(true)
 
 sourceGenerators in Compile += Def.task {
-  val tagFile = (sourceManaged in Compile).value / "se" / "nimsa" / "dicom" / "data" / "Tag.scala"
-  val keywordFile = (sourceManaged in Compile).value / "se" / "nimsa" / "dicom" / "data" / "Keyword.scala"
-  val uidFile = (sourceManaged in Compile).value / "se" / "nimsa" / "dicom" / "data" / "UID.scala"
-  val dictionaryFile = (sourceManaged in Compile).value / "se" / "nimsa" / "dicom" / "data" / "Dictionary.scala"
+  val tagFile = (sourceManaged in Compile).value / "sbt-dicomdata" / "Tag.scala"
+  val keywordFile = (sourceManaged in Compile).value / "sbt-dicomdata" / "Keyword.scala"
+  val uidFile = (sourceManaged in Compile).value / "sbt-dicomdata" / "UID.scala"
+  val dictionaryFile = (sourceManaged in Compile).value / "sbt-dicomdata" / "Dictionary.scala"
   IO.write(tagFile, generateTag())
   IO.write(keywordFile, generateKeyword())
   IO.write(uidFile, generateUID())
@@ -63,17 +69,17 @@ publishTo := {
   if (isSnapshot.value)
     Some("snapshots" at nexus + "content/repositories/snapshots")
   else
-    Some("releases"  at nexus + "service/local/staging/deploy/maven2")
+    Some("releases" at nexus + "service/local/staging/deploy/maven2")
 }
 
 pomIncludeRepository := { _ => false }
 
 pomExtra :=
   <url>https://github.com/slicebox/dicom-streams</url>
-  <developers>
-    <developer>
-      <id>KarlSjostrand</id>
-      <name>Karl Sjöstrand</name>
-      <url>https://github.com/KarlSjostrand</url>
-    </developer>
-  </developers>
+    <developers>
+      <developer>
+        <id>KarlSjostrand</id>
+        <name>Karl Sjöstrand</name>
+        <url>https://github.com/KarlSjostrand</url>
+      </developer>
+    </developers>

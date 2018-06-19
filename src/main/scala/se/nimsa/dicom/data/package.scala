@@ -16,8 +16,10 @@
 
 package se.nimsa.dicom
 
+import java.math.BigInteger
 import java.nio.{ByteBuffer, ByteOrder}
 import java.time.{ZoneOffset, ZonedDateTime}
+import java.util.UUID
 
 import akka.util.ByteString
 import se.nimsa.dicom.data.VR.VR
@@ -103,5 +105,28 @@ package object data {
   val sequenceDelimitationBE: ByteString = tagToBytesBE(Tag.SequenceDelimitationItem) ++ intToBytesBE(0x00000000)
   def sequenceDelimitation(bigEndian: Boolean = false): ByteString = if (bigEndian) sequenceDelimitationBE else sequenceDelimitationLE
 
+  // System time zone
   def systemZone: ZoneOffset = ZonedDateTime.now().getOffset
+
+  // UID utility tools (from dcm4che UIDUtils)
+  private val uuidRoot = "2.25"
+  private def toUID(root: String, uuid: UUID) = {
+    val uuidBytes = ByteString(0) ++
+      longToBytesBE(uuid.getMostSignificantBits) ++
+      longToBytesBE(uuid.getLeastSignificantBits)
+    val uuidString = new BigInteger(uuidBytes.toArray).toString
+    val rootLength = root.length
+    val uuidLength = uuidString.length
+    val cs = new Array[Char](rootLength + uuidLength + 1)
+    root.getChars(0, rootLength, cs, 0)
+    cs(rootLength) = '.'
+    uuidString.getChars(0, uuidLength, cs, rootLength + 1)
+    new String(cs)
+  }
+  private def nameBasedUID(name: Array[Byte], root: String): String = toUID(root, UUID.nameUUIDFromBytes(name))
+  private def randomUID(root: String): String = toUID(root, UUID.randomUUID)
+  def createUID(): String = randomUID(uuidRoot)
+  def createNameBasedUID(name: Array[Byte]): String = nameBasedUID(name, uuidRoot)
+  def createNameBasedUID(name: Array[Byte], root: String): String = nameBasedUID(name, root)
+  def createUID(root: String): String = randomUID(root)
 }

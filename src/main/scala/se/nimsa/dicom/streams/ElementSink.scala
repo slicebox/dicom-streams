@@ -40,7 +40,7 @@ object ElementSink {
 
           case valueElement: ValueElement =>
             val builder = sinkData.builderStack.head
-            builder(valueElement.tag) = valueElement
+            builder += valueElement
             sinkData.updated(builder)
 
           case fragments: FragmentsElement =>
@@ -53,7 +53,7 @@ object ElementSink {
           case _: SequenceDelimitationElement if sinkData.hasFragments =>
             val fragments = sinkData.fragments.get
             val builder = sinkData.builderStack.head
-            builder(fragments.tag) = fragments
+            builder += fragments
             sinkData.updated(builder).updated(None)
 
           case sequenceElement: SequenceElement =>
@@ -72,7 +72,7 @@ object ElementSink {
           case _: SequenceDelimitationElement if sinkData.hasSequence =>
             val sequence = sinkData.sequenceStack.head
             val builder = sinkData.builderStack.head
-            builder(sequence.tag) = sequence
+            builder += sequence
             sinkData.updated(builder).popSequence()
 
           case _ =>
