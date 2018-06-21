@@ -50,10 +50,14 @@ object ElementFlows {
           FragmentsElement(fragments.tag, fragments.vr, fragments.bigEndian, fragments.explicitVR) :: Nil
         case item: ItemPart =>
           ItemElement(item.index, item.length, item.bigEndian) :: Nil
+        case itemDelimitation: ItemDelimitationPartMarker =>
+          ItemDelimitationElement(itemDelimitation.index, marker = true, itemDelimitation.bigEndian) :: Nil
         case itemDelimitation: ItemDelimitationPart =>
-          ItemDelimitationElement(itemDelimitation.index, itemDelimitation.bigEndian) :: Nil
+          ItemDelimitationElement(itemDelimitation.index, marker = false, itemDelimitation.bigEndian) :: Nil
+        case SequenceDelimitationPartMarker =>
+          SequenceDelimitationElement(marker = true, SequenceDelimitationPartMarker.bigEndian) :: Nil
         case sequenceDelimitation: SequenceDelimitationPart =>
-          SequenceDelimitationElement(sequenceDelimitation.bigEndian) :: Nil
+          SequenceDelimitationElement(marker = false, sequenceDelimitation.bigEndian) :: Nil
 
         case _ => Nil
       }

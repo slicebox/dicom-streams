@@ -23,11 +23,11 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
 
   override def afterAll(): Unit = system.terminate()
 
-  val studyDate: ValueElement = ValueElement(Tag.StudyDate, ByteString("20041230"))
-  val patientName: ValueElement = ValueElement(Tag.PatientName, ByteString("John^Doe"))
-  val patientID1: ValueElement = ValueElement(Tag.PatientID, ByteString("12345678"))
-  val patientID2: ValueElement = ValueElement(Tag.PatientID, ByteString("87654321"))
-  val patientID3: ValueElement = ValueElement(Tag.PatientID, ByteString("18273645"))
+  val studyDate: ValueElement = ValueElement.fromString(Tag.StudyDate, "20041230")
+  val patientName: ValueElement = ValueElement.fromString(Tag.PatientName, "John^Doe")
+  val patientID1: ValueElement = ValueElement.fromString(Tag.PatientID, "12345678")
+  val patientID2: ValueElement = ValueElement.fromString(Tag.PatientID, "87654321")
+  val patientID3: ValueElement = ValueElement.fromString(Tag.PatientID, "18273645")
   val seq: Sequence = Sequence(Tag.DerivationCodeSequence, indeterminateLength, bigEndian = false, explicitVR = true, List(
     Item(indeterminateLength, bigEndian = false, Elements(defaultCharacterSet, systemZone, Vector(patientID1))),
     Item(indeterminateLength, bigEndian = false, Elements(defaultCharacterSet, systemZone, Vector(patientID2)))
@@ -59,8 +59,8 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
   }
 
   it should "insert elements in the correct position" in {
-    val characterSets = ValueElement(Tag.SpecificCharacterSet, ByteString("CS1 "))
-    val modality = ValueElement(Tag.Modality, ByteString("NM"))
+    val characterSets = ValueElement.fromString(Tag.SpecificCharacterSet, "CS1 ")
+    val modality = ValueElement.fromString(Tag.Modality, "NM")
     elements.set(patientID3).data shouldBe Vector(studyDate, seq, patientName, patientID3)
     elements.set(characterSets).data shouldBe Vector(characterSets, studyDate, seq, patientName)
     elements.set(modality).data shouldBe Vector(studyDate, modality, seq, patientName)
