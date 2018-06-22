@@ -217,7 +217,8 @@ trait DicomParsing {
   })
   def parseDA(value: ByteString): Seq[LocalDate] = split(value.utf8String).flatMap(parseDate)
   def parseDT(value: ByteString, zoneOffset: ZoneOffset): Seq[ZonedDateTime] = split(value.utf8String).flatMap(parseDateTime(_, zoneOffset))
-  def parsePN(value: ByteString, characterSets: CharacterSets): Seq[PatientName] = split(characterSets.decode(VR.PN, value)).map(trimPadding(_, VR.PN.paddingByte)).flatMap(parsePatientName)
+  def parsePN(string: String): Seq[PatientName] = split(string).map(trimPadding(_, VR.PN.paddingByte)).flatMap(parsePatientName)
+  def parsePN(value: ByteString, characterSets: CharacterSets): Seq[PatientName] = parsePN(characterSets.decode(VR.PN, value))
 
 
   // parsing of strings to more specific types

@@ -50,7 +50,7 @@ class ElementFlowsTest extends TestKit(ActorSystem("ElementFlowsSpec")) with Fla
       .expectDicomComplete()
   }
 
-  it should "handle attributes and fragments of zero length" in {
+  it should "handle elements and fragments of zero length" in {
     val bytes = ByteString(8, 0, 32, 0, 68, 65, 0, 0) ++ patientNameJohnDoe() ++
       pixeDataFragments() ++ fragment(0) ++ fragment(4) ++ ByteString(5, 6, 7, 8) ++ fragmentsEnd()
 

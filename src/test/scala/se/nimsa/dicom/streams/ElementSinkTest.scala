@@ -42,13 +42,7 @@ class ElementSinkTest extends TestKit(ActorSystem("ElementSinkSpec")) with FlatS
       FragmentElement(2, 4, Value(ByteString(1, 2, 3, 4))),
       SequenceDelimitationElement())
 
-    val elements = Await.result(
-      Source(elementList)
-        .runWith(elementSink),
-      5.seconds)
-
-    println(elements)
-    println()
+    val elements = Await.result(Source(elementList).runWith(elementSink), 5.seconds)
 
     elements.toElements shouldBe elementList
   }
@@ -72,14 +66,35 @@ class ElementSinkTest extends TestKit(ActorSystem("ElementSinkSpec")) with FlatS
       FragmentsElement(Tag.PixelData, VR.OB),
       SequenceDelimitationElement())
 
-    val elements = Await.result(
-      Source(elementList)
-        .runWith(elementSink),
-      5.seconds)
-
-    println(elements)
+    val elements = Await.result(Source(elementList).runWith(elementSink), 5.seconds)
 
     elements.toElements shouldBe elementList
   }
 
+  it should "convert an empty offsets table item to and empty list of offsets" in {
+    val elementList = List(
+      FragmentsElement(Tag.PixelData, VR.OB),
+      FragmentElement(1, 0, Value.empty),
+      FragmentElement(2, 0, Value(ByteString(1, 2, 3, 4l))),
+      SequenceDelimitationElement())
+
+    val elements = Await.result(Source(elementList).runWith(elementSink), 5.seconds)
+    val fragments = elements.getFragments(Tag.PixelData).get
+
+    fragments.offsets shouldBe defined
+    fragments.offsets.get shouldBe empty
+  }
+
+  it should "map an offsets table to a list of offsets" in {
+    val elementList = List(
+      FragmentsElement(Tag.PixelData, VR.OB),
+      FragmentElement(1, 0, Value(intToBytesLE(1) ++ intToBytesLE(2) ++ intToBytesLE(3) ++ intToBytesLE(4))),
+      SequenceDelimitationElement())
+
+    val elements = Await.result(Source(elementList).runWith(elementSink), 5.seconds)
+    val fragments = elements.getFragments(Tag.PixelData).get
+
+    fragments.offsets shouldBe defined
+    fragments.offsets.get shouldBe List(1, 2, 3, 4)
+  }
 }

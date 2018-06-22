@@ -336,6 +336,7 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
 
   private def toStrings(indent: String): Vector[String] = {
     def space1(description: String): String = " " * Math.max(0, 40 - description.length)
+
     def space2(length: Long): String = " " * Math.max(0, 4 - length.toString.length)
 
     data.flatMap {
@@ -433,7 +434,6 @@ object Elements {
 
   case class ValueElement(tag: Int, vr: VR, value: Value, bigEndian: Boolean, explicitVR: Boolean) extends Element with ElementSet {
     val length: Int = value.length
-
     /**
       * Return a copy of this element with its value updated.
       *
@@ -441,17 +441,13 @@ object Elements {
       * @return a new Element instance
       */
     def setValue(value: Value): ValueElement = copy(value = value.ensurePadding(vr))
-
     /**
       * @return The DICOM byte array representation of this element
       */
     override def toBytes: ByteString = toParts.map(_.bytes).reduce(_ ++ _)
-
     override def toParts: List[DicomPart] =
       HeaderPart(tag, vr, length, isFileMetaInformation(tag), bigEndian, explicitVR) :: ValueChunk(bigEndian, value.bytes, last = true) :: Nil
-
     override def toElements: List[Element] = this :: Nil
-
     override def toString: String = {
       val strings = value.toStrings(vr, bigEndian, CharacterSets.defaultOnly)
       val s = strings.mkString(multiValueDelimiter)
@@ -463,13 +459,10 @@ object Elements {
   object ValueElement {
     def apply(tag: Int, value: Value, bigEndian: Boolean = false, explicitVR: Boolean = true): ValueElement =
       ValueElement(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
-
     def fromBytes(tag: Int, bytes: ByteString, bigEndian: Boolean = false, explicitVR: Boolean = true): ValueElement =
       apply(tag, Value(bytes), bigEndian, explicitVR)
-
     def fromString(tag: Int, string: String, bigEndian: Boolean = false, explicitVR: Boolean = true): ValueElement =
       apply(tag, Value(ByteString(string)), bigEndian, explicitVR)
-
     def empty(tag: Int, vr: VR, bigEndian: Boolean = false, explicitVR: Boolean = true): ValueElement =
       ValueElement(tag, vr, Value.empty, bigEndian, explicitVR)
   }
@@ -518,25 +511,17 @@ object Elements {
   case class Sequence private(tag: Int, length: Long, bigEndian: Boolean, explicitVR: Boolean, items: List[Item]) extends ElementSet {
     val vr: VR = VR.SQ
     val indeterminate: Boolean = length == indeterminateLength
-
-    def item(index: Int): Option[Item] = try Option(items(index - 1)) catch {
-      case _: Throwable => None
-    }
+    def item(index: Int): Option[Item] = try Option(items(index - 1)) catch { case _: Throwable => None }
     def +(item: Item): Sequence = Sequence(tag, length, bigEndian, explicitVR, items :+ item)
     def +(elements: se.nimsa.dicom.data.Elements): Sequence = items.lastOption
       .map(item => Sequence(tag, length, bigEndian, explicitVR, items.init :+ item.withElements(elements)))
       .getOrElse(this)
-
     override def toBytes: ByteString = toElements.map(_.toBytes).reduce(_ ++ _)
-
     override def toElements: List[Element] = SequenceElement(tag, length, bigEndian, explicitVR) ::
       items.zipWithIndex.flatMap { case (item, index) => item.toElements(index + 1) } :::
       SequenceDelimitationElement(marker = !indeterminate, bigEndian) :: Nil
-
     def size: Int = items.length
-
     def setItem(index: Int, item: Item): Sequence = copy(items = items.updated(index - 1, item))
-
     override def toString: String = s"Sequence(${tagToString(tag)} SQ # $length ${items.length} ${Keyword.valueOf(tag)})"
   }
 
@@ -548,15 +533,12 @@ object Elements {
 
   case class Item private(length: Long, bigEndian: Boolean, elements: Elements) {
     val indeterminate: Boolean = length == indeterminateLength
-
     def withElements(elements: Elements): Item = Item(length, bigEndian, elements)
-
     def toBytes(index: Int): ByteString = toElements(index).map(_.toBytes).reduce(_ ++ _)
-
     def toElements(index: Int): List[Element] = ItemElement(index, length, bigEndian) :: elements.toElements :::
       ItemDelimitationElement(index, marker = !indeterminate, bigEndian) :: Nil
-
     def setElements(elements: Elements): Item = copy(elements = elements)
+    override def toString: String = s"Item(length = $length, elements size = ${elements.size})"
   }
 
   object Item {
@@ -565,39 +547,32 @@ object Elements {
   }
 
 
-  case class Fragment(length: Long, value: Value, isOffsetsTable: Boolean, bigEndian: Boolean = false) {
+  case class Fragment(length: Long, value: Value, bigEndian: Boolean = false) {
     def toBytes(index: Int): ByteString = FragmentElement(index, length, value, bigEndian).toBytes
     def toElement(index: Int): FragmentElement = FragmentElement(index, length, value, bigEndian)
     def setValue(value: Value): Fragment = copy(value = value.ensurePadding(VR.OW))
+    override def toString: String = s"Fragment(length = $length, value length = ${value.length})"
   }
 
   object Fragment {
-    def fromElement(fragmentElement: FragmentElement): Fragment = Fragment(fragmentElement.length, fragmentElement.value, fragmentElement.index == 1, fragmentElement.bigEndian)
+    def fromElement(fragmentElement: FragmentElement): Fragment = Fragment(fragmentElement.length, fragmentElement.value, fragmentElement.bigEndian)
   }
 
 
   case class Fragments private(tag: Int, vr: VR, bigEndian: Boolean, explicitVR: Boolean, offsets: Option[List[Int]], fragments: List[Fragment]) extends ElementSet {
-    def fragment(index: Int): Option[Fragment] = try Option(fragments(index - 1)) catch {
-      case _: Throwable => None
-    }
-
+    def fragment(index: Int): Option[Fragment] = try Option(fragments(index - 1)) catch { case _: Throwable => None }
     def +(fragment: Fragment): Fragments =
-      if (fragment.isOffsetsTable)
+      if (fragments.isEmpty && offsets.isEmpty)
         copy(offsets = Option(fragment.value.bytes.grouped(4).map(bytesToInt(_, fragment.bigEndian)).toList))
       else
         copy(fragments = fragments :+ fragment)
-
     def toBytes: ByteString = toElements.map(_.toBytes).reduce(_ ++ _)
-
     def size: Int = fragments.length
-
     override def toElements: List[Element] = FragmentsElement(tag, vr, bigEndian, explicitVR) ::
       offsets.map(o => FragmentElement(1, 4L * o.length, Value(o.map(intToBytes(_, bigEndian)).foldLeft(ByteString.empty)(_ ++ _)), bigEndian) :: Nil).getOrElse(Nil) :::
       fragments.zipWithIndex.map { case (fragment, index) => fragment.toElement(index + 2) } :::
       SequenceDelimitationElement(bigEndian) :: Nil
-
     def setFragment(index: Int, fragment: Fragment): Fragments = copy(fragments = fragments.updated(index - 1, fragment))
-
     override def toString: String = s"Fragments(${tagToString(tag)} $vr # ${fragments.length} ${Keyword.valueOf(tag)})"
   }
 
@@ -608,7 +583,6 @@ object Elements {
 
   class ElementsBuilder private[Elements](var characterSets: CharacterSets = CharacterSets.defaultOnly, var zoneOffset: ZoneOffset = systemZone) {
     val data: ArrayBuffer[ElementSet] = ArrayBuffer.empty
-
     def +=(element: ElementSet): ElementsBuilder = {
       element match {
         case e: ValueElement if e.tag == Tag.SpecificCharacterSet =>
@@ -620,9 +594,7 @@ object Elements {
       data += element
       this
     }
-
     def result(): Elements = Elements(characterSets, zoneOffset, data.toVector)
-
     override def toString: String = s"ElementsBuilder(characterSets = $characterSets, zoneOffset = $zoneOffset, size = ${data.size})"
   }
 
