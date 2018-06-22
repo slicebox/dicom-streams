@@ -508,14 +508,11 @@ object Elements {
   }
 
 
-  case class Sequence private(tag: Int, length: Long, bigEndian: Boolean, explicitVR: Boolean, items: List[Item]) extends ElementSet {
+  case class Sequence(tag: Int, length: Long, items: List[Item], bigEndian: Boolean = false, explicitVR: Boolean = true) extends ElementSet {
     val vr: VR = VR.SQ
     val indeterminate: Boolean = length == indeterminateLength
     def item(index: Int): Option[Item] = try Option(items(index - 1)) catch { case _: Throwable => None }
-    def +(item: Item): Sequence = Sequence(tag, length, bigEndian, explicitVR, items :+ item)
-    def +(elements: se.nimsa.dicom.data.Elements): Sequence = items.lastOption
-      .map(item => Sequence(tag, length, bigEndian, explicitVR, items.init :+ item.withElements(elements)))
-      .getOrElse(this)
+    def +(item: Item): Sequence = copy(items = items :+ item)
     override def toBytes: ByteString = toElements.map(_.toBytes).reduce(_ ++ _)
     override def toElements: List[Element] = SequenceElement(tag, length, bigEndian, explicitVR) ::
       items.zipWithIndex.flatMap { case (item, index) => item.toElements(index + 1) } :::
@@ -526,14 +523,14 @@ object Elements {
   }
 
   object Sequence {
-    def empty(tag: Int, length: Long, bigEndian: Boolean = false, explicitVR: Boolean = true): Sequence = Sequence(tag, length, bigEndian, explicitVR, Nil)
+    def empty(tag: Int, length: Long, bigEndian: Boolean = false, explicitVR: Boolean = true): Sequence = Sequence(tag, length, Nil, bigEndian, explicitVR)
     def empty(element: SequenceElement): Sequence = empty(element.tag, element.length, element.bigEndian, element.explicitVR)
   }
 
 
-  case class Item private(length: Long, bigEndian: Boolean, elements: Elements) {
+  case class Item(length: Long, elements: Elements, bigEndian: Boolean = false) {
     val indeterminate: Boolean = length == indeterminateLength
-    def withElements(elements: Elements): Item = Item(length, bigEndian, elements)
+    def withElements(elements: Elements): Item = copy(elements = elements)
     def toBytes(index: Int): ByteString = toElements(index).map(_.toBytes).reduce(_ ++ _)
     def toElements(index: Int): List[Element] = ItemElement(index, length, bigEndian) :: elements.toElements :::
       ItemDelimitationElement(index, marker = !indeterminate, bigEndian) :: Nil
@@ -542,7 +539,7 @@ object Elements {
   }
 
   object Item {
-    def empty(length: Long, bigEndian: Boolean = false): Item = Item(length, bigEndian, Elements.empty())
+    def empty(length: Long, bigEndian: Boolean = false): Item = Item(length, Elements.empty(), bigEndian)
     def empty(element: ItemElement): Item = empty(element.length, element.bigEndian)
   }
 
@@ -559,7 +556,7 @@ object Elements {
   }
 
 
-  case class Fragments private(tag: Int, vr: VR, bigEndian: Boolean, explicitVR: Boolean, offsets: Option[List[Int]], fragments: List[Fragment]) extends ElementSet {
+  case class Fragments(tag: Int, vr: VR, offsets: Option[List[Int]], fragments: List[Fragment], bigEndian: Boolean = false, explicitVR: Boolean = true) extends ElementSet {
     def fragment(index: Int): Option[Fragment] = try Option(fragments(index - 1)) catch { case _: Throwable => None }
     def +(fragment: Fragment): Fragments =
       if (fragments.isEmpty && offsets.isEmpty)
@@ -577,7 +574,7 @@ object Elements {
   }
 
   object Fragments {
-    def empty(tag: Int, vr: VR, bigEndian: Boolean = false, explicitVR: Boolean = true): Fragments = Fragments(tag, vr, bigEndian, explicitVR, None, Nil)
+    def empty(tag: Int, vr: VR, bigEndian: Boolean = false, explicitVR: Boolean = true): Fragments = Fragments(tag, vr, None, Nil, bigEndian, explicitVR)
     def empty(element: FragmentsElement): Fragments = empty(element.tag, element.vr, element.bigEndian, element.explicitVR)
   }
 

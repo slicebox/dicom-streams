@@ -66,8 +66,11 @@ object ElementSink {
 
           case _: ItemDelimitationElement if sinkData.hasSequence =>
             val elements = sinkData.builderStack.head.result()
-            val sequence = sinkData.sequenceStack.head + elements
-            sinkData.popBuilder().updated(sequence)
+            val sequence = sinkData.sequenceStack.head//  + elements
+            val updatedSequence = sequence.items.lastOption
+              .map(item => sequence.copy(items = sequence.items.init :+ item.withElements(elements)))
+              .getOrElse(sequence)
+            sinkData.popBuilder().updated(updatedSequence)
 
           case _: SequenceDelimitationElement if sinkData.hasSequence =>
             val sequence = sinkData.sequenceStack.head

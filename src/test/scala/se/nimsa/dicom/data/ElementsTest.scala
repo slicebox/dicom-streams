@@ -32,17 +32,32 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
   val patientID1: ValueElement = ValueElement.fromString(Tag.PatientID, "12345678")
   val patientID2: ValueElement = ValueElement.fromString(Tag.PatientID, "87654321")
   val patientID3: ValueElement = ValueElement.fromString(Tag.PatientID, "18273645")
-  val seq: Sequence = Sequence(Tag.DerivationCodeSequence, indeterminateLength, bigEndian = false, explicitVR = true, List(
-    Item(indeterminateLength, bigEndian = false, Elements(defaultCharacterSet, systemZone, Vector(patientID1))),
-    Item(indeterminateLength, bigEndian = false, Elements(defaultCharacterSet, systemZone, Vector(patientID2)))
+  val seq: Sequence = Sequence(Tag.DerivationCodeSequence, indeterminateLength, List(
+    Item(indeterminateLength, Elements(defaultCharacterSet, systemZone, Vector(patientID1))),
+    Item(indeterminateLength, Elements(defaultCharacterSet, systemZone, Vector(patientID2)))
   ))
 
   val elements: Elements = create(studyDate, seq, patientName)
 
   "Elements" should "return an existing element" in {
     elements(Tag.PatientName) shouldBe Some(patientName)
+    elements(TagPath.fromTag(Tag.PatientName)) shouldBe Some(patientName)
     elements(TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientID)) shouldBe Some(patientID1)
     elements(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenTag(Tag.PatientID)) shouldBe Some(patientID2)
+  }
+
+  it should "support empty and contains tests" in {
+    elements.isEmpty shouldBe false
+    elements.nonEmpty shouldBe true
+    elements.hasElement(Tag.StudyDate) shouldBe true
+    elements.head shouldBe studyDate
+  }
+
+  it should "support sorting elements" in {
+    val unsorted = create(patientName, studyDate)
+    unsorted.head shouldBe patientName
+    val sorted = unsorted.sorted()
+    sorted.head shouldBe studyDate
   }
 
   it should "return None for missing element" in {
@@ -52,6 +67,7 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
   it should "return value elements only" in {
     elements.getElement(Tag.PatientName) shouldBe defined
     elements.getElement(Tag.SeriesDate) shouldBe empty
+    elements.getElement(Tag.DerivationCodeSequence) shouldBe empty
   }
 
   it should "return the value of an element" in {
@@ -66,10 +82,12 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
   }
 
   it should "return all strings in value with VM > 1" in {
-    val elements = create(ValueElement.fromString(Tag.ImageType, """ORIGINAL\RECON TOMO"""))
+    val elements = create(ValueElement.fromString(Tag.ImageType, """ORIGINAL\RECON TOMO"""), seq)
     val strings = elements.getStrings(Tag.ImageType)
     strings should have length 2
     strings(1) shouldBe "RECON TOMO"
+    elements.getStrings(Tag.SeriesDate) should have length 0
+    elements.getStrings(Tag.DerivationCodeSequence) should have length 0
   }
 
   it should "return a concatenated string in value with VM > 1" in {
@@ -141,6 +159,7 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
     val seq = elements.getSequence(Tag.DerivationCodeSequence)
     seq shouldBe defined
     seq.get.tag shouldBe Tag.DerivationCodeSequence
+    elements.getSequence(Tag.PatientName) shouldBe empty
   }
 
   it should "return items" in {
@@ -153,15 +172,24 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
   }
 
   it should "return nested elements" in {
-    elements.getNested(TagPath.fromSequence(Tag.DerivationCodeSequence, 1)) shouldBe Some(Elements(elements.characterSets, elements.zoneOffset, Vector(patientID1)))
-    elements.getNested(TagPath.fromSequence(Tag.DerivationCodeSequence, 2)) shouldBe Some(Elements(elements.characterSets, elements.zoneOffset, Vector(patientID2)))
+    elements.getNested(TagPath.fromSequence(Tag.DerivationCodeSequence, 1)).get shouldBe create(patientID1)
+    elements.getNested(TagPath.fromSequence(Tag.DerivationCodeSequence, 2)).get shouldBe create(patientID2)
     elements.getNested(Tag.DerivationCodeSequence, 1) shouldBe elements.getNested(TagPath.fromSequence(Tag.DerivationCodeSequence, 1))
   }
 
+  it should "return deeply nested elements" in {
+    val elements = create(seq + Item(indeterminateLength, create(seq)))
+    elements.getNested(TagPath
+      .fromSequence(Tag.DerivationCodeSequence, 3)
+      .thenSequence(Tag.DerivationCodeSequence, 1)).get shouldBe create(patientID1)
+  }
+
   it should "return fragments" in {
-    val elements = create(Fragments(Tag.PixelData, VR.OB, bigEndian = false, explicitVR = true, Some(Nil),
+    val elements = create(studyDate, Fragments(Tag.PixelData, VR.OB, Some(Nil),
       List(Fragment(4, Value(ByteString(1,2,3,4))))))
     elements.getFragments(Tag.PixelData) shouldBe defined
+    elements.getFragments(Tag.SeriesDate) shouldBe empty
+    elements.getFragments(Tag.StudyDate) shouldBe empty
   }
 
   it should "return elements based on tag condition" in {
