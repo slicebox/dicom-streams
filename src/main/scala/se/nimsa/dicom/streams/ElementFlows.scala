@@ -22,6 +22,8 @@ object ElementFlows {
 
       override def onPart(part: DicomPart): List[Element] = part match {
 
+        case _: PreamblePart => PreambleElement :: Nil
+
         // Begin aggregate values
         case header: HeaderPart =>
           currentValue = Option(ValueElement.empty(header.tag, header.vr, header.bigEndian, header.explicitVR))

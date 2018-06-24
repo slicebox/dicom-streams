@@ -140,11 +140,11 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
   }
 
   it should "return date times" in {
-    val dates = Seq(LocalDate.parse("2005-01-01"), LocalDate.parse("2010-01-01"))
+    val dateTimes = Seq(LocalDate.parse("2005-01-01"), LocalDate.parse("2010-01-01"))
       .map(_.atStartOfDay(ZoneOffset.of("+04:00")))
-    val elements = create(ValueElement(Tag.InstanceCoercionDateTime, Value.fromDateTimes(VR.DT, dates)))
-    elements.getDateTimes(Tag.InstanceCoercionDateTime) shouldBe dates
-    elements.getDateTime(Tag.InstanceCoercionDateTime) shouldBe dates.headOption
+    val elements = create(ValueElement(Tag.InstanceCoercionDateTime, Value.fromDateTimes(VR.DT, dateTimes)))
+    elements.getDateTimes(Tag.InstanceCoercionDateTime) shouldBe dateTimes
+    elements.getDateTime(Tag.InstanceCoercionDateTime) shouldBe dateTimes.headOption
   }
 
   it should "return patient names" in {
@@ -184,9 +184,18 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
       .thenSequence(Tag.DerivationCodeSequence, 1)).get shouldBe create(patientID1)
   }
 
+  it should "not support using wildcards when getting nested elements" in {
+    val elements = create(seq + Item(indeterminateLength, create(seq)))
+    intercept[IllegalArgumentException] {
+      elements.getNested(TagPath
+        .fromSequence(Tag.DerivationCodeSequence)
+        .thenSequence(Tag.DerivationCodeSequence, 1))
+    }
+  }
+
   it should "return fragments" in {
     val elements = create(studyDate, Fragments(Tag.PixelData, VR.OB, Some(Nil),
-      List(Fragment(4, Value(ByteString(1,2,3,4))))))
+      List(Fragment(4, Value(ByteString(1, 2, 3, 4))))))
     elements.getFragments(Tag.PixelData) shouldBe defined
     elements.getFragments(Tag.SeriesDate) shouldBe empty
     elements.getFragments(Tag.StudyDate) shouldBe empty
@@ -204,12 +213,24 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
     elements.remove(Tag.Modality) shouldBe elements
   }
 
-  it should "insert elements in the correct position" in {
+  it should "set elements in the correct position" in {
     val characterSets = ValueElement.fromString(Tag.SpecificCharacterSet, "CS1 ")
     val modality = ValueElement.fromString(Tag.Modality, "NM")
     elements.set(patientID3).data shouldBe Vector(studyDate, seq, patientName, patientID3)
     elements.set(characterSets).data shouldBe Vector(characterSets, studyDate, seq, patientName)
     elements.set(modality).data shouldBe Vector(studyDate, modality, seq, patientName)
+  }
+
+  it should "set elements in sequences" in {
+    val updated = elements.setNested(TagPath.fromSequence(Tag.DerivationCodeSequence, 2), studyDate)
+    updated(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenTag(Tag.StudyDate)).get shouldBe studyDate
+  }
+
+  it should "not support using wildcards when setting sequences" in {
+    val elements = create(seq + Item(indeterminateLength, create(seq)))
+    intercept[IllegalArgumentException] {
+      elements.setNested(TagPath.fromSequence(Tag.DerivationCodeSequence).thenSequence(Tag.DerivationCodeSequence, 1), studyDate)
+    }
   }
 
   it should "overwrite element if already present" in {
@@ -220,14 +241,99 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
     updated.getElement(Tag.PatientName).get.value.bytes.utf8String shouldBe "Jane^Doe"
   }
 
+  it should "set value" in {
+    val updated = elements.setValue(Tag.SeriesDate, VR.DA, Value.fromString(VR.DA, "20100101"))
+    updated.getDate(Tag.SeriesDate).get shouldBe LocalDate.parse("2010-01-01")
+  }
+
+  it should "set bytes" in {
+    val updated = elements.setBytes(Tag.SeriesDate, VR.DA, ByteString("20100101"))
+    updated.getDate(Tag.SeriesDate).get shouldBe LocalDate.parse("2010-01-01")
+  }
+
+  it should "set strings" in {
+    val names = Seq("Smith^Dr", "Jones^Dr")
+    elements.setStrings(Tag.ReferringPhysicianName, names)
+      .getStrings(Tag.ReferringPhysicianName) shouldBe names
+    elements.setString(Tag.ReferringPhysicianName, names.head)
+      .getStrings(Tag.ReferringPhysicianName) shouldBe Seq(names.head)
+  }
+
+  it should "set shorts" in {
+    elements.setShorts(Tag.ReferencedFrameNumber, Seq(1, 2, 3))
+      .getShorts(Tag.ReferencedFrameNumber) shouldBe Seq(1, 2, 3)
+    elements.setShort(Tag.ReferencedFrameNumber, 42)
+      .getShorts(Tag.ReferencedFrameNumber) shouldBe Seq(42)
+  }
+
+  it should "set ints" in {
+    elements.setInts(Tag.ReferencePixelX0, Seq(1, 2, 3))
+      .getInts(Tag.ReferencePixelX0) shouldBe Seq(1, 2, 3)
+    elements.setInt(Tag.ReferencePixelX0, 42)
+      .getInts(Tag.ReferencePixelX0) shouldBe Seq(42)
+  }
+
+  it should "set longs" in {
+    elements.setLongs(Tag.SimpleFrameList, Seq(1, 2, 3))
+      .getLongs(Tag.SimpleFrameList) shouldBe Seq(1, 2, 3)
+    elements.setLong(Tag.SimpleFrameList, 42)
+      .getLongs(Tag.SimpleFrameList) shouldBe Seq(42)
+  }
+
+  it should "set floats" in {
+    elements.setFloats(Tag.RecommendedDisplayFrameRateInFloat, Seq(1f, 2f, 3f))
+      .getFloats(Tag.RecommendedDisplayFrameRateInFloat) shouldBe Seq(1f, 2f, 3f)
+    elements.setFloat(Tag.RecommendedDisplayFrameRateInFloat, 42f)
+      .getFloats(Tag.RecommendedDisplayFrameRateInFloat) shouldBe Seq(42f)
+  }
+
+  it should "set doubles" in {
+    elements.setDoubles(Tag.TimeRange, Seq(1.0, 2.0, 3.0))
+      .getDoubles(Tag.TimeRange) shouldBe Seq(1.0, 2.0, 3.0)
+    elements.setDouble(Tag.TimeRange, 42.0)
+      .getDoubles(Tag.TimeRange) shouldBe Seq(42.0)
+  }
+
+  it should "set dates" in {
+    val dates = Seq(LocalDate.parse("2005-01-01"), LocalDate.parse("2010-01-01"))
+    elements.setDates(Tag.StudyDate, dates)
+      .getDates(Tag.StudyDate) shouldBe dates
+    elements.setDate(Tag.StudyDate, dates.head)
+      .getDates(Tag.StudyDate) shouldBe Seq(dates.head)
+  }
+
+  it should "set date times" in {
+    val dateTimes = Seq(LocalDate.parse("2005-01-01"), LocalDate.parse("2010-01-01"))
+      .map(_.atStartOfDay(ZoneOffset.of("+04:00")))
+    elements.setDateTimes(Tag.InstanceCoercionDateTime, dateTimes)
+      .getDateTimes(Tag.InstanceCoercionDateTime) shouldBe dateTimes
+    elements.setDateTime(Tag.InstanceCoercionDateTime, dateTimes.head)
+      .getDateTimes(Tag.InstanceCoercionDateTime) shouldBe Seq(dateTimes.head)
+  }
+
+  it should "set patient names" in {
+    val names = Seq("Doe^John", "Doe^Jane")
+    val patientNames = names.flatMap(PatientName.parse)
+    elements.setPatientNames(Tag.PatientName, patientNames)
+      .getPatientNames(Tag.PatientName) shouldBe patientNames
+    elements.setPatientName(Tag.PatientName, patientNames.head)
+      .getPatientNames(Tag.PatientName) shouldBe Seq(patientNames.head)
+  }
+
   it should "update character sets" in {
-    val updatedCs = elements.setCharacterSets(CharacterSets(ByteString("\\ISO 2022 IR 127"))).characterSets
-    updatedCs.charsetNames shouldBe Seq("", "ISO 2022 IR 127")
+    val updatedCs1 = elements.setCharacterSets(CharacterSets(ByteString("\\ISO 2022 IR 127"))).characterSets
+    updatedCs1.charsetNames shouldBe Seq("", "ISO 2022 IR 127")
+    val updatedCs2 = elements.set(ValueElement.fromString(Tag.SpecificCharacterSet, "\\ISO 2022 IR 13")).characterSets
+    updatedCs2.charsetNames shouldBe Seq("", "ISO 2022 IR 13")
   }
 
   it should "update zone offset" in {
-    val updatedZo = elements.setZoneOffset(ZoneOffset.of("-06:00")).zoneOffset
-    updatedZo.toString shouldBe "-06:00"
+    val updatedZo1 = elements.setZoneOffset(ZoneOffset.of("-06:00")).zoneOffset
+    updatedZo1.toString shouldBe "-06:00"
+    val updatedZo2 = elements.set(ValueElement.fromString(Tag.TimezoneOffsetFromUTC, "+04:00")).zoneOffset
+    updatedZo2.toString shouldBe "+04:00"
+    val updatedZo3 = elements.set(ValueElement.fromString(Tag.TimezoneOffsetFromUTC, "bad zone offset string")).zoneOffset
+    updatedZo3 shouldBe elements.zoneOffset
   }
 
   it should "aggregate the bytes of all its elements" in {
@@ -278,7 +384,28 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
 
   it should "update element specified by tag path" in {
     elements(TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientID)) shouldBe Some(patientID1)
-    val e2 = elements.set(TagPath.fromSequence(Tag.DerivationCodeSequence, 1), patientID2)
+    val e2 = elements.setNested(TagPath.fromSequence(Tag.DerivationCodeSequence, 1), patientID2)
     e2(TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientID)) shouldBe Some(patientID2)
+  }
+
+  it should "provide a legible toString" in {
+    val updated = elements.set(Fragments(Tag.PixelData, VR.OB, None, List(Fragment(4, Value(ByteString(1, 2, 3, 4))))))
+    updated.toString.count(_ == System.lineSeparator.charAt(0)) shouldBe updated.toElements.length
+  }
+
+  it should "create file meta information" in {
+    val fmiList = Elements.fileMetaInformationElements("iuid", "cuid", "ts")
+    println(fmiList.flatMap(_.toParts).map(_.toString).mkString("\n"))
+    val fmi = Elements.empty().setAll(fmiList)
+    fmi.getInt(Tag.FileMetaInformationGroupLength).get shouldBe
+      (12 + 5 * 8 + 2 + 4 + 4 + 2 +
+        padToEvenLength(ByteString(Implementation.classUid), VR.UI).length +
+        padToEvenLength(ByteString(Implementation.versionName), VR.LO).length)
+    fmi.getBytes(Tag.FileMetaInformationVersion).get shouldBe ByteString(0, 1)
+    fmi.getString(Tag.MediaStorageSOPClassUID).get shouldBe "cuid"
+    fmi.getString(Tag.MediaStorageSOPInstanceUID).get shouldBe "iuid"
+    fmi.getString(Tag.TransferSyntaxUID).get shouldBe "ts"
+    fmi.getString(Tag.ImplementationClassUID).get shouldBe Implementation.classUid
+    fmi.getString(Tag.ImplementationVersionName).get shouldBe Implementation.versionName
   }
 }
