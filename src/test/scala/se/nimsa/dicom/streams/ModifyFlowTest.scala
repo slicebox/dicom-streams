@@ -43,7 +43,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("ModifyFlowSpec")) with FlatSpe
   }
 
   it should "not modify elements in datasets other than the dataset the tag path points to" in {
-    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ studyDate() ++ itemEnd() ++ sequenceEnd()
+    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation()
 
     val mikeBytes = ByteString('M', 'i', 'k', 'e')
 
@@ -108,7 +108,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("ModifyFlowSpec")) with FlatSpe
   }
 
   it should "insert elements between a normal attribute and a sequence" in {
-    val bytes = studyDate() ++ sequence(Tag.AbstractPriorCodeSequence) ++ sequenceEnd()
+    val bytes = studyDate() ++ sequence(Tag.AbstractPriorCodeSequence) ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -125,7 +125,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("ModifyFlowSpec")) with FlatSpe
   }
 
   it should "insert elements between a sequence and a normal attribute" in {
-    val bytes = sequence(Tag.DerivationCodeSequence) ++ sequenceEnd() ++ patientID()
+    val bytes = sequence(Tag.DerivationCodeSequence) ++ sequenceDelimitation() ++ patientID()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -142,7 +142,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("ModifyFlowSpec")) with FlatSpe
   }
 
   it should "insert elements between two sequences" in {
-    val bytes = sequence(Tag.DerivationCodeSequence) ++ sequenceEnd() ++ sequence(Tag.AbstractPriorCodeSequence) ++ sequenceEnd()
+    val bytes = sequence(Tag.DerivationCodeSequence) ++ sequenceDelimitation() ++ sequence(Tag.AbstractPriorCodeSequence) ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -205,7 +205,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("ModifyFlowSpec")) with FlatSpe
   }
 
   it should "insert elements in sequences if sequence is present but element is not present" in {
-    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemEnd() ++ sequenceEnd()
+    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemDelimitation() ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -266,7 +266,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("ModifyFlowSpec")) with FlatSpe
   }
 
   it should "insert into the correct sequence item" in {
-    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemEnd() ++ item() ++ patientNameJohnDoe() ++ itemEnd() ++ sequenceEnd()
+    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemDelimitation() ++ item() ++ patientNameJohnDoe() ++ itemDelimitation() ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -290,7 +290,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("ModifyFlowSpec")) with FlatSpe
   }
 
   it should "modify the correct sequence item" in {
-    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemEnd() ++ item() ++ patientNameJohnDoe() ++ itemEnd() ++ sequenceEnd()
+    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemDelimitation() ++ item() ++ patientNameJohnDoe() ++ itemDelimitation() ++ sequenceDelimitation()
 
     val mikeBytes = ByteString('M', 'i', 'k', 'e')
 
@@ -314,7 +314,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("ModifyFlowSpec")) with FlatSpe
   }
 
   it should "insert into all sequence items" in {
-    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemEnd() ++ item() ++ patientNameJohnDoe() ++ itemEnd() ++ sequenceEnd()
+    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemDelimitation() ++ item() ++ patientNameJohnDoe() ++ itemDelimitation() ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -340,7 +340,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("ModifyFlowSpec")) with FlatSpe
   }
 
   it should "modify all sequence items" in {
-    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemEnd() ++ item() ++ patientNameJohnDoe() ++ itemEnd() ++ sequenceEnd()
+    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemDelimitation() ++ item() ++ patientNameJohnDoe() ++ itemDelimitation() ++ sequenceDelimitation()
 
     val mikeBytes = ByteString('M', 'i', 'k', 'e')
 
@@ -387,7 +387,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("ModifyFlowSpec")) with FlatSpe
   }
 
   it should "work also with the endsWith modification matcher" in {
-    val bytes = studyDate() ++ sequence(Tag.DerivationCodeSequence) ++ item() ++ studyDate() ++ patientNameJohnDoe() ++ itemEnd() ++ sequenceEnd()
+    val bytes = studyDate() ++ sequence(Tag.DerivationCodeSequence) ++ item() ++ studyDate() ++ patientNameJohnDoe() ++ itemDelimitation() ++ sequenceDelimitation()
 
     val studyBytes = ByteString("2012-01-01")
 

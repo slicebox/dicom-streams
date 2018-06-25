@@ -81,7 +81,7 @@ package object data {
     hexDigits(tag >>> 12 & 15), hexDigits(tag >>> 8 & 15), hexDigits(tag >>> 4 & 15), hexDigits(tag >>> 0 & 15), ')'))
   def byteToHexString(b: Byte) = new String(Array(hexDigits(b >>> 4 & 15), hexDigits(b >>> 0 & 15)))
   def shortToHexString(s: Short): String = new String(Array(hexDigits(s >>> 12 & 15), hexDigits(s >>> 8 & 15), hexDigits(s >>> 4 & 15), hexDigits(s >>> 0 & 15)))
-  def intToHexString(i: Int, bigEndian: Boolean = false): String = new String(Array(
+  def intToHexString(i: Int): String = new String(Array(
     hexDigits(i >>> 28), hexDigits(i >>> 24 & 15), hexDigits(i >>> 20 & 15), hexDigits(i >>> 16 & 15),
     hexDigits(i >>> 12 & 15), hexDigits(i >>> 8 & 15), hexDigits(i >>> 4 & 15), hexDigits(i >>> 0 & 15)))
 
@@ -123,10 +123,10 @@ package object data {
     uuidString.getChars(0, uuidLength, cs, rootLength + 1)
     new String(cs)
   }
-  private def nameBasedUID(name: Array[Byte], root: String): String = toUID(root, UUID.nameUUIDFromBytes(name))
+  private def nameBasedUID(name: ByteString, root: String): String = toUID(root, UUID.nameUUIDFromBytes(name.toArray))
   private def randomUID(root: String): String = toUID(root, UUID.randomUUID)
   def createUID(): String = randomUID(uuidRoot)
-  def createNameBasedUID(name: Array[Byte]): String = nameBasedUID(name, uuidRoot)
-  def createNameBasedUID(name: Array[Byte], root: String): String = nameBasedUID(name, root)
   def createUID(root: String): String = randomUID(root)
+  def createNameBasedUID(name: ByteString): String = nameBasedUID(name, uuidRoot)
+  def createNameBasedUID(name: ByteString, root: String): String = nameBasedUID(name, root)
 }

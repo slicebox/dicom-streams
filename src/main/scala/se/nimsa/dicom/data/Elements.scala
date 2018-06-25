@@ -529,7 +529,6 @@ object Elements {
   case class Item(length: Long, elements: Elements, bigEndian: Boolean = false) {
     val indeterminate: Boolean = length == indeterminateLength
     def withElements(elements: Elements): Item = copy(elements = elements)
-    def toBytes(index: Int): ByteString = toElements(index).map(_.toBytes).reduce(_ ++ _)
     def toElements(index: Int): List[Element] = ItemElement(index, length, bigEndian) :: elements.toElements :::
       ItemDelimitationElement(index, marker = !indeterminate, bigEndian) :: Nil
     def setElements(elements: Elements): Item = copy(elements = elements)
@@ -543,9 +542,7 @@ object Elements {
 
 
   case class Fragment(length: Long, value: Value, bigEndian: Boolean = false) {
-    def toBytes(index: Int): ByteString = FragmentElement(index, length, value, bigEndian).toBytes
     def toElement(index: Int): FragmentElement = FragmentElement(index, length, value, bigEndian)
-    def setValue(value: Value): Fragment = copy(value = value.ensurePadding(VR.OW))
     override def toString: String = s"Fragment(length = $length, value length = ${value.length})"
   }
 

@@ -32,8 +32,8 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
 
   "The dicom flow" should "call the correct events for streamed dicom parts" in {
     val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++
-      patientNameJohnDoe() ++ sequence(Tag.DerivationCodeSequence) ++ item() ++ studyDate() ++ itemEnd() ++ sequenceEnd() ++
-      pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragmentsEnd()
+      patientNameJohnDoe() ++ sequence(Tag.DerivationCodeSequence) ++ item() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation() ++
+      pixeDataFragments() ++ item(4) ++ ByteString(1, 2, 3, 4) ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(parseFlow)
@@ -74,8 +74,8 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
 
   "The guaranteed delimitation flow" should "insert delimitation parts at the end of sequences and items with determinate length" in {
     val bytes =
-      sequence(Tag.DerivationCodeSequence, 56) ++ item(16) ++ studyDate() ++ item() ++ studyDate() ++ itemEnd() ++
-        sequence(Tag.AbstractPriorCodeSequence) ++ item() ++ studyDate() ++ itemEnd() ++ item(16) ++ studyDate() ++ sequenceEnd()
+      sequence(Tag.DerivationCodeSequence, 56) ++ item(16) ++ studyDate() ++ item() ++ studyDate() ++ itemDelimitation() ++
+        sequence(Tag.AbstractPriorCodeSequence) ++ item() ++ studyDate() ++ itemDelimitation() ++ item(16) ++ studyDate() ++ sequenceDelimitation()
 
     var expectedDelimitationLengths = List(0, 8, 0, 8, 0, 8)
 
@@ -120,7 +120,7 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
 
   it should "handle sequences that end with an item delimitation" in {
     val bytes =
-      sequence(Tag.DerivationCodeSequence, 32) ++ item() ++ studyDate() ++ itemEnd()
+      sequence(Tag.DerivationCodeSequence, 32) ++ item() ++ studyDate() ++ itemDelimitation()
 
     val source = Source.single(bytes)
       .via(parseFlow)
@@ -325,11 +325,11 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
   "DICOM flows with tag path tracking" should "update the tag path through attributes, sequences and fragments" in {
     val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ // FMI
       studyDate() ++
-      sequence(Tag.EnergyWindowInformationSequence) ++ item() ++ studyDate() ++ itemEnd() ++ item() ++ // sequence
+      sequence(Tag.EnergyWindowInformationSequence) ++ item() ++ studyDate() ++ itemDelimitation() ++ item() ++ // sequence
       sequence(Tag.EnergyWindowRangeSequence, 24) ++ item(16) ++ studyDate() ++ // nested sequence (determinate length)
-      itemEnd() ++ sequenceEnd() ++
+      itemDelimitation() ++ sequenceDelimitation() ++
       patientNameJohnDoe() ++ // attribute
-      pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragmentsEnd()
+      pixeDataFragments() ++ item(4) ++ ByteString(1, 2, 3, 4) ++ sequenceDelimitation()
 
     var expectedPaths = List(
       EmptyTagPath, // preamble

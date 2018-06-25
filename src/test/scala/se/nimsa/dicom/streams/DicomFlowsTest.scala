@@ -72,7 +72,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   it should "only apply to elements in the root dataset" in {
-    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ studyDate() ++ itemEnd() ++ sequenceEnd()
+    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -83,7 +83,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   it should "also work on fragments" in {
-    val bytes = pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragment(4) ++ ByteString(5, 6, 7, 8) ++ fragmentsEnd()
+    val bytes = pixeDataFragments() ++ item(4) ++ ByteString(1, 2, 3, 4) ++ item(4) ++ ByteString(5, 6, 7, 8) ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -154,7 +154,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   "The DICOM tag filter" should "filter elements in sequences" in {
-    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ studyDate() ++ patientNameJohnDoe() ++ itemEnd() ++ sequenceEnd()
+    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ studyDate() ++ patientNameJohnDoe() ++ itemDelimitation() ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(parseFlow)
@@ -198,8 +198,8 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   it should "block the entire sequence when a sequence tag is on the black list" in {
     val bytes = studyDate() ++
       (sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++
-        (sequence(Tag.AbstractPriorCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemEnd() ++ sequenceEnd()) ++
-        itemEnd() ++ sequenceEnd()) ++
+        (sequence(Tag.AbstractPriorCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemDelimitation() ++ sequenceDelimitation()) ++
+        itemDelimitation() ++ sequenceDelimitation()) ++
       patientNameJohnDoe()
 
     val source = Source.single(bytes)
@@ -216,7 +216,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
   it should "block a single item inside a sequence" in {
     val bytes = studyDate() ++
-      sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemEnd() ++ item() ++ studyDate() ++ itemEnd() ++ sequenceEnd()
+      sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemDelimitation() ++ item() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(parseFlow)
@@ -343,7 +343,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   it should "not remove pixel data in sequences" in {
-    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ pixelData(100) ++ itemEnd() ++ sequenceEnd()
+    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ pixelData(100) ++ itemDelimitation() ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(parseFlow)
@@ -362,7 +362,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   it should "only remove waveform data when inside waveform sequence" in {
-    val bytes = waveformSeqStart() ++ item() ++ patientNameJohnDoe() ++ waveformData(100) ++ itemEnd() ++ sequenceEnd() ++ patientNameJohnDoe() ++ waveformData(100)
+    val bytes = waveformSeqStart() ++ item() ++ patientNameJohnDoe() ++ waveformData(100) ++ itemDelimitation() ++ sequenceDelimitation() ++ patientNameJohnDoe() ++ waveformData(100)
 
     val source = Source.single(bytes)
       .via(parseFlow)
@@ -505,8 +505,8 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
   "The sequence length filter" should "replace determinate length sequences and items with indeterminate, and insert delimitations" in {
     val bytes =
-      sequence(Tag.DerivationCodeSequence, 56) ++ item(16) ++ studyDate() ++ item() ++ studyDate() ++ itemEnd() ++
-        sequence(Tag.AbstractPriorCodeSequence) ++ item() ++ studyDate() ++ itemEnd() ++ item(16) ++ studyDate() ++ sequenceEnd()
+      sequence(Tag.DerivationCodeSequence, 56) ++ item(16) ++ studyDate() ++ item() ++ studyDate() ++ itemDelimitation() ++
+        sequence(Tag.AbstractPriorCodeSequence) ++ item() ++ studyDate() ++ itemDelimitation() ++ item(16) ++ studyDate() ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(parseFlow)
@@ -538,7 +538,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
   it should "handle sequences that end with an item delimitation" in {
     val bytes =
-      sequence(Tag.DerivationCodeSequence, 32) ++ item() ++ studyDate() ++ itemEnd()
+      sequence(Tag.DerivationCodeSequence, 32) ++ item() ++ studyDate() ++ itemDelimitation()
 
     val source = Source.single(bytes)
       .via(parseFlow)
@@ -556,9 +556,9 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
   it should "should not remove length from items in fragments" in {
     val bytes =
-      pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragmentsEnd() ++
+      pixeDataFragments() ++ item(4) ++ ByteString(1, 2, 3, 4) ++ sequenceDelimitation() ++
         sequence(Tag.DerivationCodeSequence, 40) ++ item(32) ++
-        pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragmentsEnd()
+        pixeDataFragments() ++ item(4) ++ ByteString(1, 2, 3, 4) ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(parseFlow)
@@ -566,13 +566,13 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
     source.runWith(TestSink.probe[DicomPart])
       .expectFragments()
-      .expectFragment(1, 4)
+      .expectItem(1, 4)
       .expectValueChunk()
       .expectFragmentsDelimitation()
       .expectSequence(Tag.DerivationCodeSequence, -1)
       .expectItem(1, -1)
       .expectFragments()
-      .expectFragment(1, 4)
+      .expectItem(1, 4)
       .expectValueChunk()
       .expectFragmentsDelimitation()
       .expectItemDelimitation()
@@ -692,7 +692,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       shortToBytesLE(0x001E) ++ padToEvenLength(ByteString("ISO 2022 IR 13\\ISO 2022 IR 87"), VR.CS)
     val patientName = tagToBytesLE(0x00100010) ++ ByteString("PN") ++ shortToBytesLE(0x0004) ++ padToEvenLength(ByteString(0xD4, 0xCF, 0xC0, 0xDE), VR.PN)
 
-    val bytes = specificCharacterSet ++ sequence(Tag.DerivationCodeSequence) ++ item() ++ patientName ++ itemEnd() ++ sequenceEnd()
+    val bytes = specificCharacterSet ++ sequence(Tag.DerivationCodeSequence) ++ item() ++ patientName ++ itemDelimitation() ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(parseFlow)
@@ -765,8 +765,8 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = preamble ++ fmiGroupLength(transferSyntaxUID(UID.ExplicitVRBigEndianRetired)) ++ transferSyntaxUID(UID.ExplicitVRBigEndianRetired) ++
       patientNameJohnDoe(bigEndian) ++ rows(bigEndian) ++ dataPointRows(bigEndian) ++ apexPosition(bigEndian) ++
       sequence(Tag.DerivationCodeSequence, bigEndian) ++ item(bigEndian) ++ studyDate(bigEndian) ++
-      itemEnd(bigEndian) ++ sequenceEnd(bigEndian) ++ pixeDataFragments(bigEndian) ++ fragment(1000, bigEndian) ++
-      (1 to 500).map(_.toShort).map(shortToBytesBE).reduce(_ ++ _) ++ fragmentsEnd(bigEndian)
+      itemDelimitation(bigEndian) ++ sequenceDelimitation(bigEndian) ++ pixeDataFragments(bigEndian) ++ item(1000, bigEndian) ++
+      (1 to 500).map(_.toShort).map(shortToBytesBE).reduce(_ ++ _) ++ sequenceDelimitation(bigEndian)
 
     val source = Source.single(bytes)
       .via(parseFlow)
@@ -793,7 +793,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectItemDelimitation()
       .expectSequenceDelimitation()
       .expectFragments()
-      .expectFragment(1, 1000)
+      .expectItem(1, 1000)
       .expectValueChunk((1 to 500).map(_.toShort).map(shortToBytesLE).reduce(_ ++ _))
       .expectFragmentsDelimitation()
       .expectDicomComplete()
@@ -819,8 +819,8 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID()++ patientNameJohnDoe(bigEndian) ++
       rows(bigEndian) ++ dataPointRows(bigEndian) ++ apexPosition(bigEndian) ++
       sequence(Tag.DerivationCodeSequence, bigEndian) ++ item(bigEndian) ++ studyDate(bigEndian) ++
-      itemEnd(bigEndian) ++ sequenceEnd(bigEndian) ++ pixeDataFragments(bigEndian) ++ fragment(1000, bigEndian) ++
-      (1 to 500).map(_.toShort).map(shortToBytesLE).reduce(_ ++ _) ++ fragmentsEnd(bigEndian)
+      itemDelimitation(bigEndian) ++ sequenceDelimitation(bigEndian) ++ pixeDataFragments(bigEndian) ++ item(1000, bigEndian) ++
+      (1 to 500).map(_.toShort).map(shortToBytesLE).reduce(_ ++ _) ++ sequenceDelimitation(bigEndian)
 
     val source = Source.single(bytes)
       .via(parseFlow)

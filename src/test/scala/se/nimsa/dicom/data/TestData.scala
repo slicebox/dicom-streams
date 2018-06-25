@@ -40,13 +40,8 @@ object TestData {
   def dataPointRows(bigEndian: Boolean = false, explicitVR: Boolean = true): ByteString = element(Tag.DataPointRows, intToBytes(1234, bigEndian), bigEndian, explicitVR)
   def apexPosition(bigEndian: Boolean = false, explicitVR: Boolean = true): ByteString = element(Tag.ApexPosition, doubleToBytes(math.Pi, bigEndian), bigEndian, explicitVR)
 
-  def fragment(length: Int, bigEndian: Boolean = false): ByteString = item(length, bigEndian)
-
-  def itemEnd(bigEndian: Boolean = false): ByteString = itemDelimitation(bigEndian)
-  def sequenceEnd(bigEndian: Boolean = false): ByteString = sequenceDelimitation(bigEndian)
-  def fragmentsEnd(bigEndian: Boolean = false): ByteString = sequenceEnd(bigEndian)
   def sequenceEndNonZeroLength(bigEndian: Boolean = false): ByteString = tagToBytes(Tag.SequenceDelimitationItem, bigEndian) ++ intToBytes(0x00000010, bigEndian)
-  def pixeDataFragments(bigEndian: Boolean = false): ByteString = tagToBytes(0x7FE00010, bigEndian) ++ ByteString('O', 'W', 0, 0) ++ intToBytes(indeterminateLength, bigEndian)
+  def pixeDataFragments(bigEndian: Boolean = false): ByteString = tagToBytes(Tag.PixelData, bigEndian) ++ ByteString('O', 'W', 0, 0) ++ intToBytes(indeterminateLength, bigEndian)
 
   def sequence(tag: Int, bigEndian: Boolean = false): ByteString = sequence(tag, indeterminateLength, bigEndian)
   def sequence(tag: Int, length: Int): ByteString = sequence(tag, length, bigEndian = false)

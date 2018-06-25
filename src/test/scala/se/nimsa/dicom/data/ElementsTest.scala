@@ -7,8 +7,9 @@ import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source
 import akka.testkit.TestKit
 import akka.util.ByteString
-import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
+import org.scalatest.{Assertion, BeforeAndAfterAll, FlatSpecLike, Matchers}
 import se.nimsa.dicom.data.DicomParsing.defaultCharacterSet
+import se.nimsa.dicom.data.DicomParts.HeaderPart
 import se.nimsa.dicom.data.Elements._
 import se.nimsa.dicom.data.TestData.{studyDate => testStudyDate, _}
 import se.nimsa.dicom.streams.ElementFlows.elementFlow
@@ -339,11 +340,11 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
   it should "aggregate the bytes of all its elements" in {
     val bytes = fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ // FMI
       testStudyDate() ++
-      sequence(Tag.DerivationCodeSequence) ++ item() ++ testStudyDate() ++ itemEnd() ++ item() ++ // sequence
-      sequence(Tag.DerivationCodeSequence) ++ item() ++ testStudyDate() ++ itemEnd() ++ sequenceEnd() ++ // nested sequence (determinate length)
-      itemEnd() ++ sequenceEnd() ++
+      sequence(Tag.DerivationCodeSequence) ++ item() ++ testStudyDate() ++ itemDelimitation() ++ item() ++ // sequence
+      sequence(Tag.DerivationCodeSequence) ++ item() ++ testStudyDate() ++ itemDelimitation() ++ sequenceDelimitation() ++ // nested sequence (determinate length)
+      itemDelimitation() ++ sequenceDelimitation() ++
       patientNameJohnDoe() ++ // attribute
-      pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragmentsEnd()
+      pixeDataFragments() ++ item(4) ++ ByteString(1, 2, 3, 4) ++ sequenceDelimitation()
 
     val elements = Await.result(
       Source.single(bytes)
@@ -407,5 +408,34 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
     fmi.getString(Tag.TransferSyntaxUID).get shouldBe "ts"
     fmi.getString(Tag.ImplementationClassUID).get shouldBe Implementation.classUid
     fmi.getString(Tag.ImplementationVersionName).get shouldBe Implementation.versionName
+  }
+
+  "Elements data classes" should "return the correct byte representation" in {
+    PreambleElement.toBytes should have length (128 + 4)
+    PreambleElement.toBytes.takeRight(4).utf8String shouldBe "DICM"
+    ValueElement(Tag.StudyDate, Value.fromString(VR.DA, "20010101")).toBytes shouldBe HeaderPart(Tag.StudyDate, VR.DA, 8).bytes ++ ByteString("20010101")
+    SequenceElement(Tag.DerivationCodeSequence, 10).toBytes shouldBe sequence(Tag.DerivationCodeSequence, 10)
+    FragmentsElement(Tag.PixelData, VR.OW).toBytes shouldBe pixeDataFragments()
+    FragmentElement(1, 4, Value(ByteString(1, 2, 3, 4))).toBytes shouldBe item(4) ++ ByteString(1, 2, 3, 4)
+    ItemElement(1, 10).toBytes shouldBe item(10)
+    ItemDelimitationElement(1).toBytes shouldBe itemDelimitation()
+    SequenceDelimitationElement().toBytes shouldBe sequenceDelimitation()
+    Sequence(Tag.DerivationCodeSequence, indeterminateLength, List(Item(indeterminateLength, Elements.empty()))).toBytes shouldBe sequence(Tag.DerivationCodeSequence) ++ item(indeterminateLength) ++ itemDelimitation() ++ sequenceDelimitation()
+    Fragments(Tag.PixelData, VR.OW, Some(Nil), List(Fragment(4, Value(ByteString(1, 2, 3, 4))))).toBytes shouldBe pixeDataFragments() ++ item(0) ++ item(4) ++ ByteString(1, 2, 3, 4) ++ sequenceDelimitation()
+  }
+
+  it should "have expected string representations in terms of number of lines" in {
+    def checkString(string: String, nLines: Int): Assertion = string.count(_ == '\n') shouldBe nLines - 1
+
+    checkString(PreambleElement.toString, 1)
+    checkString(ValueElement(Tag.StudyDate, Value.fromString(VR.DA, "20010101")).toString, 1)
+    checkString(SequenceElement(Tag.DerivationCodeSequence, 10).toString, 1)
+    checkString(FragmentsElement(Tag.PixelData, VR.OW).toString, 1)
+    checkString(FragmentElement(1, 4, Value(ByteString(1, 2, 3, 4))).toString, 1)
+    checkString(ItemElement(1, 10).toString, 1)
+    checkString(ItemDelimitationElement(1).toString, 1)
+    checkString(SequenceDelimitationElement().toString, 1)
+    checkString(Sequence(Tag.DerivationCodeSequence, indeterminateLength, List(Item(indeterminateLength, Elements.empty()))).toString, 1)
+    checkString(Fragments(Tag.PixelData, VR.OW, Some(Nil), List(Fragment(4, Value(ByteString(1, 2, 3, 4))))).toString, 1)
   }
 }

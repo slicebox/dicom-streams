@@ -186,7 +186,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   }
 
   it should "read DICOM data with fragments" in {
-    val bytes = pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragment(4) ++ ByteString(5, 6, 7, 8) ++ fragmentsEnd()
+    val bytes = pixeDataFragments() ++ item(4) ++ ByteString(1, 2, 3, 4) ++ item(4) ++ ByteString(5, 6, 7, 8) ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -202,7 +202,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   }
 
   it should "issue a warning when a fragments delimitation tag has nonzero length" in {
-    val bytes = pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragment(4) ++ ByteString(5, 6, 7, 8) ++ sequenceEndNonZeroLength()
+    val bytes = pixeDataFragments() ++ item(4) ++ ByteString(1, 2, 3, 4) ++ item(4) ++ ByteString(5, 6, 7, 8) ++ sequenceEndNonZeroLength()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -218,7 +218,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   }
 
   it should "parse a tag which is not an item, item data nor fragments delimitation inside fragments as unknown" in {
-    val bytes = pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ studyDate() ++ fragment(4) ++ ByteString(5, 6, 7, 8) ++ fragmentsEnd()
+    val bytes = pixeDataFragments() ++ item(4) ++ ByteString(1, 2, 3, 4) ++ studyDate() ++ item(4) ++ ByteString(5, 6, 7, 8) ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -235,7 +235,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   }
 
   it should "read DICOM data containing a sequence" in {
-    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ studyDate() ++ itemEnd() ++ sequenceEnd()
+    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -253,7 +253,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   }
 
   it should "read DICOM data containing a sequence in a sequence" in {
-    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemEnd() ++ sequenceEnd() ++ studyDate() ++ itemEnd() ++ sequenceEnd()
+    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemDelimitation() ++ sequenceDelimitation() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -434,7 +434,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   }
 
   it should "handle fragments with empty basic offset table (first item)" in {
-    val bytes = pixeDataFragments() ++ fragment(0) ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragmentsEnd()
+    val bytes = pixeDataFragments() ++ item(0) ++ item(4) ++ ByteString(1, 2, 3, 4) ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())

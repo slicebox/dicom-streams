@@ -37,7 +37,7 @@ class ElementFlowsTest extends TestKit(ActorSystem("ElementFlowsSpec")) with Fla
   }
 
   it should "combine items in fragments into fragment elements" in {
-    val bytes = pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragment(4) ++ ByteString(5, 6, 7, 8) ++ fragmentsEnd()
+    val bytes = pixeDataFragments() ++ item(4) ++ ByteString(1, 2, 3, 4) ++ item(4) ++ ByteString(5, 6, 7, 8) ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -53,7 +53,7 @@ class ElementFlowsTest extends TestKit(ActorSystem("ElementFlowsSpec")) with Fla
 
   it should "handle elements and fragments of zero length" in {
     val bytes = ByteString(8, 0, 32, 0, 68, 65, 0, 0) ++ patientNameJohnDoe() ++
-      pixeDataFragments() ++ fragment(0) ++ fragment(4) ++ ByteString(5, 6, 7, 8) ++ fragmentsEnd()
+      pixeDataFragments() ++ item(0) ++ item(4) ++ ByteString(5, 6, 7, 8) ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
@@ -72,8 +72,8 @@ class ElementFlowsTest extends TestKit(ActorSystem("ElementFlowsSpec")) with Fla
   "The tag path flow" should "pair elements with their respective tag paths" in {
     val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++
       studyDate() ++
-      sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemEnd() ++ sequenceEnd() ++
-      pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ sequenceEnd()
+      sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemDelimitation() ++ sequenceDelimitation() ++
+      pixeDataFragments() ++ item(4) ++ ByteString(1, 2, 3, 4) ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
