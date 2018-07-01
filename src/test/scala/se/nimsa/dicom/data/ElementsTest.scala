@@ -50,7 +50,7 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
   it should "support empty and contains tests" in {
     elements.isEmpty shouldBe false
     elements.nonEmpty shouldBe true
-    elements.hasElement(Tag.StudyDate) shouldBe true
+    elements.contains(Tag.StudyDate) shouldBe true
     elements.head shouldBe studyDate
   }
 
@@ -66,9 +66,9 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
   }
 
   it should "return value elements only" in {
-    elements.getElement(Tag.PatientName) shouldBe defined
-    elements.getElement(Tag.SeriesDate) shouldBe empty
-    elements.getElement(Tag.DerivationCodeSequence) shouldBe empty
+    elements.getValueElement(Tag.PatientName) shouldBe defined
+    elements.getValueElement(Tag.SeriesDate) shouldBe empty
+    elements.getValueElement(Tag.DerivationCodeSequence) shouldBe empty
   }
 
   it should "return the value of an element" in {
@@ -239,7 +239,7 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
     val updated = elements.set(newPatientName)
 
     updated.size shouldBe elements.size
-    updated.getElement(Tag.PatientName).get.value.bytes.utf8String shouldBe "Jane^Doe"
+    updated.getValueElement(Tag.PatientName).get.value.bytes.utf8String shouldBe "Jane^Doe"
   }
 
   it should "set value" in {
@@ -338,7 +338,7 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
   }
 
   it should "aggregate the bytes of all its elements" in {
-    val bytes = fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ // FMI
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ // FMI
       testStudyDate() ++
       sequence(Tag.DerivationCodeSequence) ++ item() ++ testStudyDate() ++ itemDelimitation() ++ item() ++ // sequence
       sequence(Tag.DerivationCodeSequence) ++ item() ++ testStudyDate() ++ itemDelimitation() ++ sequenceDelimitation() ++ // nested sequence (determinate length)
@@ -353,11 +353,11 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
         .runWith(elementSink),
       5.seconds)
 
-    elements.toBytes shouldBe bytes
+    elements.toBytes() shouldBe bytes
   }
 
   it should "return an empty byte string when aggregating bytes with no data" in {
-    Elements.empty().toBytes shouldBe ByteString.empty
+    Elements.empty().toBytes(withPreamble = false) shouldBe ByteString.empty
   }
 
   it should "render an informative string representation" in {
@@ -397,7 +397,7 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
   it should "create file meta information" in {
     val fmiList = Elements.fileMetaInformationElements("iuid", "cuid", "ts")
     println(fmiList.flatMap(_.toParts).map(_.toString).mkString("\n"))
-    val fmi = Elements.empty().setAll(fmiList)
+    val fmi = Elements.empty().set(fmiList)
     fmi.getInt(Tag.FileMetaInformationGroupLength).get shouldBe
       (12 + 5 * 8 + 2 + 4 + 4 + 2 +
         padToEvenLength(ByteString(Implementation.classUid), VR.UI).length +

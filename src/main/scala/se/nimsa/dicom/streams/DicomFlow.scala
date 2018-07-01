@@ -222,13 +222,13 @@ trait GuaranteedDelimitationEvents[Out] extends InFragments[Out] {
   }
 
   abstract override def onSequence(part: SequencePart): List[Out] =
-    if (part.hasLength) {
+    if (!part.indeterminate) {
       partStack = (part, part.length) +: subtractLength(part)
       super.onSequence(part) ::: maybeDelimit()
     } else subtractAndEmit(part, super.onSequence)
 
   abstract override def onItem(part: ItemPart): List[Out] =
-    if (!inFragments && part.hasLength) {
+    if (!inFragments && !part.indeterminate) {
       partStack = (part, part.length) +: subtractLength(part)
       super.onItem(part) ::: maybeDelimit()
     } else subtractAndEmit(part, super.onItem)

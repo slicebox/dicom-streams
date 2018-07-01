@@ -6,7 +6,7 @@ import se.nimsa.dicom.data.VR.VR
 object DicomParts {
 
   /**
-    * The most general representation of a DICOM stream chunk
+    * The most general representation of a DICOM stream data chunk
     */
   trait DicomPart {
     def bigEndian: Boolean
@@ -14,18 +14,18 @@ object DicomParts {
   }
 
   /**
-    * A `DicomPart` with a tag number (e.g. `DicomHeader`, `DicomSequence`, 'DicomFragments')
+    * A `DicomPart` with a tag number (e.g. `HeaderPart`, `SequencePart`, 'FragmentsPart')
     */
   trait TagPart extends DicomPart {
     def tag: Int
   }
 
   /**
-    * A 'DicomPart' with a length attribute (e.g. `DicomHeader`, `DicomSequence`, 'DicomItem')
+    * A 'DicomPart' with a length attribute (e.g. `HeaderPart`, `SequencePart`, 'ItemPart')
     */
   trait LengthPart extends DicomPart {
     def length: Long
-    def hasLength: Boolean = length >= 0
+    def indeterminate: Boolean = length == indeterminateLength
   }
 
   case class PreamblePart(bytes: ByteString) extends DicomPart {
@@ -90,8 +90,15 @@ object DicomParts {
 
   case class UnknownPart(bigEndian: Boolean, bytes: ByteString) extends DicomPart
 
+  /**
+    * Meta-part that encapsulates a dataset
+    *
+    * @param label    a string label used to keep datasets apart when more than one are present in the same stream
+    * @param elements a dataset
+    */
   case class ElementsPart(label: String, elements: Elements) extends DicomPart {
     override def bigEndian: Boolean = false
     override def bytes: ByteString = ByteString.empty
   }
+
 }

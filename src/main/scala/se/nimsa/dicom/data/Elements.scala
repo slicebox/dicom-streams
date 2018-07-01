@@ -12,28 +12,29 @@ import se.nimsa.dicom.data.VR.VR
 import scala.collection.mutable.ArrayBuffer
 
 /**
-  * Representation of a group of `Element`s, each paired with the `TagPath` that describes their position within a
-  * dataset. Representation is immutable so methods for inserting, updating and removing elements return a new instance.
-  * Also specifies the character sets that should be used for decoding the values of textual elements.
+  * Representation of a group of `ElementSet`s, a dataset. Representation is immutable so methods for inserting, updating
+  * and removing elements return a new instance. For performant building use the associated builder. Also specifies the
+  * character sets and time zone offset that should be used for decoding the values of certain elements.
   *
   * @param characterSets The character sets used for decoding text values
-  * @param data          the `Map`ping of `TagPath` to `Element`
+  * @param zoneOffset    The time zone offset used for date-time elements with no time zone specified
+  * @param data          the data elements
   */
 case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: Vector[ElementSet]) {
 
   /**
-    * Get a single element, if present
+    * Get a single element set, if present
     *
     * @param tag tag number the element, referring to the root dataset
-    * @return optional Element
+    * @return element set, if present
     */
   def apply(tag: Int): Option[ElementSet] = data.find(_.tag == tag)
 
   /**
-    * Find a element in this Elements described by a tag path
+    * Get a single element set by tag path, if present
     *
     * @param tagPath input tag path
-    * @return element, if present
+    * @return element set, if present
     */
   def apply(tagPath: TagPathTag): Option[ElementSet] = tagPath.previous match {
     case tp: TagPathSequenceItem => getNested(tp).flatMap(_.apply(tagPath.tag))
@@ -41,18 +42,18 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
     case _ => throw new IllegalArgumentException("Unsupported tag path type")
   }
 
-  def get[A](tag: Int, f: ValueElement => Option[A]): Option[A] = apply(tag).flatMap {
+  private def get[A](tag: Int, f: ValueElement => Option[A]): Option[A] = apply(tag).flatMap {
     case e: ValueElement => f(e)
     case _ => None
   }
 
-  def getAll[A](tag: Int, f: ValueElement => Seq[A]): Seq[A] = apply(tag).map {
+  private def getAll[A](tag: Int, f: ValueElement => Seq[A]): Seq[A] = apply(tag).map {
     case e: ValueElement => f(e)
     case _ => Seq.empty
   }.getOrElse(Seq.empty)
 
-  def getElement(tag: Int): Option[ValueElement] = get(tag, Option.apply)
-  def getValue(tag: Int): Option[Value] = getElement(tag).map(_.value)
+  def getValueElement(tag: Int): Option[ValueElement] = get(tag, Option.apply)
+  def getValue(tag: Int): Option[Value] = getValueElement(tag).map(_.value)
   def getBytes(tag: Int): Option[ByteString] = getValue(tag).map(_.bytes)
   def getStrings(tag: Int): Seq[String] = getAll(tag, v => v.value.toStrings(v.vr, v.bigEndian, characterSets))
   def getSingleString(tag: Int): Option[String] = get(tag, v => v.value.toSingleString(v.vr, v.bigEndian, characterSets))
@@ -121,9 +122,10 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
 
   /**
     * Insert or update element in the root dataset with the specified tag number. If the element is Specific Character
-    * Set or Timezone OFfset From UTC, this information will be updated accordingly.
+    * Set or Timezone Offset From UTC, this information will be updated accordingly. If the element is not previously
+    * present it is inserted in the correct tag number order.
     *
-    * @param element element to insert or update
+    * @param element element set to insert or update
     * @return a new Elements containing the updated element
     */
   def set(element: ElementSet): Elements = element match {
@@ -134,9 +136,9 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
     case e => copy(data = insertOrdered(e))
   }
 
-  def setAll(elementSets: Seq[ElementSet]): Elements = elementSets.foldLeft(this)(_.set(_))
+  def set(elementSets: Seq[ElementSet]): Elements = elementSets.foldLeft(this)(_.set(_))
 
-  def setNested(sequenceTag: Int, itemIndex: Int, setFunction: Elements => Elements): Option[Elements] =
+  private def setNested(sequenceTag: Int, itemIndex: Int, setFunction: Elements => Elements): Option[Elements] =
     for {
       s1 <- getSequence(sequenceTag)
       i1 <- s1.item(itemIndex)
@@ -162,20 +164,7 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
     find(this, tagPath.toList)
   }
 
-  /**
-    * Set the character sets used to decode string data in this Elements
-    *
-    * @param characterSets character sets to use in new Elements
-    * @return a new Elements with the specified character sets
-    */
   def setCharacterSets(characterSets: CharacterSets): Elements = copy(characterSets = characterSets)
-
-  /**
-    * Set the time zone offset used for date-time elements in this Elements
-    *
-    * @param zoneOffset time zone offset to be used for date-times without time zone specified
-    * @return a new Elements with the specified time zone offset
-    */
   def setZoneOffset(zoneOffset: ZoneOffset): Elements = copy(zoneOffset = zoneOffset)
 
   def setValue(tag: Int, vr: VR, value: Value, bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
@@ -264,73 +253,25 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
   def setPatientName(tag: Int, value: PatientName, bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
     setPatientName(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
 
-  /**
-    * Remove element with the specified tag, if present
-    *
-    * @param tag tag for element to be removed
-    * @return a new Elements
-    */
   def remove(tag: Int): Elements = filter(_.tag != tag)
-
-  /**
-    * Keep only elements for which the supplied filter function returns `true`
-    *
-    * @param f filter function
-    * @return a new Elements
-    */
   def filter(f: ElementSet => Boolean): Elements = copy(data = data.filter(f))
 
-  /**
-    * @return the first element in this Elements
-    */
   def head: ElementSet = data.head
-
-  /**
-    * @return the number of elements in this Elements
-    */
   def size: Int = data.size
-
-  /**
-    * @return `true` if this Elements contains no data
-    */
   def isEmpty: Boolean = data.isEmpty
-
-  /**
-    * @return 'true' if this Elements contains one or more elements
-    */
   def nonEmpty: Boolean = !isEmpty
-
-  /**
-    * @param tag tag to test
-    * @return `true` if these elements contains an element with the input tag number
-    */
-  def hasElement(tag: Int): Boolean = data.map(_.tag).contains(tag)
+  def contains(tag: Int): Boolean = data.map(_.tag).contains(tag)
 
   /**
     * @return a new Elements sorted by tag number. If already sorted, this function returns a copy
     */
   def sorted(): Elements = copy(data = data.sortBy(_.tag))
 
-  /**
-    * @return data as a list of `ElementSet`s
-    */
   def toList: List[ElementSet] = data.toList
-
-  /**
-    * @return data as a list of `Element`s
-    */
   def toElements: List[Element] = toList.flatMap(_.toElements)
-
-  /**
-    * @return data as a list of `DicomPart`s
-    */
   def toParts: List[DicomPart] = toElements.flatMap(_.toParts)
-
-  /**
-    * @return a DICOM byte array representation of this Elements. This representation may be different from one used to
-    *         produce this Elements as items and sequences are always of indeterminate length here.
-    */
-  def toBytes: ByteString = data.map(_.toBytes).foldLeft(ByteString.empty)(_ ++ _)
+  def toBytes(withPreamble: Boolean = true): ByteString =
+    data.map(_.toBytes).foldLeft(if (withPreamble) PreambleElement.toBytes else ByteString.empty)(_ ++ _)
 
   private def toStrings(indent: String): Vector[String] = {
     def space1(description: String): String = " " * Math.max(0, 40 - description.length)
@@ -388,12 +329,15 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
 object Elements {
 
   /**
-    * @return an Elements with no data and default character set only
+    * @return an Elements with no data and default character set only and the system's time zone
     */
   def empty(characterSets: CharacterSets = defaultCharacterSet, zoneOffset: ZoneOffset = systemZone) =
     Elements(characterSets, zoneOffset, Vector.empty)
 
-  def newBuilder(characterSets: CharacterSets = CharacterSets.defaultOnly, zoneOffset: ZoneOffset = systemZone) =
+  /**
+    * @return create a new Elements builder used to incrementally add data to Elements in a performant manner
+    */
+  def newBuilder(characterSets: CharacterSets = defaultCharacterSet, zoneOffset: ZoneOffset = systemZone) =
     new ElementsBuilder(characterSets, zoneOffset)
 
   def fileMetaInformationElements(sopInstanceUID: String, sopClassUID: String, transferSyntax: String): List[ValueElement] = {
@@ -408,12 +352,19 @@ object Elements {
     groupLength :: fmiElements
   }
 
+  /**
+    * A complete DICOM element, e.g. a standard value element, a sequence start marker, a sequence delimiation marker or
+    * a fragments start marker.
+    */
   trait Element {
     val bigEndian: Boolean
     def toBytes: ByteString
     def toParts: List[DicomPart]
   }
 
+  /**
+    * A DICOM tag and all its associated data: a standard value element, a (complete) sequence or a (complete) fragments
+    */
   sealed trait ElementSet {
     val tag: Int
     val vr: VR
@@ -432,16 +383,7 @@ object Elements {
 
   case class ValueElement(tag: Int, vr: VR, value: Value, bigEndian: Boolean, explicitVR: Boolean) extends Element with ElementSet {
     val length: Int = value.length
-    /**
-      * Return a copy of this element with its value updated.
-      *
-      * @param value the new value
-      * @return a new Element instance
-      */
     def setValue(value: Value): ValueElement = copy(value = value.ensurePadding(vr))
-    /**
-      * @return The DICOM byte array representation of this element
-      */
     override def toBytes: ByteString = toParts.map(_.bytes).reduce(_ ++ _)
     override def toParts: List[DicomPart] =
       HeaderPart(tag, vr, length, isFileMetaInformation(tag), bigEndian, explicitVR) :: ValueChunk(bigEndian, value.bytes, last = true) :: Nil
@@ -509,7 +451,9 @@ object Elements {
   case class Sequence(tag: Int, length: Long, items: List[Item], bigEndian: Boolean = false, explicitVR: Boolean = true) extends ElementSet {
     val vr: VR = VR.SQ
     val indeterminate: Boolean = length == indeterminateLength
-    def item(index: Int): Option[Item] = try Option(items(index - 1)) catch { case _: Throwable => None }
+    def item(index: Int): Option[Item] = try Option(items(index - 1)) catch {
+      case _: Throwable => None
+    }
     def +(item: Item): Sequence = copy(items = items :+ item)
     override def toBytes: ByteString = toElements.map(_.toBytes).reduce(_ ++ _)
     override def toElements: List[Element] = SequenceElement(tag, length, bigEndian, explicitVR) ::
@@ -552,7 +496,9 @@ object Elements {
 
 
   case class Fragments(tag: Int, vr: VR, offsets: Option[List[Int]], fragments: List[Fragment], bigEndian: Boolean = false, explicitVR: Boolean = true) extends ElementSet {
-    def fragment(index: Int): Option[Fragment] = try Option(fragments(index - 1)) catch { case _: Throwable => None }
+    def fragment(index: Int): Option[Fragment] = try Option(fragments(index - 1)) catch {
+      case _: Throwable => None
+    }
     def +(fragment: Fragment): Fragments =
       if (fragments.isEmpty && offsets.isEmpty)
         copy(offsets = Option(fragment.value.bytes.grouped(4).map(bytesToInt(_, fragment.bigEndian)).toList))
@@ -573,6 +519,9 @@ object Elements {
     def empty(element: FragmentsElement): Fragments = empty(element.tag, element.vr, element.bigEndian, element.explicitVR)
   }
 
+  /**
+    * A builder for performant creation of Elements.
+    */
   class ElementsBuilder private[Elements](var characterSets: CharacterSets = CharacterSets.defaultOnly, var zoneOffset: ZoneOffset = systemZone) {
     val data: ArrayBuffer[ElementSet] = ArrayBuffer.empty
     def +=(element: ElementSet): ElementsBuilder = {

@@ -326,17 +326,16 @@ object DicomFlows {
   val syntheticPartsFilter: Flow[DicomPart, DicomPart, NotUsed] = Flow[DicomPart].filter(_.bytes.nonEmpty)
 
   /**
-    * Sets any sequences and/or items with known length to undefined length (length = -1) and inserts
-    * delimiters.
+    * Sets any sequences and/or items with known length to indeterminate length and inserts delimiters.
     */
-  def toUndefinedLengthSequences: Flow[DicomPart, DicomPart, NotUsed] =
+  def toIndeterminateLengthSequences: Flow[DicomPart, DicomPart, NotUsed] =
       DicomFlowFactory.create(new IdentityFlow with GuaranteedDelimitationEvents[DicomPart] { // map to indeterminate length
         val indeterminateBytes = ByteString(0xFF, 0xFF, 0xFF, 0xFF)
         val zeroBytes = ByteString(0x00, 0x00, 0x00, 0x00)
 
         override def onSequence(part: SequencePart): List[DicomPart] =
           super.onSequence(part).map {
-            case s: SequencePart if s.hasLength => part.copy(length = -1, bytes = part.bytes.dropRight(4) ++ indeterminateBytes)
+            case s: SequencePart if !s.indeterminate => part.copy(length = indeterminateLength, bytes = part.bytes.dropRight(4) ++ indeterminateBytes)
             case p => p
           }
 
@@ -349,7 +348,7 @@ object DicomFlows {
 
         override def onItem(part: ItemPart): List[DicomPart] =
           super.onItem(part).map {
-            case i: ItemPart if !inFragments && i.hasLength => part.copy(length = -1, bytes = part.bytes.dropRight(4) ++ indeterminateBytes)
+            case i: ItemPart if !inFragments && !i.indeterminate => part.copy(length = indeterminateLength, bytes = part.bytes.dropRight(4) ++ indeterminateBytes)
             case p => p
           }
 
@@ -368,7 +367,7 @@ object DicomFlows {
     *
     * Changing element values will change and update the length of individual elements, but does not update group
     * length elements and sequences and items with specified length. The recommended approach is to remove group
-    * length elements and make sure sequences and items have undefined length using appropriate flows.
+    * length elements and make sure sequences and items have indeterminate length using appropriate flows.
     *
     * @return the associated DicomPart Flow
     */
@@ -450,7 +449,7 @@ object DicomFlows {
             carryBytes = ByteString.empty
             currentVr = Some(h.vr)
           } else currentVr = None
-          HeaderPart(h.tag, h.vr, h.length, h.isFmi, bigEndian = false, explicitVR = true) :: Nil
+          HeaderPart(h.tag, h.vr, h.length, h.isFmi) :: Nil
 
         case v: ValueChunk if currentVr.isDefined && v.bigEndian =>
           currentVr match {

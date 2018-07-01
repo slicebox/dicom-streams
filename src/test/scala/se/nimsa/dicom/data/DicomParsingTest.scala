@@ -196,7 +196,7 @@ class DicomParsingTest extends FlatSpecLike with Matchers {
     }
   }
 
-  it should "not read explicit VR sequence attribute headers with undefined length" in {
+  it should "not read explicit VR sequence attribute headers with indeterminate length" in {
     val tagBytes = ByteString(0xFF, 0xFE, 0xE0, 0x00)
     val vrBytes = ByteString(0xFF, 0xFF, 0xFF, 0xFF)
     readHeaderExplicitVR(tagBytes ++ vrBytes, assumeBigEndian = true) match {
@@ -241,7 +241,7 @@ class DicomParsingTest extends FlatSpecLike with Matchers {
     }
   }
 
-  it should "not read implicit VR sequence attribute headers with undefined length" in {
+  it should "not read implicit VR sequence attribute headers with indeterminate length" in {
     val tagBytes = ByteString(0xFE, 0xFF, 0x00, 0xE0)
     val lengthBytes = ByteString(0xFF, 0xFF, 0xFF, 0xFF)
     readHeaderImplicitVR(tagBytes ++ lengthBytes) match {

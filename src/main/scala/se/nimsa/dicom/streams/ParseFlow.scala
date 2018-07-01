@@ -263,11 +263,11 @@ class ParseFlow(chunkSize: Int = 8192, stopTag: Option[Int] = None, inflate: Boo
         None
       else if (vr != null) {
         val updatedVr1 = if (vr == VR.UN) Dictionary.vrOf(tag) else vr
-        val updatedVr2 = if ((updatedVr1 == VR.UN) && valueLength == -1) VR.SQ else updatedVr1
+        val updatedVr2 = if ((updatedVr1 == VR.UN) && valueLength == indeterminateLength) VR.SQ else updatedVr1
         val bytes = reader.take(headerLength)
         if (updatedVr2 == VR.SQ)
           Some(SequencePart(tag, valueLength, state.bigEndian, state.explicitVR, bytes))
-        else if (valueLength == -1)
+        else if (valueLength == indeterminateLength)
           Some(FragmentsPart(tag, valueLength, updatedVr2, state.bigEndian, state.explicitVR, bytes))
         else
           Some(HeaderPart(tag, updatedVr2, valueLength, isFmi = false, state.bigEndian, state.explicitVR, bytes))

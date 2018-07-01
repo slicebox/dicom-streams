@@ -99,7 +99,7 @@ trait DicomParsing {
     Element(tag, vr, length, valueWithoutPadding(value))
   }
 
-  def lengthToLong(length: Int): Long = if (length == -1) -1L else intToUnsignedLong(length)
+  def lengthToLong(length: Int): Long = if (length == indeterminateLength) -1L else intToUnsignedLong(length)
 
   def readHeader(buffer: ByteString, assumeBigEndian: Boolean, explicitVR: Boolean): Option[(Int, VR, Int, Long)] = {
     if (explicitVR) {
@@ -120,10 +120,10 @@ trait DicomParsing {
     if (buffer.size >= 8) {
       val (tag, vr) = DicomParsing.tagVr(buffer, assumeBigEndian, explicitVr = true)
       if (vr == null) {
-        // special case: sequences, length might be undefined '0xFFFFFFFF'
+        // special case: sequences, length might be indeterminate '0xFFFFFFFF'
         val valueLength = bytesToInt(buffer.drop(4), assumeBigEndian)
-        if (valueLength == -1) {
-          // length of sequence undefined, not supported
+        if (valueLength == indeterminateLength) {
+          // length of sequence indeterminate, not supported
           None
         } else {
           Some((tag, vr, 8, lengthToLong(bytesToInt(buffer.drop(4), assumeBigEndian))))
@@ -155,8 +155,8 @@ trait DicomParsing {
       val vr = Dictionary.vrOf(tag)
       val valueLength = bytesToInt(buffer.drop(4), assumeBigEndian)
       if (tag == 0xFFFEE000 || tag == 0xFFFEE00D || tag == 0xFFFEE0DD)
-        if (valueLength == -1)
-          None // special case: sequences, with undefined length '0xFFFFFFFF' not supported
+        if (valueLength == indeterminateLength)
+          None // special case: sequences, with indeterminate length not supported
         else
           Some((tag, null, 8, lengthToLong(valueLength)))
       else

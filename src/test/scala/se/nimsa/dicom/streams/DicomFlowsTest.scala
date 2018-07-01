@@ -510,7 +510,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(toUndefinedLengthSequences)
+      .via(toIndeterminateLengthSequences)
 
     source.runWith(TestSink.probe[DicomPart])
       .expectSequence(Tag.DerivationCodeSequence, -1)
@@ -542,7 +542,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(toUndefinedLengthSequences)
+      .via(toIndeterminateLengthSequences)
 
     source.runWith(TestSink.probe[DicomPart])
       .expectSequence(Tag.DerivationCodeSequence, -1)
@@ -562,7 +562,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(toUndefinedLengthSequences)
+      .via(toIndeterminateLengthSequences)
 
     source.runWith(TestSink.probe[DicomPart])
       .expectFragments()
@@ -586,7 +586,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(toUndefinedLengthSequences)
+      .via(toIndeterminateLengthSequences)
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.StudyDate)
@@ -614,7 +614,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(toUndefinedLengthSequences)
+      .via(toIndeterminateLengthSequences)
 
     source.runWith(TestSink.probe[DicomPart])
       .expectSequence(Tag.DerivationCodeSequence, -1)
