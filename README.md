@@ -20,7 +20,7 @@ which provides a far more complete (albeit blocking and synchronous) implementat
 Streaming binary DICOM data may originate from many different sources such as files, a HTTP POST request, or a read from
 a database. Akka Streams provide a multitude of connectors for streaming binary data. Streaming data arrives in chunks
 (`ByteString`s). In the Akka Stream nomenclature, chunks originate from _sources_, they are processed in _flows_ and
-and folded into a non-streaming plain objects using a _sink_. 
+and folded into a non-streaming plain objects using _sinks_. 
 
 This library provides flows for parsing binary DICOM data into DICOM parts (represented by the `DicomPart` interface) - 
 small objects representing a part of a data element. These DICOM parts are bounded in size by a user specified chunk 
@@ -49,7 +49,12 @@ The following diagram shows an overview of the data model at the `DicomPart`, `E
 
 ![Data model](README/data-model.png)
 
-### Usage
+As seen, a standard attribute, represented by the `ValueElement` class is composed by one `HeaderPart` followed by zero,
+one or more `ValueChunk`s of data. Likewise, ecapsulated data such as a jpeg image is composed by one `FragmentsPart`
+followed by, for each fragment, one `ItemPart` followed by `ValueChunk`s of data, and ends with a
+`SequenceDelimitationPart`.
+
+### Examples
 
 The following example reads a DICOM file from disk, validates that it is a DICOM file, discards all private elements
 and writes it to a new file.
@@ -85,6 +90,7 @@ FileIO.fromPath(Paths.get("source-file.dcm"))
   .runWith(FileIO.toPath(Paths.get("target-file.dcm")))
 ```
 
+### Custom Processing
 New non-trivial DICOM flows can be built using a modular system of capabilities that are mixed in as appropriate with a 
 core class implementing a common base interface. The base interface for DICOM flows is `DicomFlow` and new flows are 
 created using the `DicomFlowFactory.create` method. The `DicomFlow` interface defines a series of events, one for each
@@ -125,3 +131,7 @@ In this example, we chose to use `DeferToPartFlow` as the core class and mixed i
 which gives access to a `tagPath: TagPath` variable at all times which is automatically updated as the flow progresses.
 Note that flows with internal state should be defined as functions (`def`) rather than constants/variables `val`/`var`
 to avoid shared state within or between flows.
+
+### License
+
+This project is released under the [Apache License, version 2.0](./LICENSE).
