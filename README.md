@@ -47,7 +47,7 @@ implements a straight-forward data hierarchy:
 
 The following diagram shows an overview of the data model at the `DicomPart`, `Element` and `ElementSet` levels.
 
-![Data model][README/data-model.png]
+![Data model](README/data-model.png)
 
 ### Usage
 
