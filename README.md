@@ -15,6 +15,40 @@ DICOM data chunk size and network utilization using back-pressure as specified i
 The logic of parsing and handling DICOM data is inspired by [dcm4che](https://github.com/dcm4che/dcm4che)
 which provides a far more complete (albeit blocking and synchronous) implementation of the DICOM standard.
 
+### Data Model
+
+Streaming binary DICOM data may originate from many different sources such as files, a HTTP POST request, or a read from
+a database. Akka Streams provide a multitude of connectors for streaming binary data. Streaming data arrives in chunks
+(`ByteString`s). In the Akka Stream nomenclature, chunks originate from _sources_, they are processed in _flows_ and
+and folded into a non-streaming plain objects using a _sink_. 
+
+This library provides flows for parsing binary DICOM data into DICOM parts (represented by the `DicomPart` interface) - 
+small objects representing a part of a data element. These DICOM parts are bounded in size by a user specified chunk 
+size parameter. Flows of DICOM parts can be processed using a series of flows in this library. There are flows for 
+filtering based on tag path conditions, flows for converting between transfer syntaxes, flows for re-encoding sequences 
+and items, etc. 
+
+The `Element` interface provides a set of higher level data classes, each roughly corresponding to one row in a textual
+dump of a DICOM files. Here, chunks are aggregated into complete data elements. There are representations for standard
+tag-value elements, sequence and item start elements, sequence and item delimitation elements, fragments start elements,
+etc. A `DicomPart` stream is transformed into an `Element` stream via the `elementFlow` flow.
+
+A flow of `Element`s can be materialized into a representation of a dataset called an `Elements` using the `elementSink`
+sink. For processing of large sets of data, one should strive for a fully streaming DICOM pipeline, however, in some 
+cases it can be convenient to work with a plain dataset; `Elements` serves this purpose. Internally, the sink aggregates
+`Element`s into `ElementSet`s, each with an asssociated tag number (value elements, sequences and fragments). `Elements`
+implements a straight-forward data hierarchy:
+* An `Elements` holds a list of `ElementSet`s (`ValueElement`, `Sequence` and `Fragments`)
+* A `ValueElement` is a standard attribute with tag number and binary value
+* A `Sequence` holds a list of `Item`s
+  * An `Item` contains zero or one `Elements` (note the recursion)
+* A `Fragments` holds a list of `Fragment`s
+  * A `Fragment` holds a binary value. 
+
+The following diagram shows an overview of the data model at the `DicomPart`, `Element` and `ElementSet` levels.
+
+![Data model][README/data-model.png]
+
 ### Usage
 
 The following example reads a DICOM file from disk, validates that it is a DICOM file, discards all private elements
