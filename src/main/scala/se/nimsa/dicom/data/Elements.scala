@@ -309,14 +309,14 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
         }
         val offsets = f.offsets.map { o =>
           val description = s"Offsets table with ${o.length} offset(s)"
-          s"$indent  ${tagToString(Tag.Item)} na ($description) ${space1(description)} # ${space2(o.length * 4)} ${o.length * 4}, 1 Item"
-        }.getOrElse("")
+          s"$indent  ${tagToString(Tag.Item)} na ($description) ${space1(description)} # ${space2(o.length * 4)} ${o.length * 4}, 1 Item" :: Nil
+        }.getOrElse(Nil)
         val fragments = f.fragments.map { f =>
           val description = s"Fragment with length ${f.length}"
           s"$indent  ${tagToString(Tag.Item)} na ($description) ${space1(description)} # ${space2(f.length)} ${f.length}, 1 Item"
         }
         val delimitation = s"$indent${tagToString(Tag.SequenceDelimitationItem)} na ${" " * 43} #     0, 0 SequenceDelimitationItem"
-        heading :: offsets :: fragments ::: delimitation :: Nil
+        heading :: offsets ::: fragments ::: delimitation :: Nil
 
       case _ => Nil
     }
@@ -495,19 +495,58 @@ object Elements {
   }
 
 
-  case class Fragments(tag: Int, vr: VR, offsets: Option[List[Int]], fragments: List[Fragment], bigEndian: Boolean = false, explicitVR: Boolean = true) extends ElementSet {
+  /**
+    * Encapsulated (pixel) data holder
+    *
+    * @param tag        tag
+    * @param vr         vr
+    * @param offsets    list of frame offsets. No list (None) means fragments is empty and contains no items. An empty
+    *                   list means offsets item is present but empty. Subsequent items hold frame data
+    * @param fragments  frame data. Note that frames may span several fragments and fragments may contain more than one
+    *                   frame
+    * @param bigEndian  `true` if big endian encoded (should be false)
+    * @param explicitVR `true` if explicit VR is used (should be true)
+    */
+  case class Fragments(tag: Int, vr: VR, offsets: Option[List[Long]], fragments: List[Fragment], bigEndian: Boolean = false, explicitVR: Boolean = true) extends ElementSet {
     def fragment(index: Int): Option[Fragment] = try Option(fragments(index - 1)) catch {
       case _: Throwable => None
     }
+
+    /**
+      * @return the number of frames encapsulated in this `Fragments`
+      */
+    def frameCount: Int = if (offsets.isEmpty && fragments.isEmpty) 0 else if (offsets.isEmpty) 1 else offsets.size
+
+    /**
+      * @return an `Iterator[ByteString]` over the frames encoded in this `Fragments`
+      */
+    def frameIterator: Iterator[ByteString] = new Iterator[ByteString] {
+      val totalLength: Long = fragments.map(_.length).sum
+      val frameOffsets: List[Long] = if (totalLength <= 0) List(0L) else offsets.filter(_.nonEmpty).getOrElse(List(0L)) :+ totalLength
+      val fragmentIterator: Iterator[Fragment] = fragments.iterator
+      var offsetIndex: Int = 0
+      var bytes: ByteString = ByteString.empty
+
+      override def hasNext: Boolean = offsetIndex < frameOffsets.length - 1
+      override def next(): ByteString = {
+        val frameLength = (frameOffsets(offsetIndex + 1) - frameOffsets(offsetIndex)).toInt
+        while (fragmentIterator.hasNext && bytes.length < frameLength) bytes = bytes ++ fragmentIterator.next().value.bytes
+        val (frame, rest) = bytes.splitAt(frameLength)
+        bytes = rest
+        offsetIndex += 1
+        frame
+      }
+    }
+
     def +(fragment: Fragment): Fragments =
       if (fragments.isEmpty && offsets.isEmpty)
-        copy(offsets = Option(fragment.value.bytes.grouped(4).map(bytesToInt(_, fragment.bigEndian)).toList))
+        copy(offsets = Option(fragment.value.bytes.grouped(4).map(bytes => intToUnsignedLong(bytesToInt(bytes, fragment.bigEndian))).toList))
       else
         copy(fragments = fragments :+ fragment)
     def toBytes: ByteString = toElements.map(_.toBytes).reduce(_ ++ _)
     def size: Int = fragments.length
     override def toElements: List[Element] = FragmentsElement(tag, vr, bigEndian, explicitVR) ::
-      offsets.map(o => FragmentElement(1, 4L * o.length, Value(o.map(intToBytes(_, bigEndian)).foldLeft(ByteString.empty)(_ ++ _)), bigEndian) :: Nil).getOrElse(Nil) :::
+      offsets.map(o => FragmentElement(1, 4L * o.length, Value(o.map(offset => truncate(4, longToBytes(offset, bigEndian), bigEndian)).foldLeft(ByteString.empty)(_ ++ _)), bigEndian) :: Nil).getOrElse(Nil) :::
       fragments.zipWithIndex.map { case (fragment, index) => fragment.toElement(index + 2) } :::
       SequenceDelimitationElement(bigEndian) :: Nil
     def setFragment(index: Int, fragment: Fragment): Fragments = copy(fragments = fragments.updated(index - 1, fragment))

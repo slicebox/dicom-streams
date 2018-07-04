@@ -28,6 +28,8 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
 
   def create(elements: ElementSet*): Elements = Elements(defaultCharacterSet, systemZone, elements.toVector)
 
+  def toElements(bytes: ByteString): Elements = Await.result(Source.single(bytes).via(parseFlow).via(elementFlow).runWith(elementSink), 5.seconds)
+
   val studyDate: ValueElement = ValueElement.fromString(Tag.StudyDate, "20041230")
   val patientName: ValueElement = ValueElement.fromString(Tag.PatientName, "John^Doe")
   val patientID1: ValueElement = ValueElement.fromString(Tag.PatientID, "12345678")
@@ -344,14 +346,9 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
       sequence(Tag.DerivationCodeSequence) ++ item() ++ testStudyDate() ++ itemDelimitation() ++ sequenceDelimitation() ++ // nested sequence (determinate length)
       itemDelimitation() ++ sequenceDelimitation() ++
       patientNameJohnDoe() ++ // attribute
-      pixeDataFragments() ++ item(4) ++ ByteString(1, 2, 3, 4) ++ sequenceDelimitation()
+      pixeDataFragments() ++ item(0) ++ item(4) ++ ByteString(1, 2, 3, 4) ++ sequenceDelimitation()
 
-    val elements = Await.result(
-      Source.single(bytes)
-        .via(parseFlow)
-        .via(elementFlow)
-        .runWith(elementSink),
-      5.seconds)
+    val elements = toElements(bytes)
 
     elements.toBytes() shouldBe bytes
   }
@@ -391,7 +388,7 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
 
   it should "provide a legible toString" in {
     val updated = elements.set(Fragments(Tag.PixelData, VR.OB, None, List(Fragment(4, Value(ByteString(1, 2, 3, 4))))))
-    updated.toString.count(_ == System.lineSeparator.charAt(0)) shouldBe updated.toElements.length
+    updated.toString.count(_ == System.lineSeparator.charAt(0)) shouldBe updated.toElements.length - 1
   }
 
   it should "create file meta information" in {
@@ -437,5 +434,88 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
     checkString(SequenceDelimitationElement().toString, 1)
     checkString(Sequence(Tag.DerivationCodeSequence, indeterminateLength, List(Item(indeterminateLength, Elements.empty()))).toString, 1)
     checkString(Fragments(Tag.PixelData, VR.OW, Some(Nil), List(Fragment(4, Value(ByteString(1, 2, 3, 4))))).toString, 1)
+  }
+
+  "Fragments" should "be empty" in {
+    val bytes = pixeDataFragments() ++ sequenceDelimitation()
+
+    val elements = Await.result(
+      Source.single(bytes)
+        .via(parseFlow)
+        .via(elementFlow)
+        .runWith(elementSink),
+      5.seconds)
+
+    val fragments = elements.getFragments(Tag.PixelData).get
+    fragments.size shouldBe 0
+    fragments.offsets shouldBe empty
+  }
+
+  it should "convert an empty first item to an empty offsets list" in {
+    val bytes = pixeDataFragments() ++ item(0) ++ item(4) ++ ByteString(1, 2, 3, 4) ++ sequenceDelimitation()
+
+    val fragments = toElements(bytes).getFragments(Tag.PixelData).get
+    fragments.offsets shouldBe defined
+    fragments.offsets.get shouldBe empty
+    fragments.size shouldBe 1
+  }
+
+  it should "convert first item to offsets" in {
+    val bytes = pixeDataFragments() ++ item(8) ++ intToBytesLE(0) ++ intToBytesLE(456) ++ item(4) ++
+      ByteString(1, 2, 3, 4) ++ sequenceDelimitation()
+
+    val fragments = toElements(bytes).getFragments(Tag.PixelData).get
+    fragments.offsets shouldBe defined
+    fragments.offsets.get shouldBe List(0, 456)
+  }
+
+  it should "support access to frames based on fragments and offsets" in {
+    val bytes = pixeDataFragments() ++ item(8) ++ intToBytesLE(0) ++ intToBytesLE(6) ++ item(4) ++
+      ByteString(1, 2, 3, 4) ++ item(4) ++ ByteString(5, 6, 7, 8) ++ sequenceDelimitation()
+
+    val iter = toElements(bytes).getFragments(Tag.PixelData).get.frameIterator
+    iter.hasNext shouldBe true
+    iter.next shouldBe ByteString(1, 2, 3, 4, 5, 6)
+    iter.hasNext shouldBe true
+    iter.next shouldBe ByteString(7, 8)
+    iter.hasNext shouldBe false
+  }
+
+  it should "return an empty iterator when offsets list and/or fragments are empty" in {
+    val bytes1 = pixeDataFragments() ++ sequenceDelimitation()
+    val bytes2 = pixeDataFragments() ++ item(0) ++ sequenceDelimitation()
+    val bytes3 = pixeDataFragments() ++ item(0) ++ item(0) ++ sequenceDelimitation()
+    val bytes4 = pixeDataFragments() ++ item(4) ++ intToBytesLE(0) ++ sequenceDelimitation()
+    val bytes5 = pixeDataFragments() ++ item(4) ++ intToBytesLE(0) ++ item(0) ++ sequenceDelimitation()
+
+    val iter1 = toElements(bytes1).getFragments(Tag.PixelData).get.frameIterator
+    val iter2 = toElements(bytes2).getFragments(Tag.PixelData).get.frameIterator
+    val iter3 = toElements(bytes3).getFragments(Tag.PixelData).get.frameIterator
+    val iter4 = toElements(bytes4).getFragments(Tag.PixelData).get.frameIterator
+    val iter5 = toElements(bytes5).getFragments(Tag.PixelData).get.frameIterator
+
+    iter1.hasNext shouldBe false
+    iter2.hasNext shouldBe false
+    iter3.hasNext shouldBe false
+    iter4.hasNext shouldBe false
+    iter5.hasNext shouldBe false
+  }
+
+  it should "support many frames per fragment and many fragments per frame" in {
+    val bytes1 = pixeDataFragments() ++ item(12) ++ List(0, 2, 3).map(intToBytesLE).reduce(_ ++ _) ++ item(4) ++
+      ByteString(1, 2, 3, 4) ++ sequenceDelimitation()
+    val bytes2 = pixeDataFragments() ++ item(0) ++ item(2) ++ ByteString(1, 2) ++
+      item(2) ++ ByteString(1, 2) ++ item(2) ++ ByteString(1, 2) ++ item(2) ++ ByteString(1, 2) ++ sequenceDelimitation()
+
+    val iter1 = toElements(bytes1).getFragments(Tag.PixelData).get.frameIterator
+    val iter2 = toElements(bytes2).getFragments(Tag.PixelData).get.frameIterator
+
+    iter1.next shouldBe ByteString(1, 2)
+    iter1.next shouldBe ByteString(3)
+    iter1.next shouldBe ByteString(4)
+    iter1.hasNext shouldBe false
+
+    iter2.next shouldBe ByteString(1, 2, 1, 2, 1, 2, 1, 2)
+    iter2.hasNext shouldBe false
   }
 }
