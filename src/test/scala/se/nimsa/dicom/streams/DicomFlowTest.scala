@@ -1,24 +1,29 @@
 package se.nimsa.dicom.streams
 
+import java.io.File
+
 import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.{Flow, Source}
+import akka.stream.scaladsl.{FileIO, Flow, Sink, Source}
 import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
-import se.nimsa.dicom._
-import se.nimsa.dicom.streams.DicomParseFlow.parseFlow
+import se.nimsa.dicom.data._
+import se.nimsa.dicom.data.TagPath.EmptyTagPath
+import se.nimsa.dicom.data.{Tag, TagPath}
+import se.nimsa.dicom.streams.ParseFlow.parseFlow
 
-import scala.concurrent.ExecutionContextExecutor
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContextExecutor}
 
 class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecLike with Matchers with BeforeAndAfterAll {
 
   import DicomFlows._
-  import DicomParts._
   import TestUtils._
-  import se.nimsa.dicom.TestData._
+  import se.nimsa.dicom.data.DicomParts._
+  import se.nimsa.dicom.data.TestData._
 
   implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val ec: ExecutionContextExecutor = system.dispatcher
@@ -26,25 +31,23 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
   override def afterAll(): Unit = system.terminate()
 
   "The dicom flow" should "call the correct events for streamed dicom parts" in {
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++
-      patientNameJohnDoe() ++ sequence(Tag.DerivationCodeSequence) ++ item() ++ studyDate() ++ itemEnd() ++ sequenceEnd() ++
-      pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragmentsEnd()
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++
+      patientNameJohnDoe() ++ sequence(Tag.DerivationCodeSequence) ++ item() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation() ++
+      pixeDataFragments() ++ item(4) ++ ByteString(1, 2, 3, 4) ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(DicomFlowFactory.create(new DicomFlow {
-        override def onFragmentsEnd(part: DicomFragmentsDelimitation): List[DicomPart] = TestPart("Fragments End") :: Nil
-        override def onFragmentsItemStart(part: DicomFragmentsItem): List[DicomPart] = TestPart("Fragments Item Start") :: Nil
-        override def onFragmentsStart(part: DicomFragments): List[DicomPart] = TestPart("Fragments Start") :: Nil
-        override def onHeader(part: DicomHeader): List[DicomPart] = TestPart("Header") :: Nil
-        override def onPreamble(part: DicomPreamble): List[DicomPart] = TestPart("Preamble") :: Nil
-        override def onSequenceEnd(part: DicomSequenceDelimitation): List[DicomPart] = TestPart("Sequence End") :: Nil
-        override def onSequenceItemEnd(part: DicomSequenceItemDelimitation): List[DicomPart] = TestPart("Sequence Item End") :: Nil
-        override def onSequenceItemStart(part: DicomSequenceItem): List[DicomPart] = TestPart("Sequence Item Start") :: Nil
-        override def onSequenceStart(part: DicomSequence): List[DicomPart] = TestPart("Sequence Start") :: Nil
-        override def onValueChunk(part: DicomValueChunk): List[DicomPart] = TestPart("Value Chunk") :: Nil
-        override def onDeflatedChunk(part: DicomDeflatedChunk): List[DicomPart] = Nil
-        override def onUnknownPart(part: DicomUnknownPart): List[DicomPart] = Nil
+      .via(DicomFlowFactory.create(new DicomFlow[DicomPart] {
+        override def onFragments(part: FragmentsPart): List[DicomPart] = TestPart("Fragments Start") :: Nil
+        override def onHeader(part: HeaderPart): List[DicomPart] = TestPart("Header") :: Nil
+        override def onPreamble(part: PreamblePart): List[DicomPart] = TestPart("Preamble") :: Nil
+        override def onSequenceDelimitation(part: SequenceDelimitationPart): List[DicomPart] = TestPart("Sequence End") :: Nil
+        override def onItemDelimitation(part: ItemDelimitationPart): List[DicomPart] = TestPart("Item End") :: Nil
+        override def onItem(part: ItemPart): List[DicomPart] = TestPart("Item Start") :: Nil
+        override def onSequence(part: SequencePart): List[DicomPart] = TestPart("Sequence Start") :: Nil
+        override def onValueChunk(part: ValueChunk): List[DicomPart] = TestPart("Value Chunk") :: Nil
+        override def onDeflatedChunk(part: DeflatedChunk): List[DicomPart] = Nil
+        override def onUnknown(part: UnknownPart): List[DicomPart] = Nil
         override def onPart(part: DicomPart): List[DicomPart] = Nil
       }))
 
@@ -57,37 +60,37 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
       .expectTestPart("Header")
       .expectTestPart("Value Chunk")
       .expectTestPart("Sequence Start")
-      .expectTestPart("Sequence Item Start")
+      .expectTestPart("Item Start")
       .expectTestPart("Header")
       .expectTestPart("Value Chunk")
-      .expectTestPart("Sequence Item End")
+      .expectTestPart("Item End")
       .expectTestPart("Sequence End")
       .expectTestPart("Fragments Start")
-      .expectTestPart("Fragments Item Start")
+      .expectTestPart("Item Start")
       .expectTestPart("Value Chunk")
-      .expectTestPart("Fragments End")
+      .expectTestPart("Sequence End")
       .expectDicomComplete()
   }
 
   "The guaranteed delimitation flow" should "insert delimitation parts at the end of sequences and items with determinate length" in {
     val bytes =
-      sequence(Tag.DerivationCodeSequence, 56) ++ item(16) ++ studyDate() ++ item() ++ studyDate() ++ itemEnd() ++
-        sequence(Tag.AbstractPriorCodeSequence) ++ item() ++ studyDate() ++ itemEnd() ++ item(16) ++ studyDate() ++ sequenceEnd()
+      sequence(Tag.DerivationCodeSequence, 56) ++ item(16) ++ studyDate() ++ item() ++ studyDate() ++ itemDelimitation() ++
+        sequence(Tag.AbstractPriorCodeSequence) ++ item() ++ studyDate() ++ itemDelimitation() ++ item(16) ++ studyDate() ++ sequenceDelimitation()
 
     var expectedDelimitationLengths = List(0, 8, 0, 8, 0, 8)
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(DicomFlowFactory.create(new IdentityFlow with GuaranteedDelimitationEvents {
-        override def onSequenceItemEnd(part: DicomSequenceItemDelimitation): List[DicomPart] = {
+      .via(DicomFlowFactory.create(new IdentityFlow with GuaranteedDelimitationEvents[DicomPart] {
+        override def onItemDelimitation(part: ItemDelimitationPart): List[DicomPart] = {
           part.bytes.length shouldBe expectedDelimitationLengths.head
           expectedDelimitationLengths = expectedDelimitationLengths.tail
-          super.onSequenceItemEnd(part)
+          super.onItemDelimitation(part)
         }
-        override def onSequenceEnd(part: DicomSequenceDelimitation): List[DicomPart] = {
+        override def onSequenceDelimitation(part: SequenceDelimitationPart): List[DicomPart] = {
           part.bytes.length shouldBe expectedDelimitationLengths.head
           expectedDelimitationLengths = expectedDelimitationLengths.tail
-          super.onSequenceEnd(part)
+          super.onSequenceDelimitation(part)
         }
       }))
 
@@ -117,15 +120,15 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
 
   it should "handle sequences that end with an item delimitation" in {
     val bytes =
-      sequence(Tag.DerivationCodeSequence, 32) ++ item() ++ studyDate() ++ itemEnd()
+      sequence(Tag.DerivationCodeSequence, 32) ++ item() ++ studyDate() ++ itemDelimitation()
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(guaranteedDelimitationFlow)
+      .via(toIndeterminateLengthSequences)
 
     source.runWith(TestSink.probe[DicomPart])
-      .expectSequence(Tag.DerivationCodeSequence, 32)
-      .expectItem(1, -1)
+      .expectSequence(Tag.DerivationCodeSequence)
+      .expectItem(1)
       .expectHeader(Tag.StudyDate)
       .expectValueChunk()
       .expectItemDelimitation()
@@ -139,17 +142,17 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(guaranteedDelimitationFlow)
+      .via(toIndeterminateLengthSequences)
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.StudyDate)
       .expectValueChunk()
-      .expectSequence(Tag.DerivationCodeSequence, 60)
-      .expectItem(1, 52)
+      .expectSequence(Tag.DerivationCodeSequence)
+      .expectItem(1)
       .expectHeader(Tag.StudyDate)
       .expectValueChunk()
-      .expectSequence(Tag.DerivationCodeSequence, 24)
-      .expectItem(1, 16)
+      .expectSequence(Tag.DerivationCodeSequence)
+      .expectItem(1)
       .expectHeader(Tag.StudyDate)
       .expectValueChunk()
       .expectItemDelimitation()
@@ -167,45 +170,71 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(guaranteedDelimitationFlow)
+      .via(toIndeterminateLengthSequences)
 
     source.runWith(TestSink.probe[DicomPart])
-      .expectSequence(Tag.DerivationCodeSequence, 52)
-      .expectItem(1, 16)
+      .expectSequence(Tag.DerivationCodeSequence)
+      .expectItem(1)
       .expectHeader(Tag.StudyDate)
       .expectValueChunk()
       .expectItemDelimitation()
-      .expectItem(2, 0)
+      .expectItem(2)
       .expectItemDelimitation()
-      .expectItem(3, 12)
-      .expectSequence(Tag.DerivationCodeSequence, 0)
+      .expectItem(3)
+      .expectSequence(Tag.DerivationCodeSequence)
       .expectSequenceDelimitation()
       .expectItemDelimitation()
       .expectSequenceDelimitation()
       .expectDicomComplete()
   }
 
-  it should "handle empty attributes in sequences" in {
+  it should "handle empty elements in sequences" in {
     val bytes =
       sequence(Tag.DerivationCodeSequence, 44) ++ item(36) ++ emptyPatientName() ++
         sequence(Tag.DerivationCodeSequence, 16) ++ item(8) ++ emptyPatientName()
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(guaranteedDelimitationFlow)
+      .via(toIndeterminateLengthSequences)
 
     source.runWith(TestSink.probe[DicomPart])
-      .expectSequence(Tag.DerivationCodeSequence, 44)
-      .expectItem(1, 36)
+      .expectSequence(Tag.DerivationCodeSequence)
+      .expectItem(1)
       .expectHeader(Tag.PatientName)
-      .expectSequence(Tag.DerivationCodeSequence, 16)
-      .expectItem(1, 8)
+      .expectSequence(Tag.DerivationCodeSequence)
+      .expectItem(1)
       .expectHeader(Tag.PatientName)
       .expectItemDelimitation()
       .expectSequenceDelimitation()
       .expectItemDelimitation()
       .expectSequenceDelimitation()
       .expectDicomComplete()
+  }
+
+  it should "call event only once when used twice in flow" in {
+    val bytes = sequence(Tag.DerivationCodeSequence, 24) ++ item(16) ++ patientNameJohnDoe()
+
+    var nItemDelims = 0
+    var nSeqDelims = 0
+
+    val source = Source.single(bytes)
+      .via(parseFlow)
+      .via(DicomFlowFactory.create(new IdentityFlow with GuaranteedDelimitationEvents[DicomPart]))
+      .via(DicomFlowFactory.create(new IdentityFlow with GuaranteedDelimitationEvents[DicomPart] {
+        override def onItemDelimitation(part: ItemDelimitationPart): List[DicomPart] = {
+          nItemDelims += 1
+          super.onItemDelimitation(part)
+        }
+        override def onSequenceDelimitation(part: SequenceDelimitationPart): List[DicomPart] = {
+          nSeqDelims += 1
+          super.onSequenceDelimitation(part)
+        }
+      }))
+
+    Await.ready(source.runWith(Sink.ignore), 5.seconds)
+
+    nItemDelims shouldBe 1
+    nSeqDelims shouldBe 1
   }
 
   "The guaranteed value flow" should "call onValueChunk callback also after length zero headers" in {
@@ -215,8 +244,8 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(DicomFlowFactory.create(new IdentityFlow with GuaranteedValueEvent {
-        override def onValueChunk(part: DicomValueChunk): List[DicomPart] = {
+      .via(DicomFlowFactory.create(new IdentityFlow with GuaranteedValueEvent[DicomPart] {
+        override def onValueChunk(part: ValueChunk): List[DicomPart] = {
           part.bytes.length shouldBe expectedChunkLengths.head
           expectedChunkLengths = expectedChunkLengths.tail
           super.onValueChunk(part)
@@ -230,23 +259,27 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
       .expectDicomComplete()
   }
 
-  it should "emit empty chunks when overriding onValueChunk appropriately" in {
-    val bytes = patientNameJohnDoe() ++ emptyPatientName()
+  it should "call event only once when flow is used twice" in {
+    val bytes = emptyPatientName()
+
+    var nEvents = 0
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(guaranteedValueFlow)
+      .via(DicomFlowFactory.create(new IdentityFlow with GuaranteedValueEvent[DicomPart]))
+      .via(DicomFlowFactory.create(new IdentityFlow with GuaranteedValueEvent[DicomPart] {
+        override def onValueChunk(part: ValueChunk): List[DicomPart] = {
+          nEvents += 1
+          super.onValueChunk(part)
+        }
+      }))
 
-    source.runWith(TestSink.probe[DicomPart])
-      .expectHeader(Tag.PatientName)
-      .expectValueChunk(8)
-      .expectHeader(Tag.PatientName)
-      .expectValueChunk(0)
-      .expectDicomComplete()
+    Await.ready(source.runWith(Sink.ignore), 5.seconds)
+    nEvents shouldBe 1
   }
 
   val startEventTestFlow: Flow[DicomPart, DicomPart, NotUsed] =
-    DicomFlowFactory.create(new IdentityFlow with StartEvent {
+    DicomFlowFactory.create(new IdentityFlow with StartEvent[DicomPart] {
       override def onStart(): List[DicomPart] = DicomStartMarker :: Nil
     })
 
@@ -268,7 +301,7 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
   }
 
   val endEventTestFlow: Flow[DicomPart, DicomPart, NotUsed] =
-    DicomFlowFactory.create(new IdentityFlow with EndEvent {
+    DicomFlowFactory.create(new IdentityFlow with EndEvent[DicomPart] {
       override def onEnd(): List[DicomPart] = DicomEndMarker :: Nil
     })
 
@@ -290,46 +323,52 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
   }
 
   "DICOM flows with tag path tracking" should "update the tag path through attributes, sequences and fragments" in {
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ tsuidExplicitLE ++ // FMI
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ // FMI
+      studyDate() ++
+      sequence(Tag.EnergyWindowInformationSequence) ++ item() ++ studyDate() ++ itemDelimitation() ++ item() ++ // sequence
+      sequence(Tag.EnergyWindowRangeSequence, 24) ++ item(16) ++ studyDate() ++ // nested sequence (determinate length)
+      itemDelimitation() ++ sequenceDelimitation() ++
       patientNameJohnDoe() ++ // attribute
-      sequence(Tag.DerivationCodeSequence) ++ item() ++ studyDate() ++ itemEnd() ++ item() ++ // sequence
-      sequence(Tag.DerivationCodeSequence, 24) ++ item(16) ++ studyDate() ++ // nested sequence (determinate length)
-      itemEnd() ++ sequenceEnd() ++
-      pixeDataFragments() ++ fragment(4) ++ ByteString(1, 2, 3, 4) ++ fragmentsEnd()
+      pixeDataFragments() ++ item(4) ++ ByteString(1, 2, 3, 4) ++ sequenceDelimitation()
 
     var expectedPaths = List(
-      None, // preamble
-      Some(TagPath.fromTag(Tag.FileMetaInformationGroupLength)), None, // FMI group length header, then value
-      Some(TagPath.fromTag(Tag.TransferSyntaxUID)), None, // Transfer syntax header, then value
-      Some(TagPath.fromTag(Tag.PatientName)), None, // Patient name header, then value
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence)), // sequence start
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 1)), // item start
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.StudyDate)), // study date header
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 1)), // study date value
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence)), // item end
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2)), // item start
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenSequence(Tag.DerivationCodeSequence)), // sequence start
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenSequence(Tag.DerivationCodeSequence, 1)), // item start
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.StudyDate)), // Study date header
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenSequence(Tag.DerivationCodeSequence, 1)), // Study date value
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenSequence(Tag.DerivationCodeSequence)), //  item end (inserted)
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence, 2)), // sequence end (inserted)
-      Some(TagPath.fromSequence(Tag.DerivationCodeSequence)), // item end
-      None, // sequence end
-      Some(TagPath.fromTag(Tag.PixelData)), // fragments start
-      Some(TagPath.fromTag(Tag.PixelData)), // item start
-      Some(TagPath.fromTag(Tag.PixelData)), // fragment data
-      None // fragments end
+      EmptyTagPath, // preamble
+      TagPath.fromTag(Tag.FileMetaInformationGroupLength), // FMI group length header
+      TagPath.fromTag(Tag.FileMetaInformationGroupLength), // FMI group length value
+      TagPath.fromTag(Tag.TransferSyntaxUID), // Transfer syntax header
+      TagPath.fromTag(Tag.TransferSyntaxUID), // Transfer syntax value
+      TagPath.fromTag(Tag.StudyDate), // Patient name header
+      TagPath.fromTag(Tag.StudyDate), // Patient name value
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence), // sequence start
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1), // item start
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1).thenTag(Tag.StudyDate), // study date header
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1).thenTag(Tag.StudyDate), // study date value
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1), // item end
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2), // item start
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence), // sequence start
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1), // item start
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1).thenTag(Tag.StudyDate), // Study date header
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1).thenTag(Tag.StudyDate), // Study date value
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1), //  item end (inserted)
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence), // sequence end (inserted)
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2), // item end
+      TagPath.fromSequence(Tag.EnergyWindowInformationSequence), // sequence end
+      TagPath.fromTag(Tag.PatientName), // Patient name header
+      TagPath.fromTag(Tag.PatientName), // Patient name value
+      TagPath.fromTag(Tag.PixelData), // fragments start
+      TagPath.fromTag(Tag.PixelData), // item start
+      TagPath.fromTag(Tag.PixelData), // fragment data
+      TagPath.fromTag(Tag.PixelData) // fragments end
     )
 
-    def check(tagPath: Option[TagPath]): Unit = {
+    def check(tagPath: TagPath): Unit = {
       tagPath shouldBe expectedPaths.head
       expectedPaths = expectedPaths.tail
     }
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(DicomFlowFactory.create(new DeferToPartFlow with TagPathTracking {
+      .via(DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with TagPathTracking[DicomPart] {
         override def onPart(part: DicomPart): List[DicomPart] = {
           check(tagPath)
           part :: Nil
@@ -337,15 +376,15 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
       }))
 
     source.runWith(TestSink.probe[DicomPart])
-      .request(23)
-      .expectNextN(23)
+      .request(27 - 2) // two events inserted
+      .expectNextN(27 - 2)
   }
 
   it should "support using the same tracking more than once within a flow" in {
     val bytes = sequence(Tag.DerivationCodeSequence, 24) ++ item(16) ++ patientNameJohnDoe()
 
     // must be def, not val
-    def flow = DicomFlowFactory.create(new IdentityFlow with TagPathTracking)
+    def flow = DicomFlowFactory.create(new IdentityFlow with TagPathTracking[DicomPart])
 
     val source = Source.single(bytes)
       .via(parseFlow)
@@ -360,8 +399,67 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
       .expectDicomComplete()
   }
 
+  it should "support sequences and items with explicit length" in {
+    val bytes = patientNameJohnDoe() ++
+      sequence(Tag.DigitalSignaturesSequence, 680) ++
+      item(672) ++
+      element(Tag.MACIDNumber, ByteString(1, 1), bigEndian = false, explicitVR = true) ++
+      element(Tag.DigitalSignatureUID, "1" * 54) ++
+      element(Tag.CertificateType, "A" * 14) ++
+      element(Tag.CertificateOfSigner, ByteString(new Array[Byte](426)), bigEndian = false, explicitVR = true) ++
+      element(Tag.Signature, ByteString(new Array[Byte](128)), bigEndian = false, explicitVR = true)
+
+    var expectedPaths = List(
+      TagPath.fromTag(Tag.PatientName),
+      TagPath.fromTag(Tag.PatientName),
+      TagPath.fromSequence(Tag.DigitalSignaturesSequence), // sequence start
+      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1), // item start
+      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.MACIDNumber),
+      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.MACIDNumber),
+      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.DigitalSignatureUID),
+      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.DigitalSignatureUID),
+      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.CertificateType),
+      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.CertificateType),
+      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.CertificateOfSigner),
+      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.CertificateOfSigner),
+      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.Signature),
+      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.Signature),
+      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1), // item end (inserted)
+      TagPath.fromSequence(Tag.DigitalSignaturesSequence)) // sequence end (inserted)
+
+    def check(tagPath: TagPath): Unit = {
+      tagPath shouldBe expectedPaths.head
+      expectedPaths = expectedPaths.tail
+    }
+
+    val source = Source.single(bytes)
+      .via(parseFlow)
+      .via(DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with TagPathTracking[DicomPart] {
+        override def onPart(part: DicomPart): List[DicomPart] = {
+          check(tagPath)
+          part :: Nil
+        }
+      }))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .request(12)
+      .expectNextN(12)
+  }
+
+  it should "track an entire file without exception" in {
+    val file = new File(getClass.getResource("../data/test001.dcm").toURI)
+    val source = FileIO.fromPath(file.toPath)
+      .via(parseFlow)
+      .via(DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with TagPathTracking[DicomPart] {
+        override def onPart(part: DicomPart): List[DicomPart] = part :: Nil
+      }))
+
+    Await.result(source.runWith(Sink.ignore), 5.seconds)
+    succeed
+  }
+
   "The onStart event" should "be called for all combined flow stages" in {
-    def flow() = DicomFlowFactory.create(new DeferToPartFlow with StartEvent {
+    def flow() = DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with StartEvent[DicomPart] {
       var state = 1
       override def onStart(): List[DicomPart] = {
         state = 0
@@ -384,7 +482,7 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
   }
 
   it should "be called once for flows with more than one capability using the onStart event" in {
-    val flow = DicomFlowFactory.create(new DeferToPartFlow with GuaranteedDelimitationEvents with StartEvent {
+    val flow = DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with GuaranteedDelimitationEvents[DicomPart] with StartEvent[DicomPart] {
       var nCalls = 0
       override def onStart(): List[DicomPart] = {
         nCalls += 1

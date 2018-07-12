@@ -7,14 +7,14 @@ import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
-import se.nimsa.dicom._
+import se.nimsa.dicom.data.UID
 
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContextExecutor}
 
-class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")) with FlatSpecLike with Matchers with BeforeAndAfterAll {
+class ValidateFlowTest extends TestKit(ActorSystem("ValidateFlowSpec")) with FlatSpecLike with Matchers with BeforeAndAfterAll {
 
-  import se.nimsa.dicom.TestData._
+  import se.nimsa.dicom.data.TestData._
   import se.nimsa.dicom.streams.DicomFlows._
 
   implicit val materializer: ActorMaterializer = ActorMaterializer()
@@ -48,7 +48,7 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
       .expectComplete()
   }
 
-  it should "accept a file with no preamble and which starts with an attribute header" in {
+  it should "accept a file with no preamble and which starts with an element header" in {
     val bytes = patientNameJohnDoe()
 
     val source = Source.single(bytes)
@@ -60,7 +60,7 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
       .expectComplete()
   }
 
-  it should "not accept a file with a preamble followed by a corrupt attribute header" in {
+  it should "not accept a file with a preamble followed by a corrupt element header" in {
     val bytes = preamble ++ ByteString(1, 2, 3, 4, 5, 6, 7, 8, 9)
 
     val source = Source.single(bytes)
@@ -73,7 +73,7 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
 
 
   it should "accept any file that starts like a DICOM file" in {
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ ByteString.fromArray(new Array[Byte](1024))
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ ByteString.fromArray(new Array[Byte](1024))
 
     val source = Source.single(bytes)
       .via(new Chunker(10))
@@ -91,7 +91,7 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
   "The DICOM validation flow with contexts" should "buffer first 512 bytes" in {
 
     val contexts = Seq(ValidationContext(UID.CTImageStorage, UID.ExplicitVRLittleEndian))
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ fmiVersion ++ mediaStorageSOPClassUID ++ mediaStorageSOPInstanceUID ++ tsuidExplicitLE ++
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ fmiVersion() ++ mediaStorageSOPClassUID() ++ mediaStorageSOPInstanceUID() ++ transferSyntaxUID() ++
       ByteString.fromArray(new Array[Byte](1024))
 
     val source = Source.single(bytes)
@@ -109,7 +109,7 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
   it should "accept dicom data that corresponds to the given contexts" in {
 
     val contexts = Seq(ValidationContext(UID.CTImageStorage, UID.ExplicitVRLittleEndian))
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ fmiVersion ++ mediaStorageSOPClassUID ++ mediaStorageSOPInstanceUID ++ tsuidExplicitLE
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ fmiVersion() ++ mediaStorageSOPClassUID() ++ mediaStorageSOPInstanceUID() ++ transferSyntaxUID()
 
     val moreThan512Bytes = bytes ++ ByteString.fromArray(new Array[Byte](1024))
 
@@ -140,7 +140,7 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
   it should "not accept dicom data that does not correspond to the given contexts" in {
 
     val contexts = Seq(ValidationContext(UID.CTImageStorage, "1.2.840.10008.1.2.2"))
-    val bytes = preamble ++ fmiGroupLength(tsuidExplicitLE) ++ fmiVersion ++ mediaStorageSOPClassUID ++ mediaStorageSOPInstanceUID ++ tsuidExplicitLE
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ fmiVersion() ++ mediaStorageSOPClassUID() ++ mediaStorageSOPInstanceUID() ++ transferSyntaxUID()
 
     val moreThan512Bytes = bytes ++ ByteString.fromArray(new Array[Byte](1024))
 
@@ -168,7 +168,7 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
   it should "be able to parse dicom file meta information with missing mandatory fields" in {
 
     val contexts = Seq(ValidationContext(UID.CTImageStorage, UID.ExplicitVRLittleEndian))
-    val bytes = preamble ++ fmiVersion ++ mediaStorageSOPClassUID ++ tsuidExplicitLE
+    val bytes = preamble ++ fmiVersion() ++ mediaStorageSOPClassUID() ++ transferSyntaxUID()
 
     val moreThan512Bytes = bytes ++ ByteString.fromArray(new Array[Byte](1024))
 
@@ -197,7 +197,7 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
   it should "be able to parse dicom file meta information with wrong transfer syntax" in {
     val contexts = Seq(ValidationContext(UID.CTImageStorage, UID.ExplicitVRLittleEndian))
 
-    val bytes = preamble ++ fmiVersionImplicit ++ mediaStorageSOPClassUIDImplicitLE ++ tsuidExplicitLEImplicit
+    val bytes = preamble ++ fmiVersion(explicitVR = false) ++ mediaStorageSOPClassUID(explicitVR = false) ++ transferSyntaxUID(explicitVR = false)
 
     val moreThan512Bytes = bytes ++ ByteString.fromArray(new Array[Byte](1024))
 
@@ -223,7 +223,7 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
       .expectComplete()
   }
 
-  it should "accept a file with no preamble and which starts with an attribute header if no context is given" in {
+  it should "accept a file with no preamble and which starts with an element header if no context is given" in {
     val bytes = patientNameJohnDoe()
 
     val source = Source.single(bytes)
@@ -342,7 +342,7 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
       })
 
     val f = bytesSource
-      .via(new DicomValidateFlow(None, drainIncoming = false))
+      .via(new ValidateFlow(None, drainIncoming = false))
       .runWith(Sink.ignore)
 
     Await.ready(f, 5.seconds)
@@ -364,7 +364,7 @@ class DicomValidateFlowTest extends TestKit(ActorSystem("DicomValidateFlowSpec")
       })
 
     val f = bytesSource
-      .via(new DicomValidateFlow(None, drainIncoming = true))
+      .via(new ValidateFlow(None, drainIncoming = true))
       .map(bs => {
         nItemsEmitted += 1
         bs

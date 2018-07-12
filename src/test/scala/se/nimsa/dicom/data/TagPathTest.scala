@@ -1,17 +1,22 @@
-package se.nimsa.dicom
+package se.nimsa.dicom.data
 
 import org.scalatest.{FlatSpec, Matchers}
+import se.nimsa.dicom.data.TagPath.EmptyTagPath
 
 class TagPathTest extends FlatSpec with Matchers {
 
-  "The tag path depth" should "be 0 when pointint to a tag in the root dataset" in {
+  "The tag path depth" should "be 1 when pointing to a tag in the root dataset" in {
     val path = TagPath.fromTag(Tag.PatientID)
-    path.depth shouldBe 0
+    path.depth shouldBe 1
   }
 
-  it should "be 3 when pointing to a tag in three levels of sequences" in {
+  it should "be 0 for empty tag paths" in {
+   EmptyTagPath.depth shouldBe 0
+  }
+
+  it should "be 4 when pointing to a tag in three levels of sequences" in {
     val path = TagPath.fromSequence(Tag.DerivationCodeSequence).thenSequence(Tag.DerivationCodeSequence, 3).thenSequence(Tag.DerivationCodeSequence).thenTag(Tag.PatientID)
-    path.depth shouldBe 3
+    path.depth shouldBe 4
   }
 
   "A tag path" should "have a legible string representation" in {
@@ -29,16 +34,6 @@ class TagPathTest extends FlatSpec with Matchers {
     path.isRoot shouldBe false
   }
 
-  it should "be a sequence when pointing to a sequence" in {
-    val path = TagPath.fromSequence(Tag.DerivationCodeSequence)
-    path.isSequence shouldBe true
-  }
-
-  it should "not be a sequence when pointing to a non-sequence tag" in {
-    val path = TagPath.fromSequence(Tag.DerivationCodeSequence).thenTag(Tag.PatientID)
-    path.isSequence shouldBe false
-  }
-
   "A list representation of tag path tags" should "contain a single entry for a tag in the root dataset" in {
     val path = TagPath.fromTag(Tag.PatientID)
     path.toList shouldBe path :: Nil
@@ -46,7 +41,7 @@ class TagPathTest extends FlatSpec with Matchers {
 
   it should "contain four entries for a path of depth 3" in {
     val path = TagPath.fromSequence(Tag.DerivationCodeSequence).thenSequence(Tag.DerivationCodeSequence, 3).thenSequence(Tag.DerivationCodeSequence).thenTag(Tag.PatientID)
-    path.toList shouldBe path.previous.get.previous.get.previous.get :: path.previous.get.previous.get :: path.previous.get :: path :: Nil
+    path.toList shouldBe path.previous.previous.previous :: path.previous.previous :: path.previous :: path :: Nil
   }
 
   "Comparing two tag paths" should "return false when comparing a tag path to itself" in {
@@ -90,11 +85,28 @@ class TagPathTest extends FlatSpec with Matchers {
     aPath < bPath shouldBe true
   }
 
-  it should "sort paths with equal tag number by item index, with index less than wildcard" in {
-    val aPath = TagPath.fromSequence(1).thenSequence(1).thenSequence(1).thenTag(2)
-    val bPath = TagPath.fromSequence(1).thenSequence(1, 3).thenSequence(1).thenTag(2)
+  it should "should not define an ordering when comparing item indices and wildcards" in {
+    val aPath = TagPath.fromSequence(1)
+    val bPath = TagPath.fromSequence(1, 1)
     aPath < bPath shouldBe false
-    bPath < aPath shouldBe true
+    bPath < aPath shouldBe false
+  }
+
+  it should "not provide a particular ordering of two empty tag paths" in {
+    EmptyTagPath < EmptyTagPath shouldBe false
+  }
+
+  it should "sort empty paths as less than any other path" in {
+    EmptyTagPath < TagPath.fromTag(0) shouldBe true
+    EmptyTagPath < TagPath.fromSequence(0) shouldBe true
+    EmptyTagPath < TagPath.fromSequence(0, 1) shouldBe true
+  }
+
+  it should "sort non-empty tag paths after empty paths" in {
+    TagPath.fromTag(0) < EmptyTagPath shouldBe false
+    TagPath.fromSequence(0) < EmptyTagPath shouldBe false
+    TagPath.fromSequence(0, 1) < EmptyTagPath shouldBe false
+
   }
 
   "Two tag paths" should "be equal if they point to the same path" in {
@@ -127,10 +139,28 @@ class TagPathTest extends FlatSpec with Matchers {
     aPath should not be bPath
   }
 
+  it should "be equal if both are empty" in {
+    EmptyTagPath == EmptyTagPath shouldBe true
+  }
+
   "The startsWith test" should "return true for equal paths" in {
     val aPath = TagPath.fromSequence(1).thenSequence(2).thenSequence(3).thenTag(4)
     val bPath = TagPath.fromSequence(1).thenSequence(2).thenSequence(3).thenTag(4)
     aPath.startsWith(bPath) shouldBe true
+  }
+
+  it should "return true for two empty paths" in {
+    EmptyTagPath.startsWith(EmptyTagPath) shouldBe true
+  }
+
+  it should "return true when any path starts with empty path" in {
+    val aPath = TagPath.fromTag(1)
+    aPath.startsWith(EmptyTagPath) shouldBe true
+  }
+
+  it should "return false when empty path starts with non-empty path" in {
+    val aPath = TagPath.fromTag(1)
+    EmptyTagPath.startsWith(aPath) shouldBe false
   }
 
   it should "return false when subject path is longer than path" in {
@@ -235,7 +265,7 @@ class TagPathTest extends FlatSpec with Matchers {
     aPath.startsWithSuperPath(bPath) shouldBe true
   }
 
-  "The super path test" should "return false for unequal length paths" in {
+  "The sub path test" should "return false for unequal length paths" in {
     val aPath = TagPath.fromSequence(1, 3).thenSequence(2, 4).thenSequence(3).thenTag(4)
     val bPath = TagPath.fromSequence(1, 3).thenSequence(2, 4).thenTag(4)
     aPath.hasSubPath(bPath) shouldBe false
@@ -253,7 +283,11 @@ class TagPathTest extends FlatSpec with Matchers {
     aPath.hasSubPath(bPath) shouldBe false
   }
 
-  "The sub path test" should "return false for unequal length paths" in {
+  it should "return true for two empty paths" in {
+    EmptyTagPath.hasSubPath(EmptyTagPath) shouldBe true
+  }
+
+  "The super path test" should "return false for unequal length paths" in {
     val aPath = TagPath.fromSequence(1, 3).thenSequence(2, 4).thenSequence(3).thenTag(4)
     val bPath = TagPath.fromSequence(1, 3).thenSequence(2, 4).thenTag(4)
     aPath.hasSuperPath(bPath) shouldBe false
@@ -271,10 +305,28 @@ class TagPathTest extends FlatSpec with Matchers {
     aPath.hasSuperPath(bPath) shouldBe true
   }
 
+  it should "return true for two empty paths" in {
+    EmptyTagPath.hasSuperPath(EmptyTagPath) shouldBe true
+  }
+
   "The endsWith test" should "return true when a longer tag ends with a shorter" in {
     val aPath = TagPath.fromSequence(1, 3).thenTag(2)
     val bPath = TagPath.fromTag(2)
     aPath.endsWith(bPath) shouldBe true
+  }
+
+  it should "return true for two empty paths" in {
+    EmptyTagPath.endsWith(EmptyTagPath) shouldBe true
+  }
+
+  it should "return false when checking if non-empty path ends with empty path" in {
+    val aPath = TagPath.fromTag(1)
+    aPath.endsWith(EmptyTagPath) shouldBe false
+  }
+
+  it should "return false when empty path starts with non-empty path" in {
+    val aPath = TagPath.fromTag(1)
+    EmptyTagPath.endsWith(aPath) shouldBe false
   }
 
   it should "return false when a shorter tag is compared to a longer" in {
@@ -400,5 +452,47 @@ class TagPathTest extends FlatSpec with Matchers {
     path.contains(2) shouldBe true
     path.contains(3) shouldBe true
     path.contains(4) shouldBe false
+  }
+
+  "The take operation" should "preserve elements from the left" in {
+    val path = TagPath.fromSequence(1).thenSequence(2,1).thenSequence(3).thenTag(4)
+    path.take(-100) shouldBe EmptyTagPath
+    path.take(0) shouldBe EmptyTagPath
+    path.take(1) shouldBe TagPath.fromSequence(1)
+    path.take(2) shouldBe TagPath.fromSequence(1).thenSequence(2,1)
+    path.take(3) shouldBe TagPath.fromSequence(1).thenSequence(2,1).thenSequence(3)
+    path.take(4) shouldBe path
+    path.take(100) shouldBe path
+  }
+
+  "The drop operation" should "remove elements from the left" in {
+    val path = TagPath.fromSequence(1).thenSequence(2,1).thenSequence(3).thenTag(4)
+    path.drop(-100) shouldBe path
+    path.drop(0) shouldBe path
+    path.drop(1) shouldBe TagPath.fromSequence(2,1).thenSequence(3).thenTag(4)
+    path.drop(2) shouldBe TagPath.fromSequence(3).thenTag(4)
+    path.drop(3) shouldBe TagPath.fromTag(4)
+    path.drop(4) shouldBe EmptyTagPath
+    path.drop(100) shouldBe EmptyTagPath
+  }
+
+  "The head of a tag path" should "be the root element of the path" in {
+    TagPath.fromTag(1).head shouldBe TagPath.fromTag(1)
+    TagPath.fromSequence(1).head shouldBe TagPath.fromSequence(1)
+    TagPath.fromSequence(1, 1).head shouldBe TagPath.fromSequence(1, 1)
+    TagPath.fromSequence(1).thenTag(2).head shouldBe TagPath.fromSequence(1)
+    TagPath.fromSequence(1, 1).thenTag(2).head shouldBe TagPath.fromSequence(1, 1)
+    TagPath.fromSequence(1, 1).thenSequence(2).thenTag(3).head shouldBe TagPath.fromSequence(1, 1)
+  }
+
+  "The tail of a tag path" should "be the whole part except the root element" in {
+    TagPath.fromTag(1).tail shouldBe EmptyTagPath
+    TagPath.fromSequence(1).tail shouldBe EmptyTagPath
+    TagPath.fromSequence(1, 1).tail shouldBe EmptyTagPath
+    TagPath.fromSequence(1).thenTag(2).tail shouldBe TagPath.fromTag(2)
+    TagPath.fromSequence(1, 1).thenTag(2).tail shouldBe TagPath.fromTag(2)
+    TagPath.fromSequence(1, 1).thenSequence(2).thenTag(3).tail shouldBe TagPath.fromSequence(2).thenTag(3)
+    TagPath.fromSequence(1, 1).thenSequence(2, 1).thenTag(3).tail shouldBe TagPath.fromSequence(2, 1).thenTag(3)
+    TagPath.fromSequence(1).thenSequence(2).thenSequence(3).thenTag(4).tail shouldBe TagPath.fromSequence(2).thenSequence(3).thenTag(4)
   }
 }

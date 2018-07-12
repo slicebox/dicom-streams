@@ -1,4 +1,4 @@
-package se.nimsa.dicom
+package se.nimsa.dicom.data
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer

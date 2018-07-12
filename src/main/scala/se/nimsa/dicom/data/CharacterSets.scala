@@ -1,27 +1,28 @@
-package se.nimsa.dicom
+package se.nimsa.dicom.data
 
 import java.nio.charset.{Charset, StandardCharsets}
 
 import akka.util.ByteString
-import se.nimsa.dicom.VR.VR
+import se.nimsa.dicom.data.Elements.ValueElement
+import se.nimsa.dicom.data.VR.VR
 
 /**
   * Class for decoding DICOM character data according to one or more character sets as specified by the
-  * SpecificCharacterSet attribute.
+  * SpecificCharacterSet element.
   *
-  * @param charsetArray character sets
+  * @param charsetNames character set names as specified in the DICOM standard
   */
-class CharacterSets(val charsetArray: Seq[String]) {
+class CharacterSets(val charsetNames: Seq[String]) {
 
   import CharacterSets._
 
-  private val charsetExtensionsEnabled = charsetArray.length > 1
+  private val charsetExtensionsEnabled = charsetNames.length > 1
 
   private val specifiedCharsets =
-    (if (charsetArray.nonEmpty && charsetArray.head.isEmpty) // first item may be empty -> default charset
+    (if (charsetNames.nonEmpty && charsetNames.head.isEmpty) // first item may be empty -> default charset
       Seq(defaultCharsetObj)
     else
-      Seq.empty) ++ charsetArray.flatMap(s => charsetsMap.get(s))
+      Seq.empty) ++ charsetNames.flatMap(s => charsetsMap.get(s))
 
   private val getInitialCharset =
     if (specifiedCharsets.nonEmpty)
@@ -70,6 +71,8 @@ class CharacterSets(val charsetArray: Seq[String]) {
       sb.append(new String(b.toArray, off, cur - off, charset.charset))
     sb.toString
   }
+
+  override def toString: String = s"${getClass.getSimpleName} [${specifiedCharsets.map(_.charset.toString).mkString(",")}]"
 }
 
 object CharacterSets {
@@ -126,10 +129,13 @@ object CharacterSets {
   val defaultCharsetObj = new CharsetObj(defaultCharset, 1, None)
   val defaultOnly = new CharacterSets(Array[String](""))
 
-  def apply(specificCharacterSetValue: ByteString): CharacterSets = {
-    val s = Value.toStrings(VR.CS, CharacterSets.defaultOnly, specificCharacterSetValue)
+  def apply(specificCharacterSetValue: ValueElement): CharacterSets = {
+    val s = specificCharacterSetValue.value.toStrings(specificCharacterSetValue.vr, specificCharacterSetValue.bigEndian, defaultOnly)
     if (s.isEmpty || s.length == 1 && s.head.isEmpty) defaultOnly else new CharacterSets(s)
   }
+
+  def apply(specificCharacterSetBytes: ByteString): CharacterSets =
+    apply(ValueElement(Tag.SpecificCharacterSet, VR.CS, Value(specificCharacterSetBytes), bigEndian = false, explicitVR = true))
 
   def isVrAffectedBySpecificCharacterSet(vr: VR): Boolean =
     vr match {

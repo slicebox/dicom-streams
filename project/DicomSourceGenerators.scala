@@ -18,36 +18,51 @@ import scala.xml.{Elem, NodeSeq, XML}
 
 object DicomSourceGenerators {
 
-  val xml: Elem = XML.loadFile("project/part06.xml")
-  val chapters: NodeSeq = xml \ "chapter"
+  val part06: Elem = XML.loadFile("project/part06.xml")
+  val part07: Elem = XML.loadFile("project/part07.xml")
 
-  case class Attribute(tagString: String, name: String, keyword: String, vr: String, vm: String, retired: Boolean)
+  val chapters: NodeSeq = part06 \ "chapter"
+
+  case class DocElement(tagString: String, name: String, keyword: String, vr: String, vm: String, retired: Boolean)
 
   case class UID(uidValue: String, uidName: String, uidType: String, retired: Boolean)
 
   val nonAlphaNumeric = "[^a-zA-Z0-9_]"
-  val nonHex = "[^a-fA-F0-9]"
+  val nonHex = "[^a-fA-F0-9x]"
   val nonUID = "[^0-9.]"
 
-  val attributes: Seq[Attribute] = {
+  val (commandElements, metaElements, directoryElements, dataElements): (Seq[DocElement], Seq[DocElement], Seq[DocElement], Seq[DocElement]) = {
     val meta = chapters
       .find(_ \@ "label" == "7")
+      .map(_ \\ "tbody" \ "tr")
+    val directory = chapters
+      .find(_ \@ "label" == "8")
       .map(_ \\ "tbody" \ "tr")
     val data = chapters
       .find(_ \@ "label" == "6")
       .map(_ \\ "tbody" \ "tr")
-    val rows = meta.flatMap(m => data.map(d => m ++ d)).getOrElse(NodeSeq.Empty)
+    val commands = (part07 \ "chapter" \ "section" \ "table")
+      .find(_ \@ "label" == "E.1-1")
+      .map(_ \ "tbody" \ "tr")
 
-    rows.map { row =>
-      val cells = row \ "td"
-      Attribute(
-        cells.head.text.trim,
-        cells(1).text.trim,
-        cells(2).text.trim.replaceAll(nonAlphaNumeric, ""),
-        cells(3).text.trim,
-        cells(4).text.trim,
-        cells(5).text.trim.nonEmpty)
-    }
+    def toElements(nodes: NodeSeq): Seq[DocElement] =
+      nodes.map { node =>
+        val cells = node \ "td"
+        DocElement(
+          cells.head.text.trim,
+          cells(1).text.trim,
+          cells(2).text.trim.replaceAll(nonAlphaNumeric, ""),
+          cells(3).text.trim,
+          cells(4).text.trim,
+          cells(5).text.trim.toLowerCase.startsWith("ret"))
+      }
+
+    (
+      toElements(commands.getOrElse(Seq.empty)),
+      toElements(meta.getOrElse(Seq.empty)),
+      toElements(directory.getOrElse(Seq.empty)),
+      toElements(data.getOrElse(Seq.empty))
+    )
   }
 
   val uids: Seq[UID] = {
@@ -67,14 +82,82 @@ object DicomSourceGenerators {
       .getOrElse(Seq.empty)
   }
 
-  def generateTag(): String =
-    s"""package se.nimsa.dicom
+  def generateTag(): String = {
+    def generate(elements: Seq[DocElement]) =
+      commandElements
+        .filter(_.keyword.nonEmpty)
+        .map(a => s"""  final val ${a.keyword} = 0x${a.tagString.replaceAll("x", "0").replaceAll(nonHex, "")}${if (a.retired) " // retired" else ""}""")
+        .mkString("\r\n")
+
+    s"""package se.nimsa.dicom.data
        |
        |object Tag {
        |
-       |${attributes.filter(_.keyword.nonEmpty).map(a => s"""  final val ${a.keyword} = 0x${a.tagString.replaceAll(nonHex, "").replaceAll("x", "0")}${if (a.retired) " // retired" else ""}""").mkString("\r\n")}
+       |  // command elements
+       |${commandElements.filter(_.keyword.nonEmpty).map(a => s"""  final val ${a.keyword} = 0x${a.tagString.replaceAll("x", "0").replaceAll(nonHex, "")}${if (a.retired) " // retired" else ""}""").mkString("\r\n")}
+       |
+       |  // file meta elements
+       |${metaElements.filter(_.keyword.nonEmpty).map(a => s"""  final val ${a.keyword} = 0x${a.tagString.replaceAll("x", "0").replaceAll(nonHex, "")}${if (a.retired) " // retired" else ""}""").mkString("\r\n")}
+       |
+       |  // directory elements
+       |${directoryElements.filter(_.keyword.nonEmpty).map(a => s"""  final val ${a.keyword} = 0x${a.tagString.replaceAll("x", "0").replaceAll(nonHex, "")}${if (a.retired) " // retired" else ""}""").mkString("\r\n")}
+       |
+       |  // data elements
+       |${dataElements.filter(_.keyword.nonEmpty).map(a => s"""  final val ${a.keyword} = 0x${a.tagString.replaceAll("x", "0").replaceAll(nonHex, "")}${if (a.retired) " // retired" else ""}""").mkString("\r\n")}
        |
        |}""".stripMargin
+  }
+
+  def generateKeyword(): String = {
+    val split = 2153
+
+    val tagKeywordMappings = (commandElements ++ metaElements ++ directoryElements ++ dataElements)
+      .filter(_.keyword.nonEmpty)
+      .filterNot(_.tagString.startsWith("(0028,04x"))
+      .map { a =>
+        val tag = s"0x${a.tagString.replaceAll("x", "0").replaceAll(nonHex, "")}"
+        val keyword = a.keyword
+        (tag, keyword)
+      }
+      .sortBy(_._1)
+      .splitAt(split)
+
+    val splitValue = tagKeywordMappings._2.head._1
+
+    s"""package se.nimsa.dicom.data
+       |
+       |import scala.annotation.switch
+       |
+       |object Keyword {
+       |
+       |  def valueOf(tag: Int): String = tag match {
+       |    case t if (t & 0x0000FFFF) == 0 && (t & 0xFFFD0000) != 0 => "GroupLength"
+       |    case t if (tag & 0x00010000) != 0 =>
+       |      if ((tag & 0x0000FF00) == 0 && (tag & 0x000000F0) != 0) "PrivateCreatorID" else ""
+       |    case t if (tag & 0xFFFFFF00) == Tag.SourceImageIDs => "SourceImageIDs"
+       |    case t =>
+       |      val t2: Int =
+       |        if ((tag & 0xFFE00000) == 0x50000000 || (tag & 0xFFE00000) == 0x60000000)
+       |          tag & 0xFFE0FFFF
+       |        else if ((tag & 0xFF000000) == 0x7F000000 && (tag & 0xFFFF0000) != 0x7FE00000)
+       |          tag & 0xFF00FFFF
+       |        else
+       |          tag
+       |      if (t2 < $splitValue) valueOfLow(t2) else valueOfHigh(t2)
+       |  }
+       |
+       |  private def valueOfLow(tag: Int) = (tag: @switch) match {
+       |${tagKeywordMappings._1.map(p => s"""    case ${p._1} => "${p._2}"""").mkString("\r\n")}
+       |    case _ => ""
+       |  }
+       |
+       |  private def valueOfHigh(tag: Int) = (tag: @switch) match {
+       |${tagKeywordMappings._2.map(p => s"""    case ${p._1} => "${p._2}"""").mkString("\r\n")}
+       |    case _ => ""
+       |  }
+       |
+       |}""".stripMargin
+  }
 
   def generateUID(): String = {
     val pairs = uids
@@ -91,7 +174,7 @@ object DicomSourceGenerators {
       .filter(_._1 != "Retired")
       .distinct
 
-    s"""package se.nimsa.dicom
+    s"""package se.nimsa.dicom.data
        |
        |object UID {
        |
@@ -101,14 +184,14 @@ object DicomSourceGenerators {
   }
 
   def generateDictionary(): String = {
-    val split = 2000
+    val split = 2153
 
-    val tagVrMappings = attributes
+    val tagVrMappings = (commandElements ++ metaElements ++ directoryElements ++ dataElements)
       .filter(_.keyword.nonEmpty)
+      .filterNot(_.tagString.startsWith("(0028,04x"))
       .map { a =>
-        val tag = s"0x${a.tagString.replaceAll(nonHex, "")}"
+        val tag = s"0x${a.tagString.replaceAll("x", "0").replaceAll(nonHex, "")}"
         val vr = a.vr match {
-          case s if s == "CS" && a.keyword != "SourceImageIDs" => s
           case s if s.contains("OW") => "OW"
           case s if s.contains("SS") => "SS"
           case s => s
@@ -116,13 +199,12 @@ object DicomSourceGenerators {
         (tag, vr)
       }
       .filter(_._2.length == 2)
-      .filter(_._1.length == 10)
       .sortBy(_._1)
       .splitAt(split)
 
     val splitValue = tagVrMappings._2.head._1
 
-    s"""package se.nimsa.dicom
+    s"""package se.nimsa.dicom.data
        |
        |import VR._
        |import scala.annotation.switch
@@ -130,8 +212,12 @@ object DicomSourceGenerators {
        |object Dictionary {
        |
        |  def vrOf(tag: Int): VR = tag match {
-       |    case t if (t & 0x0000FFFF) == 0 => VR.UL
-       |    case t if (t & 0x00010000) != 0 => if ((tag & 0x0000FF00) == 0 && (tag & 0x000000F0) != 0) VR.LO else VR.UN
+       |    case t if (t & 0x0000FFFF) == 0 => VR.UL // group length
+       |    case t if (t & 0x00010000) != 0 => // private creator ID
+       |      if ((tag & 0x0000FF00) == 0 && (tag & 0x000000F0) != 0)
+       |        VR.LO // private creator data element
+       |      else
+       |        VR.UN // private tag
        |    case t if (t & 0xFFFFFF00) == Tag.SourceImageIDs => VR.CS
        |    case t =>
        |      val t2 =
