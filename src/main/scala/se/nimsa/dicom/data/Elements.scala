@@ -343,11 +343,11 @@ object Elements {
   def fileMetaInformationElements(sopInstanceUID: String, sopClassUID: String, transferSyntax: String): List[ValueElement] = {
     val fmiElements = List(
       ValueElement.fromBytes(Tag.FileMetaInformationVersion, ByteString(0, 1)),
-      ValueElement.fromString(Tag.MediaStorageSOPClassUID, sopClassUID),
-      ValueElement.fromString(Tag.MediaStorageSOPInstanceUID, sopInstanceUID),
-      ValueElement.fromString(Tag.TransferSyntaxUID, transferSyntax),
-      ValueElement.fromString(Tag.ImplementationClassUID, Implementation.classUid),
-      ValueElement.fromString(Tag.ImplementationVersionName, Implementation.versionName))
+      ValueElement.fromBytes(Tag.MediaStorageSOPClassUID, padToEvenLength(ByteString(sopClassUID), Tag.MediaStorageSOPClassUID)),
+      ValueElement.fromBytes(Tag.MediaStorageSOPInstanceUID, padToEvenLength(ByteString(sopInstanceUID), Tag. MediaStorageSOPInstanceUID)),
+      ValueElement.fromBytes(Tag.TransferSyntaxUID, padToEvenLength(ByteString(transferSyntax), Tag.TransferSyntaxUID)),
+      ValueElement.fromBytes(Tag.ImplementationClassUID, padToEvenLength(ByteString(Implementation.classUid), Tag.ImplementationClassUID)),
+      ValueElement.fromBytes(Tag.ImplementationVersionName, padToEvenLength(ByteString(Implementation.versionName), Tag.ImplementationVersionName)))
     val groupLength = ValueElement.fromBytes(Tag.FileMetaInformationGroupLength, intToBytesLE(fmiElements.map(_.toBytes.length).sum))
     groupLength :: fmiElements
   }

@@ -397,8 +397,8 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
     val fmi = Elements.empty().set(fmiList)
     fmi.getInt(Tag.FileMetaInformationGroupLength).get shouldBe
       (12 + 5 * 8 + 2 + 4 + 4 + 2 +
-        padToEvenLength(ByteString(Implementation.classUid), VR.UI).length +
-        padToEvenLength(ByteString(Implementation.versionName), VR.LO).length)
+        padToEvenLength(ByteString(Implementation.classUid), Tag.ImplementationClassUID).length +
+        padToEvenLength(ByteString(Implementation.versionName), Tag.ImplementationVersionName).length)
     fmi.getBytes(Tag.FileMetaInformationVersion).get shouldBe ByteString(0, 1)
     fmi.getString(Tag.MediaStorageSOPClassUID).get shouldBe "cuid"
     fmi.getString(Tag.MediaStorageSOPInstanceUID).get shouldBe "iuid"
