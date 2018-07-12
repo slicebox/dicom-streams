@@ -2,8 +2,8 @@
 
 Service | Status | Description
 ------- | ------ | -----------
-Travis            | [![Build Status](https://travis-ci.org/slicebox/dicom-streams.svg?branch=develop)](https://travis-ci.org/slicebox/dicom-streams.svg?branch=develop) | [Tests](https://travis-ci.org/slicebox/dicom-streams/)
-Coveralls         | [![Coverage Status](https://coveralls.io/repos/github/slicebox/dicom-streams/badge.svg?branch=develop)](https://coveralls.io/github/slicebox/dicom-streams?branch=develop) | Code coverage
+Travis            | [![Build Status](https://travis-ci.org/slicebox/dicom-streams.svg?branch=master)](https://travis-ci.org/slicebox/dicom-streams.svg?branch=master) | [Tests](https://travis-ci.org/slicebox/dicom-streams/)
+Coveralls         | [![Coverage Status](https://coveralls.io/repos/github/slicebox/dicom-streams/badge.svg?branch=master)](https://coveralls.io/github/slicebox/dicom-streams?branch=master) | Code coverage
 
 
 The purpose of this project is to create a streaming API for reading and processing DICOM data using [akka-streams](http://doc.akka.io/docs/akka/current/scala/stream/index.html). 
