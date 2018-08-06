@@ -25,7 +25,7 @@ import se.nimsa.dicom.data.DicomParts._
 import se.nimsa.dicom.data.VR.VR
 import se.nimsa.dicom.data._
 
-/**s
+/**
   * Flow which ingests a stream of bytes and outputs a stream of DICOM data parts as specified by the <code>DicomPart</code>
   * trait. Example DICOM parts are the preamble, headers (tag, VR, length), value chunks (the data in an element divided into chunks),
   * items, sequences and fragments.
@@ -239,7 +239,7 @@ class ParseFlow(chunkSize: Int = 8192, stopTag: Option[Int] = None, inflate: Boo
       bytesToUShortBE(firstTwoBytes) == 0x789C
     }
 
-    def readHeader(reader: ByteReader, dicomState: HeaderState): (Int, VR, Int, Long) = {
+    private def readHeader(reader: ByteReader, dicomState: HeaderState): (Int, VR, Int, Long) = {
       reader.ensure(8)
       val tagVrBytes = reader.remainingData.take(8)
       val (tag, vr) = tagVr(tagVrBytes, dicomState.bigEndian, dicomState.explicitVR)
@@ -256,7 +256,7 @@ class ParseFlow(chunkSize: Int = 8192, stopTag: Option[Int] = None, inflate: Boo
         (tag, VR.UN, 8, lengthToLong(bytesToInt(tagVrBytes.drop(4), dicomState.bigEndian)))
     }
 
-    def readDatasetHeader(reader: ByteReader, state: DatasetHeaderState): Option[DicomPart] = {
+    private def readDatasetHeader(reader: ByteReader, state: DatasetHeaderState): Option[DicomPart] = {
       val (tag, vr, headerLength, valueLength) = readHeader(reader, state)
       // println(s"$tag $vr $headerLength $valueLength")
       if (stopTag.isDefined && tag == stopTag.get)
@@ -269,8 +269,10 @@ class ParseFlow(chunkSize: Int = 8192, stopTag: Option[Int] = None, inflate: Boo
           Some(SequencePart(tag, valueLength, state.bigEndian, state.explicitVR, bytes))
         else if (valueLength == indeterminateLength)
           Some(FragmentsPart(tag, valueLength, updatedVr2, state.bigEndian, state.explicitVR, bytes))
-        else
-          Some(HeaderPart(tag, updatedVr2, valueLength, isFmi = false, state.bigEndian, state.explicitVR, bytes))
+        else {
+          val realVr = if (state.explicitVR) vr else updatedVr2
+          Some(HeaderPart(tag, realVr, valueLength, isFmi = false, state.bigEndian, state.explicitVR, bytes))
+        }
       } else
         tag match {
           case 0xFFFEE000 => Some(ItemPart(state.itemIndex + 1, valueLength, state.bigEndian, reader.take(8)))

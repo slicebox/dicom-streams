@@ -67,7 +67,7 @@ object ModifyFlow {
     *
     * Note that modified DICOM data may not be valid. This function does not ensure values are padded to even length and
     * changing an element may lead to invalid group length elements such as MediaStorageSOPInstanceUID. There are
-    * utility functions in `se.nimsa.ddcm4che.data` for padding values and flows for adjusting group lengths.
+    * utility functions in `se.nimsa.dicom.data` for padding values and flows for adjusting group lengths.
     *
     * @param modifications Any number of `TagModification`s each specifying a tag path, a modification function, and
     *                      a Boolean indicating whether absent values will be inserted or skipped.
@@ -118,16 +118,10 @@ object ModifyFlow {
       def findModifyPart(header: HeaderPart): List[DicomPart] = sortedModifications
         .find(m => m.matches(tagPath))
         .map { tagModification =>
-          if (header.length > 0) {
-            currentHeader = Some(header)
-            currentModification = Some(tagModification)
-            value = ByteString.empty
-            Nil
-          } else {
-            val newValue = tagModification.modification(ByteString.empty)
-            val newHeader = header.withUpdatedLength(newValue.length)
-            newHeader :: valueOrNot(newValue)
-          }
+          currentHeader = Some(header)
+          currentModification = Some(tagModification)
+          value = ByteString.empty
+          Nil
         }
         .getOrElse(header :: Nil)
 
