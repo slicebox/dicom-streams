@@ -201,7 +201,7 @@ object DicomSourceGenerators {
       .map(p => (p._1, p._2))
       .splitAt(split)
     val tagVmMappings = tagMappings
-      .filter(p => !(List("SQ", "OF", "OD", "OW", "OB", "OL", "UR", "UN") contains p._2))
+      .filter(p => !(List("SQ", "OF", "OD", "OW", "OB", "OL", "UR", "UN", "LT", "ST", "UT") contains p._2))
       .map { p =>
         val tag = p._1
         val pattern = "([0-9]+)-?([0-9]+n|[0-9]+|n)?".r
@@ -273,7 +273,7 @@ object DicomSourceGenerators {
        |    case t =>
        |      val t2 = adjustTag(t)
        |      vrOf(t2) match {
-       |        case VR.SQ | VR.OF | VR.OD | VR.OW | VR.OB | VR.OL | VR.UR | VR.UN => Multiplicity.single
+       |        case VR.SQ | VR.OF | VR.OD | VR.OW | VR.OB | VR.OL | VR.UR | VR.UN | VR.LT | VR.ST | VR.UT => Multiplicity.single
        |        case _ => if (t2 < $splitValue) vmOfLow(t2) else vmOfHigh(t2)
        |      }
        |  }
