@@ -82,13 +82,7 @@ object DicomSourceGenerators {
       .getOrElse(Seq.empty)
   }
 
-  def generateTag(): String = {
-    def generate(elements: Seq[DocElement]) =
-      commandElements
-        .filter(_.keyword.nonEmpty)
-        .map(a => s"""  final val ${a.keyword} = 0x${a.tagString.replaceAll("x", "0").replaceAll(nonHex, "")}${if (a.retired) " // retired" else ""}""")
-        .mkString("\r\n")
-
+  def generateTag(): String =
     s"""package se.nimsa.dicom.data
        |
        |object Tag {
@@ -106,7 +100,6 @@ object DicomSourceGenerators {
        |${dataElements.filter(_.keyword.nonEmpty).map(a => s"""  final val ${a.keyword} = 0x${a.tagString.replaceAll("x", "0").replaceAll(nonHex, "")}${if (a.retired) " // retired" else ""}""").mkString("\r\n")}
        |
        |}""".stripMargin
-  }
 
   def generateKeyword(): String = {
     val split = 2153
@@ -186,7 +179,7 @@ object DicomSourceGenerators {
   def generateDictionary(): String = {
     val split = 2153
 
-    val tagVrMappings = (commandElements ++ metaElements ++ directoryElements ++ dataElements)
+    val tagMappings = (commandElements ++ metaElements ++ directoryElements ++ dataElements)
       .filter(_.keyword.nonEmpty)
       .filterNot(_.tagString.startsWith("(0028,04x"))
       .map { a =>
@@ -196,13 +189,33 @@ object DicomSourceGenerators {
           case s if s.contains("SS") => "SS"
           case s => s
         }
-        (tag, vr)
+        val vm = a.vm
+        (tag, vr, vm)
       }
       .filter(_._2.length == 2)
       .sortBy(_._1)
-      .splitAt(split)
 
-    val splitValue = tagVrMappings._2.head._1
+    val splitValue = tagMappings(split + 1)._1
+
+    val tagVrMappings = tagMappings
+      .map(p => (p._1, p._2))
+      .splitAt(split)
+    val tagVmMappings = tagMappings
+      .filter(p => !(List("SQ", "OF", "OW", "OB", "UN") contains p._2))
+      .map { p =>
+        val tag = p._1
+        val pattern = "([0-9]+)-?([0-9]+n|[0-9]+|n)?".r
+        val pattern(min, max) = p._3
+        val multiplicity =
+          if (max == null)
+            if (min == "1") "Multiplicity.single" else s"Multiplicity.fixed($min)"
+          else if (max endsWith "n")
+            if (min == "1") "Multiplicity.oneToMany" else s"Multiplicity.unbounded($min)"
+          else
+            s"Multiplicity.bounded($min, $max)"
+        (tag, multiplicity)
+      }
+      .splitAt(split)
 
     s"""package se.nimsa.dicom.data
        |
@@ -220,14 +233,8 @@ object DicomSourceGenerators {
        |        VR.UN // private tag
        |    case t if (t & 0xFFFFFF00) == Tag.SourceImageIDs => VR.CS
        |    case t =>
-       |      val t2 =
-       |        if ((t & 0xFFE00000) == 0x50000000 || (t & 0xFFE00000) == 0x60000000)
-       |          t & 0xFFE0FFFF
-       |        else if ((t & 0xFF000000) == 0x7F000000 && (t & 0xFFFF0000) != 0x7FE00000)
-       |          t & 0xFF00FFFF
-       |        else
-       |          t
-       |      if (t2 < $splitValue) vrOfLow(t2) else vrOfHigh(t2)
+       |      val t2 = adjustTag(t)
+       |      if (adjustTag(t2) < $splitValue) vrOfLow(t2) else vrOfHigh(t2)
        |  }
        |
        |  private def vrOfLow(tag: Int) = (tag: @switch) match {
@@ -238,6 +245,56 @@ object DicomSourceGenerators {
        |  private def vrOfHigh(tag: Int) = (tag: @switch) match {
        |    ${tagVrMappings._2.map(p => s"""case ${p._1} => ${p._2}""").mkString("\r\n    ")}
        |    case _ => UN
+       |  }
+       |
+       |  case class Multiplicity(min: Int, max: Option[Int]) {
+       |    def isSingle: Boolean = this == Multiplicity.single
+       |    def isMultiple: Boolean = !isSingle
+       |    def isBounded: Boolean = max.isDefined
+       |    def isUnbounded: Boolean = !isBounded
+       |  }
+       |
+       |  object Multiplicity {
+       |    def fixed(value: Int) = Multiplicity(value, Some(value))
+       |    def bounded(min: Int, max: Int) = Multiplicity(min, Some(max))
+       |    def unbounded(min: Int) = Multiplicity(min, None)
+       |    final val single: Multiplicity = fixed(1)
+       |    final val oneToMany: Multiplicity = unbounded(1)
+       |  }
+       |
+       |  def vmOf(tag: Int): Multiplicity = tag match {
+       |    case t if (t & 0x0000FFFF) == 0 => Multiplicity.single // group length
+       |    case t if (t & 0x00010000) != 0 => // private creator ID
+       |      if ((tag & 0x0000FF00) == 0 && (tag & 0x000000F0) != 0)
+       |        Multiplicity.single // private creator data element
+       |      else
+       |        Multiplicity.oneToMany // private tag
+       |    case t if (t & 0xFFFFFF00) == Tag.SourceImageIDs => Multiplicity.oneToMany
+       |    case t =>
+       |      val t2 = adjustTag(t)
+       |      vrOf(t2) match {
+       |        case VR.SQ | VR.OF | VR.OW | VR.OB | VR.UN => Multiplicity.single
+       |        case _ => if (t2 < $splitValue) vmOfLow(t2) else vmOfHigh(t2)
+       |      }
+       |  }
+       |
+       |  private def vmOfLow(tag: Int) = (tag: @switch) match {
+       |    ${tagVmMappings._1.map(p => s"""case ${p._1} => ${p._2}""").mkString("\r\n    ")}
+       |    case _ => Multiplicity.oneToMany
+       |  }
+       |
+       |  private def vmOfHigh(tag: Int) = (tag: @switch) match {
+       |    ${tagVmMappings._2.map(p => s"""case ${p._1} => ${p._2}""").mkString("\r\n    ")}
+       |    case _ => Multiplicity.oneToMany
+       |  }
+       |
+       |  private def adjustTag(tag: Int): Int = {
+       |    if ((tag & 0xFFE00000) == 0x50000000 || (tag & 0xFFE00000) == 0x60000000)
+       |      tag & 0xFFE0FFFF
+       |    else if ((tag & 0xFF000000) == 0x7F000000 && (tag & 0xFFFF0000) != 0x7FE00000)
+       |      tag & 0xFF00FFFF
+       |    else
+       |      tag
        |  }
        |
        |}""".stripMargin
