@@ -76,6 +76,12 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
   def getPatientNames(tag: Int): Seq[PatientName] = getAll(tag, v => v.value.toPatientNames(v.vr, characterSets))
   def getPatientName(tag: Int): Option[PatientName] = get(tag, v => v.value.toPatientName(v.vr, characterSets))
   def getURI(tag: Int): Option[URI] = get(tag, v => v.value.toURI(v.vr))
+  def getByteArray(tag: Int): Option[Array[Byte]] = get(tag, v => Option(v.value.toByteArray))
+  def getShortArray(tag: Int): Option[Array[Short]] = get(tag, v => Option(v.value.toShortArray(v.bigEndian)))
+  def getIntArray(tag: Int): Option[Array[Int]] = get(tag, v => Option(v.value.toIntArray(v.bigEndian)))
+  def getLongArray(tag: Int): Option[Array[Long]] = get(tag, v => Option(v.value.toLongArray(v.bigEndian)))
+  def getFloatArray(tag: Int): Option[Array[Float]] = get(tag, v => Option(v.value.toFloatArray(v.bigEndian)))
+  def getDoubleArray(tag: Int): Option[Array[Double]] = get(tag, v => Option(v.value.toDoubleArray(v.bigEndian)))
 
   def getSequence(tag: Int): Option[Sequence] = apply(tag).flatMap {
     case e: Sequence => Some(e)
@@ -259,6 +265,36 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
     setValue(tag, vr, Value.fromURI(vr, value), bigEndian, explicitVR)
   def setURI(tag: Int, value: URI, bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
     setURI(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
+
+  def setByteArray(tag: Int, vr: VR, value: Array[Byte], bigEndian: Boolean, explicitVR: Boolean): Elements =
+    setValue(tag, vr, Value.fromByteArray(vr, value), bigEndian, explicitVR)
+  def setByteArray(tag: Int, value: Array[Byte], bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
+    setByteArray(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
+
+  def setShortArray(tag: Int, vr: VR, value: Array[Short], bigEndian: Boolean, explicitVR: Boolean): Elements =
+    setValue(tag, vr, Value.fromShortArray(vr, value, bigEndian), bigEndian, explicitVR)
+  def setShortArray(tag: Int, value: Array[Short], bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
+    setShortArray(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
+
+  def setIntArray(tag: Int, vr: VR, value: Array[Int], bigEndian: Boolean, explicitVR: Boolean): Elements =
+    setValue(tag, vr, Value.fromIntArray(vr, value, bigEndian), bigEndian, explicitVR)
+  def setIntArray(tag: Int, value: Array[Int], bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
+    setIntArray(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
+
+  def setLongArray(tag: Int, vr: VR, value: Array[Long], bigEndian: Boolean, explicitVR: Boolean): Elements =
+    setValue(tag, vr, Value.fromLongArray(vr, value, bigEndian), bigEndian, explicitVR)
+  def setLongArray(tag: Int, value: Array[Long], bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
+    setLongArray(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
+
+  def setFloatArray(tag: Int, vr: VR, value: Array[Float], bigEndian: Boolean, explicitVR: Boolean): Elements =
+    setValue(tag, vr, Value.fromFloatArray(vr, value, bigEndian), bigEndian, explicitVR)
+  def setFloatArray(tag: Int, value: Array[Float], bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
+    setFloatArray(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
+
+  def setDoubleArray(tag: Int, vr: VR, value: Array[Double], bigEndian: Boolean, explicitVR: Boolean): Elements =
+    setValue(tag, vr, Value.fromDoubleArray(vr, value, bigEndian), bigEndian, explicitVR)
+  def setDoubleArray(tag: Int, value: Array[Double], bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
+    setDoubleArray(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
 
   def remove(tag: Int): Elements = filter(_.tag != tag)
   def filter(f: ElementSet => Boolean): Elements = copy(data = data.filter(f))

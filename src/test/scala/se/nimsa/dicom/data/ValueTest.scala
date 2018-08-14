@@ -371,6 +371,14 @@ class ValueTest extends FlatSpec with Matchers {
     uri shouldBe empty
   }
 
+  "Parsing byte array values" should "return empty array for empty byte string" in {
+    Value(ByteString.empty).toByteArray shouldBe Array.empty
+  }
+
+  it should "parse byte string" in {
+    Value(ByteString(1, 2, 3, 4)).toByteArray shouldBe Array[Byte](1, 2, 3, 4)
+  }
+
   "An element" should "update its value bytes" in {
     val updated = Value.empty ++ ByteString("ABC")
     updated.bytes shouldBe ByteString("ABC") // not compliant
