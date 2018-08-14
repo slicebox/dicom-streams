@@ -1,5 +1,6 @@
 package se.nimsa.dicom.data
 
+import java.net.URI
 import java.time.{LocalDate, ZoneOffset, ZonedDateTime}
 
 import akka.util.ByteString
@@ -34,7 +35,8 @@ case class Value private[data](bytes: ByteString) {
       case OW => Seq(split(bytes, 2).map(bytesToShort(_, bigEndian)).map(shortToHexString).mkString(" "))
       case OF => Seq(parseFL(bytes, bigEndian).mkString(" "))
       case OD => Seq(parseFD(bytes, bigEndian).mkString(" "))
-      case ST | LT | UT => Seq(trimPadding(characterSets.decode(vr, bytes), vr.paddingByte))
+      case ST | LT | UT | UR => Seq(trimPadding(characterSets.decode(vr, bytes), vr.paddingByte))
+      case UC => split(trimPadding(characterSets.decode(vr, bytes), vr.paddingByte))
       case _ => split(characterSets.decode(vr, bytes)).map(trim)
     }
 
@@ -149,6 +151,15 @@ case class Value private[data](bytes: ByteString) {
   }
 
   /**
+    * @return this value as an option of a `URI`. If the value has no `URI` representation, an empty option is
+    *         returned.
+    */
+  def toURI(vr: VR = VR.UR): Option[URI] = vr match {
+    case UR => parseUR(bytes)
+    case _ => None
+  }
+
+  /**
     * @return the first string representation of this value, if any
     */
   def toString(vr: VR, bigEndian: Boolean = false, characterSets: CharacterSets = defaultCharacterSet): Option[String] =
@@ -228,7 +239,7 @@ case class Value private[data](bytes: ByteString) {
 object Value {
 
   private def combine(vr: VR, values: Seq[ByteString]): ByteString = vr match {
-    case AT | FL | FD | SL | SS | UL | US | OB | OW | OF | OD => values.reduce(_ ++ _)
+    case AT | FL | FD | SL | SS | UL | US | OB | OW | OL | OF | OD => values.reduce(_ ++ _)
     case _ => if (values.isEmpty) ByteString.empty else values.tail.foldLeft(values.head)((bytes, b) => bytes ++ ByteString('\\') ++ b)
   }
 
@@ -253,7 +264,7 @@ object Value {
     case SS => shortToBytes(java.lang.Short.parseShort(value), bigEndian)
     case UL => truncate(4, longToBytes(java.lang.Long.parseUnsignedLong(value), bigEndian), bigEndian)
     case US => truncate(2, intToBytes(java.lang.Integer.parseUnsignedInt(value), bigEndian), bigEndian)
-    case OB | OW | OF | OD => throw new IllegalArgumentException("Cannot create binary array from string")
+    case OB | OW | OL | OF | OD => throw new IllegalArgumentException("Cannot create binary array from string")
     case _ => ByteString(value)
   }
   def fromString(vr: VR, value: String, bigEndian: Boolean = false): Value = apply(vr, stringBytes(vr, value, bigEndian))
@@ -266,7 +277,7 @@ object Value {
     case SS => shortToBytes(value, bigEndian)
     case UL => intToBytes(java.lang.Short.toUnsignedInt(value), bigEndian)
     case US => truncate(2, intToBytes(java.lang.Short.toUnsignedInt(value), bigEndian), bigEndian)
-    case OB | OW | OF | OD | AT => throw new IllegalArgumentException(s"Cannot create value of VR $vr from short")
+    case OB | OW | OL | OF | OD | AT => throw new IllegalArgumentException(s"Cannot create value of VR $vr from short")
     case _ => ByteString(value.toString)
   }
   def fromShort(vr: VR, value: Short, bigEndian: Boolean = false): Value = apply(vr, shortBytes(vr, value, bigEndian))
@@ -280,7 +291,7 @@ object Value {
     case SS => shortToBytes(value.toShort, bigEndian)
     case UL => truncate(4, longToBytes(Integer.toUnsignedLong(value), bigEndian), bigEndian)
     case US => truncate(6, longToBytes(Integer.toUnsignedLong(value), bigEndian), bigEndian)
-    case OB | OW | OF | OD => throw new IllegalArgumentException(s"Cannot create value of VR $vr from int")
+    case OB | OW | OL | OF | OD => throw new IllegalArgumentException(s"Cannot create value of VR $vr from int")
     case _ => ByteString(value.toString)
   }
   def fromInt(vr: VR, value: Int, bigEndian: Boolean = false): Value = apply(vr, intBytes(vr, value, bigEndian))
@@ -294,7 +305,7 @@ object Value {
     case SS => shortToBytes(value.toShort, bigEndian)
     case UL => truncate(4, longToBytes(value, bigEndian), bigEndian)
     case US => truncate(6, longToBytes(value, bigEndian), bigEndian)
-    case OB | OW | OF | OD => throw new IllegalArgumentException(s"Cannot create value of VR $vr from long")
+    case OB | OW | OL | OF | OD => throw new IllegalArgumentException(s"Cannot create value of VR $vr from long")
     case _ => ByteString(value.toString)
   }
   def fromLong(vr: VR, value: Long, bigEndian: Boolean = false): Value = apply(vr, longBytes(vr, value, bigEndian))
@@ -308,7 +319,7 @@ object Value {
     case SS => shortToBytes(value.toShort, bigEndian)
     case UL => truncate(4, longToBytes(value.toLong, bigEndian), bigEndian)
     case US => truncate(6, longToBytes(value.toLong, bigEndian), bigEndian)
-    case OB | OW | OF | OD => throw new IllegalArgumentException(s"Cannot create value of VR $vr from float")
+    case OB | OW | OL | OF | OD => throw new IllegalArgumentException(s"Cannot create value of VR $vr from float")
     case _ => ByteString(value.toString)
   }
   def fromFloat(vr: VR, value: Float, bigEndian: Boolean = false): Value = apply(vr, floatBytes(vr, value, bigEndian))
@@ -322,21 +333,21 @@ object Value {
     case SS => shortToBytes(value.toShort, bigEndian)
     case UL => truncate(4, longToBytes(value.toLong, bigEndian), bigEndian)
     case US => truncate(6, longToBytes(value.toLong, bigEndian), bigEndian)
-    case OB | OW | OF | OD => throw new IllegalArgumentException(s"Cannot create value of VR $vr from double")
+    case OB | OW | OL | OF | OD => throw new IllegalArgumentException(s"Cannot create value of VR $vr from double")
     case _ => ByteString(value.toString)
   }
   def fromDouble(vr: VR, value: Double, bigEndian: Boolean = false): Value = apply(vr, doubleBytes(vr, value, bigEndian))
   def fromDoubles(vr: VR, values: Seq[Double], bigEndian: Boolean = false): Value = apply(vr, combine(vr, values.map(doubleBytes(vr, _, bigEndian))))
 
   private def dateBytes(vr: VR, value: LocalDate): ByteString = vr match {
-    case AT | FL | FD | SL | SS | UL | US | OB | OW | OF | OD => throw new IllegalArgumentException(s"Cannot create value of VR $vr from date")
+    case AT | FL | FD | SL | SS | UL | US | OB | OW | OL | OF | OD => throw new IllegalArgumentException(s"Cannot create value of VR $vr from date")
     case _ => ByteString(formatDate(value))
   }
   def fromDate(vr: VR, value: LocalDate): Value = apply(vr, dateBytes(vr, value))
   def fromDates(vr: VR, values: Seq[LocalDate]): Value = apply(vr, combine(vr, values.map(dateBytes(vr, _))))
 
   private def dateTimeBytes(vr: VR, value: ZonedDateTime): ByteString = vr match {
-    case AT | FL | FD | SL | SS | UL | US | OB | OW | OF | OD => throw new IllegalArgumentException(s"Cannot create value of VR $vr from date-time")
+    case AT | FL | FD | SL | SS | UL | US | OB | OW | OL | OF | OD => throw new IllegalArgumentException(s"Cannot create value of VR $vr from date-time")
     case _ => ByteString(formatDateTime(value))
   }
   def fromDateTime(vr: VR, value: ZonedDateTime): Value = apply(vr, dateTimeBytes(vr, value))
@@ -348,4 +359,10 @@ object Value {
   }
   def fromPatientName(vr: VR, value: PatientName): Value = apply(vr, patientNameBytes(vr, value))
   def fromPatientNames(vr: VR, values: Seq[PatientName]): Value = apply(vr, combine(vr, values.map(patientNameBytes(vr, _))))
+
+  private def uriBytes(vr: VR, value: URI): ByteString = vr match {
+    case UR => ByteString(value.toString)
+    case _ => throw new IllegalArgumentException(s"Cannot create value of VR $vr from URI")
+  }
+  def fromURI(vr: VR, value: URI): Value = apply(vr, uriBytes(vr, value))
 }

@@ -356,6 +356,21 @@ class ValueTest extends FlatSpec with Matchers {
       ComponentGroup("", "", "")))
   }
 
+  "Parsing a URI" should "work for valid URI strings" in {
+    val uri = Value(ByteString("https://example.com:8080/path?q1=45&q2=46")).toURI()
+    uri shouldBe defined
+    uri.get.getScheme shouldBe "https"
+    uri.get.getHost shouldBe "example.com"
+    uri.get.getPort shouldBe 8080
+    uri.get.getPath shouldBe "/path"
+    uri.get.getQuery shouldBe "q1=45&q2=46"
+  }
+
+  it should "not parse invalid URIs" in {
+    val uri = Value(ByteString("not < a > uri")).toURI()
+    uri shouldBe empty
+  }
+
   "An element" should "update its value bytes" in {
     val updated = Value.empty ++ ByteString("ABC")
     updated.bytes shouldBe ByteString("ABC") // not compliant

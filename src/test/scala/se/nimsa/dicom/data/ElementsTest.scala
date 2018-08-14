@@ -1,5 +1,6 @@
 package se.nimsa.dicom.data
 
+import java.net.URI
 import java.time.{LocalDate, ZoneOffset}
 
 import akka.actor.ActorSystem
@@ -323,6 +324,11 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
       .getPatientNames(Tag.PatientName) shouldBe Seq(patientNames.head)
   }
 
+  it should "set URI" in {
+    val uri = new URI("https://example.com:8080/path?q1=45")
+    elements.setURI(Tag.StorageURL, uri).getURI(Tag.StorageURL) shouldBe Some(uri)
+  }
+
   it should "update character sets" in {
     val updatedCs1 = elements.setCharacterSets(CharacterSets(ByteString("\\ISO 2022 IR 127"))).characterSets
     updatedCs1.charsetNames shouldBe Seq("", "ISO 2022 IR 127")
@@ -393,7 +399,6 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
 
   it should "create file meta information" in {
     val fmiList = Elements.fileMetaInformationElements("iuid", "cuid", "ts")
-    println(fmiList.flatMap(_.toParts).map(_.toString).mkString("\n"))
     val fmi = Elements.empty().set(fmiList)
     fmi.getInt(Tag.FileMetaInformationGroupLength).get shouldBe
       (12 + 5 * 8 + 2 + 4 + 4 + 2 +
