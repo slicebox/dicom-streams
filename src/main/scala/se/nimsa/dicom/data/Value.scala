@@ -10,7 +10,7 @@ import se.nimsa.dicom.data.VR._
 /**
   * This class describes a DICOM data value
   *
-  * @param bytes     the binary data of this value
+  * @param bytes the binary data of this value
   */
 case class Value private[data](bytes: ByteString) {
 
@@ -160,34 +160,17 @@ case class Value private[data](bytes: ByteString) {
   }
 
   /**
-    * @return this value as a byte array
+    * @return this value as a byte array with data in big endian order. Endianness is ensured for values of value
+    *         representations OW. For OB the byte array is returned as-is. Other representations are not
+    *         supported and an empty array will be returned.
     */
-  def toByteArray: Array[Byte] = bytes.toArray
+  def toByteArray(vr: VR, bigEndian: Boolean = false): Array[Byte] = vr match {
+    case OW if !bigEndian => bytes.grouped(2).flatMap(_.reverse).toArray
+    case OB | OW => bytes.toArray
+    case _ => Array.empty
+  }
 
-  /**
-    * @return this value as a short array
-    */
-  def toShortArray(bigEndian: Boolean): Array[Short] = bytes.grouped(2).map(bytesToShort(_, bigEndian)).toArray
-
-  /**
-    * @return this value as a int array
-    */
-  def toIntArray(bigEndian: Boolean): Array[Int] = bytes.grouped(4).map(bytesToInt(_, bigEndian)).toArray
-
-  /**
-    * @return this value as a long array
-    */
-  def toLongArray(bigEndian: Boolean): Array[Long] = bytes.grouped(8).map(bytesToLong(_, bigEndian)).toArray
-
-  /**
-    * @return this value as a float array
-    */
-  def toFloatArray(bigEndian: Boolean): Array[Float] = bytes.grouped(4).map(bytesToFloat(_, bigEndian)).toArray
-
-  /**
-    * @return this value as a double array
-    */
-  def toDoubleArray(bigEndian: Boolean): Array[Double] = bytes.grouped(8).map(bytesToDouble(_, bigEndian)).toArray
+  // TODO short, int, long, float, double arrays. Unsigned? BitSets? Incorporate bitsStored?
 
   /**
     * @return the first string representation of this value, if any
@@ -281,7 +264,7 @@ object Value {
   /**
     * Create a new Value, padding the input if necessary to ensure even length
     *
-    * @param bytes     value bytes
+    * @param bytes value bytes
     * @return a new Value
     */
   def apply(vr: VR, bytes: ByteString): Value = Value(padToEvenLength(bytes, vr))
@@ -396,10 +379,15 @@ object Value {
   }
   def fromURI(vr: VR, value: URI): Value = apply(vr, uriBytes(vr, value))
 
-  def fromByteArray(vr: VR, array: Array[Byte]) = apply(vr, ByteString(array))
-  def fromShortArray(vr: VR, array: Array[Short], bigEndian: Boolean = false) = apply(vr, ByteString(array.flatMap(shortToBytes(_, bigEndian))))
-  def fromIntArray(vr: VR, array: Array[Int], bigEndian: Boolean = false) = apply(vr, ByteString(array.flatMap(intToBytes(_, bigEndian))))
-  def fromLongArray(vr: VR, array: Array[Long], bigEndian: Boolean = false) = apply(vr, ByteString(array.flatMap(longToBytes(_, bigEndian))))
-  def fromFloatArray(vr: VR, array: Array[Float], bigEndian: Boolean = false) = apply(vr, ByteString(array.flatMap(floatToBytes(_, bigEndian))))
-  def fromDoubleArray(vr: VR, array: Array[Double], bigEndian: Boolean = false) = apply(vr, ByteString(array.flatMap(doubleToBytes(_, bigEndian))))
+  /**
+    * Create a value from a byte array where values are encoded in big endian order (representation OW, all
+    * other representations use the byte array as-is).
+    *
+    * @return a new `Value`
+    */
+  def fromByteArray(vr: VR, array: Array[Byte], bigEndian: Boolean = false): Value = vr match {
+    case OW if !bigEndian => apply(vr, ByteString(array.grouped(2).flatMap(_.reverse).toArray))
+    case _ => apply(vr, ByteString(array))
+  }
+
 }
