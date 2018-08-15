@@ -308,4 +308,18 @@ class DicomParsingTest extends FlatSpecLike with Matchers {
     pns.head.givenName.alphabetic shouldBe "John"
     pns(1).givenName.alphabetic shouldBe "Jane"
   }
+
+  "A URI" should "be parsed from strings" in {
+    val uri = parseUR("https://example.com:8080/path")
+    uri shouldBe defined
+    uri.get.getHost shouldBe "example.com"
+    uri.get.getPort shouldBe 8080
+    uri.get.getPath shouldBe "/path"
+    uri.get.getScheme shouldBe "https"
+  }
+
+  it should "not accept malformed URIs" in {
+    val uri = parseUR("not < a > uri")
+    uri shouldBe empty
+  }
 }

@@ -1,5 +1,6 @@
 package se.nimsa.dicom.data
 
+import java.net.URI
 import java.time.{LocalDate, ZoneOffset, ZonedDateTime}
 
 import akka.util.ByteString
@@ -74,6 +75,7 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
   def getDateTime(tag: Int): Option[ZonedDateTime] = get(tag, v => v.value.toDateTime(v.vr, zoneOffset))
   def getPatientNames(tag: Int): Seq[PatientName] = getAll(tag, v => v.value.toPatientNames(v.vr, characterSets))
   def getPatientName(tag: Int): Option[PatientName] = get(tag, v => v.value.toPatientName(v.vr, characterSets))
+  def getURI(tag: Int): Option[URI] = get(tag, v => v.value.toURI(v.vr))
 
   def getSequence(tag: Int): Option[Sequence] = apply(tag).flatMap {
     case e: Sequence => Some(e)
@@ -252,6 +254,11 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
     setValue(tag, vr, Value.fromPatientName(vr, value), bigEndian, explicitVR)
   def setPatientName(tag: Int, value: PatientName, bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
     setPatientName(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
+
+  def setURI(tag: Int, vr: VR, value: URI, bigEndian: Boolean, explicitVR: Boolean): Elements =
+    setValue(tag, vr, Value.fromURI(vr, value), bigEndian, explicitVR)
+  def setURI(tag: Int, value: URI, bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
+    setURI(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
 
   def remove(tag: Int): Elements = filter(_.tag != tag)
   def filter(f: ElementSet => Boolean): Elements = copy(data = data.filter(f))

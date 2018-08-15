@@ -16,6 +16,7 @@
 
 package se.nimsa.dicom.data
 
+import java.net.URI
 import java.time.format.{DateTimeFormatterBuilder, SignStyle}
 import java.time.temporal.ChronoField._
 import java.time.{LocalDate, LocalDateTime, ZoneOffset, ZonedDateTime}
@@ -219,7 +220,8 @@ trait DicomParsing {
   def parseDT(value: ByteString, zoneOffset: ZoneOffset): Seq[ZonedDateTime] = split(value.utf8String).flatMap(parseDateTime(_, zoneOffset))
   def parsePN(string: String): Seq[PatientName] = split(string).map(trimPadding(_, VR.PN.paddingByte)).flatMap(parsePatientName)
   def parsePN(value: ByteString, characterSets: CharacterSets): Seq[PatientName] = parsePN(characterSets.decode(VR.PN, value))
-
+  def parseUR(string: String): Option[URI] = parseURI(string)
+  def parseUR(value: ByteString): Option[URI] = parseUR(trimPadding(value.utf8String, VR.UR.paddingByte))
 
   // parsing of strings to more specific types
 
@@ -284,6 +286,10 @@ trait DicomParsing {
       .map(c => ComponentGroup(c.head, c(1), c(2)))
 
     Option(PatientName(comps.head, comps(1), comps(2), comps(3), comps(4)))
+  }
+
+  def parseURI(s: String): Option[URI] = try Option(new URI(s)) catch {
+    case _: Throwable => None
   }
 
 }
