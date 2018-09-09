@@ -253,7 +253,7 @@ class ParseFlow(chunkSize: Int = 8192, stopTag: Option[Int] = None, inflate: Boo
           (tag, vr, 12, lengthToLong(bytesToInt(reader.remainingData.drop(8), dicomState.bigEndian)))
         }
       else
-        (tag, VR.UN, 8, lengthToLong(bytesToInt(tagVrBytes.drop(4), dicomState.bigEndian)))
+        (tag, vr, 8, lengthToLong(bytesToInt(tagVrBytes.drop(4), dicomState.bigEndian)))
     }
 
     private def readDatasetHeader(reader: ByteReader, state: DatasetHeaderState): Option[DicomPart] = {
@@ -262,23 +262,20 @@ class ParseFlow(chunkSize: Int = 8192, stopTag: Option[Int] = None, inflate: Boo
       if (stopTag.isDefined && tag == stopTag.get)
         None
       else if (vr != null) {
-        val updatedVr1 = if (vr == VR.UN) Dictionary.vrOf(tag) else vr
-        val updatedVr2 = if ((updatedVr1 == VR.UN) && valueLength == indeterminateLength) VR.SQ else updatedVr1
         val bytes = reader.take(headerLength)
-        if (updatedVr2 == VR.SQ)
+        if (vr == VR.SQ || vr == VR.UN && valueLength == indeterminateLength)
           Some(SequencePart(tag, valueLength, state.bigEndian, state.explicitVR, bytes))
         else if (valueLength == indeterminateLength)
-          Some(FragmentsPart(tag, valueLength, updatedVr2, state.bigEndian, state.explicitVR, bytes))
+          Some(FragmentsPart(tag, valueLength, vr, state.bigEndian, state.explicitVR, bytes))
         else {
-          val realVr = if (state.explicitVR) vr else updatedVr2
-          Some(HeaderPart(tag, realVr, valueLength, isFmi = false, state.bigEndian, state.explicitVR, bytes))
+          Some(HeaderPart(tag, vr, valueLength, isFmi = false, state.bigEndian, state.explicitVR, bytes))
         }
       } else
         tag match {
           case 0xFFFEE000 => Some(ItemPart(state.itemIndex + 1, valueLength, state.bigEndian, reader.take(8)))
           case 0xFFFEE00D => Some(ItemDelimitationPart(state.itemIndex, state.bigEndian, reader.take(8)))
           case 0xFFFEE0DD => Some(SequenceDelimitationPart(state.bigEndian, reader.take(8)))
-          case _ => Some(UnknownPart(state.bigEndian, reader.take(headerLength))) // cannot happen
+          case _ => Some(UnknownPart(state.bigEndian, reader.take(headerLength)))
         }
     }
 

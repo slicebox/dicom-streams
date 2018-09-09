@@ -172,7 +172,7 @@ trait DicomParsing {
     else if (explicitVr)
       (tag, VR.valueOf(bytesToVR(data.drop(4))))
     else
-      (tag, VR.UN)
+      (tag, Dictionary.vrOf(tag))
   }
 
   def isPreamble(data: ByteString): Boolean = data.length >= dicomPreambleLength && data.slice(dicomPreambleLength - 4, dicomPreambleLength) == ByteString('D', 'I', 'C', 'M')

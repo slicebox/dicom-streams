@@ -40,5 +40,5 @@ object VR extends Enumeration {
   final val UT = Val(0x5554, 12, ' ')
 
   private lazy final val valueOfMap: Map[Int, Value] = VR.values.map(vr => vr.code -> vr).toMap
-  def valueOf(code: Int): VR = try valueOfMap(code) catch { case _: Throwable => VR.UN }
+  def valueOf(code: Int): VR = try valueOfMap(code) catch { case _: Throwable => null }
 }
