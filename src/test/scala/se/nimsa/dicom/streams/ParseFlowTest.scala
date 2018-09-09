@@ -462,7 +462,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
       .expectDicomComplete()
   }
 
-  it should "parse sequences with VR UN and implicit VR as a block of bytes" in {
+  it should "parse sequences with VR UN, and where the nested data set(s) have implicit VR, as a block of bytes" in {
     val unSequence = tagToBytes(Tag.CTExposureSequence) ++ ByteString('U', 'N', 0, 0) ++ intToBytes(24)
     val bytes = patientNameJohnDoe() ++ unSequence ++ item(16) ++ studyDate(explicitVR = false)
 
