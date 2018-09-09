@@ -477,18 +477,4 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
       .expectValueChunk()
       .expectDicomComplete()
   }
-
-  /*
-  it should "parse problem file" in {
-    import scala.concurrent.duration.DurationInt
-    val file = new File(getClass.getResource("../data/test_temp.dcm").toURI)
-    val source = FileIO.fromPath(file.toPath)
-      .via(parseFlow)
-      .via(DicomFlows.printFlow)
-
-    val f = source.runWith(Sink.ignore)
-    Await.ready(f, 15.seconds)
-
-  }
-  */
 }
