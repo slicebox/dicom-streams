@@ -7,8 +7,7 @@ import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
-import se.nimsa.dicom.data._
-import se.nimsa.dicom.data.{Tag, UID, VR}
+import se.nimsa.dicom.data.{Tag, UID, VR, _}
 
 import scala.concurrent.ExecutionContextExecutor
 
@@ -447,4 +446,49 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
       .expectFragmentsDelimitation()
       .expectDicomComplete()
   }
+
+  it should "parse sequences with VR UN as a block of bytes" in {
+    val unSequence = tagToBytes(Tag.CTExposureSequence) ++ ByteString('U', 'N', 0, 0) ++ intToBytes(24)
+    val bytes = patientNameJohnDoe() ++ unSequence ++ item(16) ++ studyDate()
+
+    val source = Source.single(bytes)
+      .via(new ParseFlow())
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectHeader(Tag.PatientName)
+      .expectValueChunk()
+      .expectHeader(Tag.CTExposureSequence, VR.UN, 24)
+      .expectValueChunk()
+      .expectDicomComplete()
+  }
+
+  it should "parse sequences with VR UN and implicit VR as a block of bytes" in {
+    val unSequence = tagToBytes(Tag.CTExposureSequence) ++ ByteString('U', 'N', 0, 0) ++ intToBytes(24)
+    val bytes = patientNameJohnDoe() ++ unSequence ++ item(16) ++ studyDate(explicitVR = false)
+
+    val source = Source.single(bytes)
+      .via(new ParseFlow())
+      .via(DicomFlows.printFlow)
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectHeader(Tag.PatientName)
+      .expectValueChunk()
+      .expectHeader(Tag.CTExposureSequence, VR.UN, 24)
+      .expectValueChunk()
+      .expectDicomComplete()
+  }
+
+  /*
+  it should "parse problem file" in {
+    import scala.concurrent.duration.DurationInt
+    val file = new File(getClass.getResource("../data/test_temp.dcm").toURI)
+    val source = FileIO.fromPath(file.toPath)
+      .via(parseFlow)
+      .via(DicomFlows.printFlow)
+
+    val f = source.runWith(Sink.ignore)
+    Await.ready(f, 15.seconds)
+
+  }
+  */
 }
