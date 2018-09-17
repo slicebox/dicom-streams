@@ -312,7 +312,7 @@ object TagPath {
   class TagPathTag private[TagPath](val tag: Int, val previous: TagPathTrunk) extends TagPath
 
   /**
-    * A tag path that points to a sequence
+    * A tag path that points to a sequence (all items or specific item), or the empty tag path
     */
   trait TagPathTrunk extends TagPath {
 

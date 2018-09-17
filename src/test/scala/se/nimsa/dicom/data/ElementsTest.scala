@@ -36,9 +36,9 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
   val patientID1: ValueElement = ValueElement.fromString(Tag.PatientID, "12345678")
   val patientID2: ValueElement = ValueElement.fromString(Tag.PatientID, "87654321")
   val patientID3: ValueElement = ValueElement.fromString(Tag.PatientID, "18273645")
-  val seq: Sequence = Sequence(Tag.DerivationCodeSequence, indeterminateLength, List(
-    Item(indeterminateLength, Elements(defaultCharacterSet, systemZone, Vector(patientID1))),
-    Item(indeterminateLength, Elements(defaultCharacterSet, systemZone, Vector(patientID2)))
+  val seq: Sequence = Sequence.fromElements(Tag.DerivationCodeSequence, List(
+    Elements(defaultCharacterSet, systemZone, Vector(patientID1)),
+    Elements(defaultCharacterSet, systemZone, Vector(patientID2))
   ))
 
   val elements: Elements = create(studyDate, seq, patientName)
@@ -182,14 +182,14 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
   }
 
   it should "return deeply nested elements" in {
-    val elements = create(seq + Item(indeterminateLength, create(seq)))
+    val elements = create(seq + Item(create(seq)))
     elements.getNested(TagPath
       .fromSequence(Tag.DerivationCodeSequence, 3)
       .thenSequence(Tag.DerivationCodeSequence, 1)).get shouldBe create(patientID1)
   }
 
   it should "not support using wildcards when getting nested elements" in {
-    val elements = create(seq + Item(indeterminateLength, create(seq)))
+    val elements = create(seq + Item(create(seq)))
     intercept[IllegalArgumentException] {
       elements.getNested(TagPath
         .fromSequence(Tag.DerivationCodeSequence)
@@ -225,16 +225,72 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
     elements.set(modality).data shouldBe Vector(studyDate, modality, seq, patientName)
   }
 
+  it should "not create duplicate elements if inserted twice" in {
+    val e = Elements.empty()
+      .setString(Tag.PatientName, "John")
+      .setString(Tag.PatientName, "John")
+    e.size shouldBe 1
+  }
+
   it should "set elements in sequences" in {
-    val updated = elements.setNested(TagPath.fromSequence(Tag.DerivationCodeSequence, 2), studyDate)
+    val updated = elements.set(TagPath.fromSequence(Tag.DerivationCodeSequence, 2), studyDate)
     updated(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenTag(Tag.StudyDate)).get shouldBe studyDate
   }
 
+  it should "not add elements to sequences that does not exist" in {
+    val updated = elements.set(TagPath.fromSequence(Tag.DetectorInformationSequence, 1), studyDate)
+    updated shouldBe elements
+  }
+
   it should "not support using wildcards when setting sequences" in {
-    val elements = create(seq + Item(indeterminateLength, create(seq)))
+    val elements = create(seq + Item(create(seq)))
     intercept[IllegalArgumentException] {
-      elements.setNested(TagPath.fromSequence(Tag.DerivationCodeSequence).thenSequence(Tag.DerivationCodeSequence, 1), studyDate)
+      elements.set(TagPath.fromSequence(Tag.DerivationCodeSequence).thenSequence(Tag.DerivationCodeSequence, 1), studyDate)
     }
+  }
+
+  it should "replace items in sequences" in {
+    val newElements = Elements.empty().set(studyDate)
+    val updated = elements.setItem(TagPath.fromSequence(Tag.DerivationCodeSequence, 2), newElements)
+    updated.getNested(Tag.DerivationCodeSequence, 2) shouldBe Some(newElements)
+  }
+
+  it should "not add items when trying to replace item at specified index" in {
+    val newElements = Elements.empty().set(studyDate)
+    val updated = elements.setItem(TagPath.fromSequence(Tag.DerivationCodeSequence, 3), newElements)
+    updated shouldBe elements
+    updated.getNested(Tag.DerivationCodeSequence, 3) shouldBe None
+  }
+
+  it should "not add new sequences" in {
+    val newElements = Elements.empty().set(studyDate)
+    val updated = elements.setItem(TagPath.fromSequence(Tag.DetectorInformationSequence, 1), newElements)
+    updated shouldBe elements
+    updated.getNested(Tag.DetectorInformationSequence, 1) shouldBe None
+  }
+
+  it should "add an item to a sequence" in {
+    val newItem = Elements.empty().set(studyDate)
+    val updated = elements.addItem(TagPath.fromSequence(Tag.DerivationCodeSequence), newItem)
+    updated.getNested(Tag.DerivationCodeSequence,3).get shouldBe newItem
+  }
+
+  it should "not add new sequence when adding item to a sequence that does not exist" in {
+    val newItem = Elements.empty().set(studyDate)
+    val updated = elements.addItem(TagPath.fromSequence(Tag.DetectorInformationSequence), newItem)
+    updated shouldBe elements
+  }
+
+  it should "add a new sequence" in {
+    val updated = elements.setSequence(
+      TagPath.fromSequence(Tag.DerivationCodeSequence,1),
+      Sequence(
+        Tag.DetectorInformationSequence,
+        indeterminateLength,
+        List(Item(Elements.empty().set(studyDate)))
+      )
+    )
+    updated(TagPath.fromSequence(Tag.DerivationCodeSequence,1).thenSequence(Tag.DetectorInformationSequence,1).thenTag(Tag.StudyDate)).get shouldBe studyDate
   }
 
   it should "overwrite element if already present" in {
@@ -345,6 +401,25 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
     updatedZo3 shouldBe elements.zoneOffset
   }
 
+  it should "set sequence" in {
+    val e1 = Elements.empty().setString(Tag.PatientName, "Last1^First1")
+    val e2 = Elements.empty().setString(Tag.PatientName, "Last2^First2")
+    val i1 = Item.fromElements(e1)
+    val i2 = Item.fromElements(e2)
+    val s = Sequence(Tag.DerivationCodeSequence, indeterminateLength, List(i1, i2))
+
+    s shouldBe Sequence.fromItems(Tag.DerivationCodeSequence, List(i1, i2))
+    s shouldBe Sequence.fromElements(Tag.DerivationCodeSequence, List(e1, e2))
+    s.items.length shouldBe 2
+    s.items(1) shouldBe i2
+
+    val updated = elements.setSequence(s)
+    updated shouldBe elements.set(s)
+    updated.contains(Tag.DerivationCodeSequence) shouldBe true
+    updated.getSequence(Tag.DerivationCodeSequence) shouldBe defined
+    updated.getSequence(Tag.DerivationCodeSequence).get shouldBe s
+  }
+
   it should "aggregate the bytes of all its elements" in {
     val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ // FMI
       testStudyDate() ++
@@ -388,7 +463,7 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
 
   it should "update element specified by tag path" in {
     elements(TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientID)) shouldBe Some(patientID1)
-    val e2 = elements.setNested(TagPath.fromSequence(Tag.DerivationCodeSequence, 1), patientID2)
+    val e2 = elements.set(TagPath.fromSequence(Tag.DerivationCodeSequence, 1), patientID2)
     e2(TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientID)) shouldBe Some(patientID2)
   }
 
@@ -422,7 +497,7 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
     ItemElement(1, 10).toBytes shouldBe item(10)
     ItemDelimitationElement(1).toBytes shouldBe itemDelimitation()
     SequenceDelimitationElement().toBytes shouldBe sequenceDelimitation()
-    Sequence(Tag.DerivationCodeSequence, indeterminateLength, List(Item(indeterminateLength, Elements.empty()))).toBytes shouldBe sequence(Tag.DerivationCodeSequence) ++ item(indeterminateLength) ++ itemDelimitation() ++ sequenceDelimitation()
+    Sequence(Tag.DerivationCodeSequence, indeterminateLength, List(Item(Elements.empty()))).toBytes shouldBe sequence(Tag.DerivationCodeSequence) ++ item(indeterminateLength) ++ itemDelimitation() ++ sequenceDelimitation()
     Fragments(Tag.PixelData, VR.OW, Some(Nil), List(Fragment(4, Value(ByteString(1, 2, 3, 4))))).toBytes shouldBe pixeDataFragments() ++ item(0) ++ item(4) ++ ByteString(1, 2, 3, 4) ++ sequenceDelimitation()
   }
 
@@ -437,7 +512,7 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
     checkString(ItemElement(1, 10).toString, 1)
     checkString(ItemDelimitationElement(1).toString, 1)
     checkString(SequenceDelimitationElement().toString, 1)
-    checkString(Sequence(Tag.DerivationCodeSequence, indeterminateLength, List(Item(indeterminateLength, Elements.empty()))).toString, 1)
+    checkString(Sequence(Tag.DerivationCodeSequence, indeterminateLength, List(Item(Elements.empty()))).toString, 1)
     checkString(Fragments(Tag.PixelData, VR.OW, Some(Nil), List(Fragment(4, Value(ByteString(1, 2, 3, 4))))).toString, 1)
   }
 
