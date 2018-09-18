@@ -76,8 +76,9 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
 
     var expectedDepths = List(0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 1, 1, 0, 0, 0)
 
-    def check(depth: Int): Unit = {
+    def check(depth: Int, inSequence: Boolean): Unit = {
       depth shouldBe expectedDepths.head
+      if (depth > 0) inSequence shouldBe true else inSequence shouldBe false
       expectedDepths = expectedDepths.tail
     }
 
@@ -91,7 +92,7 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
       .via(parseFlow)
       .via(DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with InSequence[DicomPart] {
         override def onPart(part: DicomPart): List[DicomPart] = {
-          check(sequenceDepth)
+          check(sequenceDepth, inSequence)
           part :: Nil
         }
       }))

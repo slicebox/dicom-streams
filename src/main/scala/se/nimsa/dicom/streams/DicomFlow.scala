@@ -162,7 +162,7 @@ trait InFragments[Out] extends DicomFlow[Out] {
 trait InSequence[Out] extends DicomFlow[Out] with GuaranteedDelimitationEvents[Out] {
   protected var sequenceDepth = 0
 
-  def inSequence: Boolean = sequenceDepth <= 0
+  def inSequence: Boolean = sequenceDepth > 0
 
   abstract override def onSequence(part: SequencePart): List[Out] = {
     sequenceDepth += 1
