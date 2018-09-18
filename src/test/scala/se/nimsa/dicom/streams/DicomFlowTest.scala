@@ -74,28 +74,6 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
 
   "The InSequence support" should "keep track of sequence depth" in {
 
-    /*
-    var expectedPaths = List(
-      TagPath.fromTag(Tag.StudyDate), // Patient name header
-      TagPath.fromTag(Tag.StudyDate), // Patient name value
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence), // sequence start
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1), // item start
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1).thenTag(Tag.StudyDate), // study date header
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1).thenTag(Tag.StudyDate), // study date value
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1), // item end
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2), // item start
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence), // sequence start
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1), // item start
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1).thenTag(Tag.StudyDate), // Study date header
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1).thenTag(Tag.StudyDate), // Study date value
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1), //  item end (inserted)
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence), // sequence end (inserted)
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2), // item end
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence), // sequence end
-      TagPath.fromTag(Tag.PatientName), // Patient name header
-      TagPath.fromTag(Tag.PatientName), // Patient name value
-    )
-*/
     var expectedDepths = List(0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 1, 1, 0, 0, 0)
 
     def check(depth: Int): Unit = {
