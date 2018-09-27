@@ -2,13 +2,17 @@ package se.nimsa.dicom.data
 
 import java.net.URI
 import java.time.{LocalDate, ZoneOffset, ZonedDateTime}
+import java.util
 
+import akka.stream.Materializer
+import akka.stream.scaladsl.{Source, StreamConverters}
 import akka.util.ByteString
 import se.nimsa.dicom.data.DicomParsing.{Element => _, _}
 import se.nimsa.dicom.data.DicomParts._
 import se.nimsa.dicom.data.Elements.{ValueElement, _}
 import se.nimsa.dicom.data.TagPath._
 import se.nimsa.dicom.data.VR.VR
+import se.nimsa.dicom.streams.ElementFlows
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -322,6 +326,12 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
   def isEmpty: Boolean = data.isEmpty
   def nonEmpty: Boolean = !isEmpty
   def contains(tag: Int): Boolean = data.map(_.tag).contains(tag)
+  def contains(tagPath: TagPath): Boolean = tagPath match {
+    case EmptyTagPath => true
+    case t: TagPathTag => apply(t).isDefined
+    case i: TagPathSequenceItem => getNested(i).isDefined
+    case a => getNested(a.previous.thenSequence(a.tag, 1)).isDefined
+  }
 
   /**
     * @return a new Elements sorted by tag number. If already sorted, this function returns a copy
@@ -333,6 +343,11 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
   def toParts: List[DicomPart] = toElements.flatMap(_.toParts)
   def toBytes(withPreamble: Boolean = true): ByteString =
     data.map(_.toBytes).foldLeft(if (withPreamble) PreambleElement.toBytes else ByteString.empty)(_ ++ _)
+
+  def elementIterator(implicit materializer: Materializer): util.Iterator[(TagPath, Element)] = Source(toElements)
+    .via(ElementFlows.tagPathFlow)
+    .runWith(StreamConverters.asJavaStream())
+    .iterator
 
   private def toStrings(indent: String): Vector[String] = {
     def space1(description: String): String = " " * Math.max(0, 40 - description.length)

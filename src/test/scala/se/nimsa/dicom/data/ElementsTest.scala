@@ -12,6 +12,7 @@ import org.scalatest.{Assertion, BeforeAndAfterAll, FlatSpecLike, Matchers}
 import se.nimsa.dicom.data.DicomParsing.defaultCharacterSet
 import se.nimsa.dicom.data.DicomParts.HeaderPart
 import se.nimsa.dicom.data.Elements._
+import se.nimsa.dicom.data.TagPath.EmptyTagPath
 import se.nimsa.dicom.data.TestData.{studyDate => testStudyDate, _}
 import se.nimsa.dicom.streams.ElementFlows.elementFlow
 import se.nimsa.dicom.streams.ElementSink._
@@ -54,6 +55,12 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
     elements.isEmpty shouldBe false
     elements.nonEmpty shouldBe true
     elements.contains(Tag.StudyDate) shouldBe true
+    elements.contains(EmptyTagPath) shouldBe true
+    elements.contains(TagPath.fromSequence(Tag.DerivationCodeSequence, 1)) shouldBe true
+    elements.contains(TagPath.fromSequence(Tag.DerivationCodeSequence, 3)) shouldBe false
+    elements.contains(TagPath.fromSequence(Tag.DerivationCodeSequence)) shouldBe true
+    elements.contains(TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientID)) shouldBe true
+    elements.contains(TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientName)) shouldBe false
     elements.head shouldBe studyDate
   }
 
@@ -470,6 +477,16 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
   it should "provide a legible toString" in {
     val updated = elements.set(Fragments(Tag.PixelData, VR.OB, None, List(Fragment(4, Value(ByteString(1, 2, 3, 4))))))
     updated.toString.count(_ == System.lineSeparator.charAt(0)) shouldBe updated.toElements.length - 1
+  }
+
+  it should "provide an iterator through elements" in {
+    val iter = elements.elementIterator
+    val e1 = iter.next
+    e1._1 shouldBe TagPath.fromTag(Tag.StudyDate)
+    e1._2 shouldBe a[ValueElement]
+    val e2 = iter.next
+    e2._1 shouldBe TagPath.fromSequence(Tag.DerivationCodeSequence)
+    e2._2 shouldBe a[SequenceElement]
   }
 
   it should "create file meta information" in {
