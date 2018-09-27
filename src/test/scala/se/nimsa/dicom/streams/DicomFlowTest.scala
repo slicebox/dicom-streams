@@ -72,6 +72,36 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
       .expectDicomComplete()
   }
 
+  "The InSequence support" should "keep track of sequence depth" in {
+
+    var expectedDepths = List(0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 1, 1, 0, 0, 0)
+
+    def check(depth: Int, inSequence: Boolean): Unit = {
+      depth shouldBe expectedDepths.head
+      if (depth > 0) inSequence shouldBe true else inSequence shouldBe false
+      expectedDepths = expectedDepths.tail
+    }
+
+    val bytes = studyDate() ++
+      sequence(Tag.EnergyWindowInformationSequence) ++ item() ++ studyDate() ++ itemDelimitation() ++ item() ++ // sequence
+      sequence(Tag.EnergyWindowRangeSequence, 24) ++ item(16) ++ studyDate() ++ // nested sequence (determinate length)
+      itemDelimitation() ++ sequenceDelimitation() ++
+      patientNameJohnDoe() // attribute
+
+    val source = Source.single(bytes)
+      .via(parseFlow)
+      .via(DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with InSequence[DicomPart] {
+        override def onPart(part: DicomPart): List[DicomPart] = {
+          check(sequenceDepth, inSequence)
+          part :: Nil
+        }
+      }))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .request(18 - 2) // two events inserted
+      .expectNextN(18 - 2)
+  }
+
   "The guaranteed delimitation flow" should "insert delimitation parts at the end of sequences and items with determinate length" in {
     val bytes =
       sequence(Tag.DerivationCodeSequence, 56) ++ item(16) ++ studyDate() ++ item() ++ studyDate() ++ itemDelimitation() ++

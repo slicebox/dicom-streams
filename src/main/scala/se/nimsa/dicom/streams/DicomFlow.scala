@@ -159,6 +159,22 @@ trait InFragments[Out] extends DicomFlow[Out] {
   }
 }
 
+trait InSequence[Out] extends DicomFlow[Out] with GuaranteedDelimitationEvents[Out] {
+  protected var sequenceDepth = 0
+
+  def inSequence: Boolean = sequenceDepth > 0
+
+  abstract override def onSequence(part: SequencePart): List[Out] = {
+    sequenceDepth += 1
+    super.onSequence(part)
+  }
+
+  abstract override def onSequenceDelimitation(part: SequenceDelimitationPart): List[Out] = {
+    sequenceDepth -= 1
+    super.onSequenceDelimitation(part)
+  }
+}
+
 object ValueChunkMarker extends ValueChunk(bigEndian = false, ByteString.empty, last = true)
 
 /**
