@@ -209,7 +209,7 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
     * @param elements elements of new item
     * @return the updated (root) elements
     */
-  def setItem(tagPath: TagPathSequenceItem, elements: Elements): Elements =
+  def setNested(tagPath: TagPathSequenceItem, elements: Elements): Elements =
     updatePath(this, tagPath.toList, _ => elements)
   /**
     * Set (insert or update) an element in the item that the tag path points to
@@ -248,9 +248,7 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
         Item.fromElements(elements, elements.toBytes(withPreamble = false).length, bigEndian)
       val updatedSequence = sequence + item
       tagPath.previous match {
-        case EmptyTagPath =>
-          println("here")
-          setSequence(updatedSequence)
+        case EmptyTagPath => setSequence(updatedSequence)
         case tp: TagPathSequenceItem => setSequence(tp, updatedSequence)
         case _ => throw new IllegalArgumentException("Unsupported tag path type")
       }
@@ -352,6 +350,20 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
     setURI(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
 
   def remove(tag: Int): Elements = filter(_.tag != tag)
+  def remove(tagPath: TagPath): Elements = tagPath match {
+    case EmptyTagPath => this
+    case tp: TagPathSequenceItem => tp.previous match {
+      case EmptyTagPath => getSequence(tp.tag).map(s => set(s.removeItem(tp.item))).getOrElse(this)
+      case tpsi: TagPathSequenceItem => getNested(tpsi).map(_.remove(TagPath.fromSequence(tp.tag, tp.item))).map(setNested(tpsi, _)).getOrElse(this)
+      case _ => throw new IllegalArgumentException("Unsupported tag path type")
+    }
+    case tp: TagPathTag => tp.previous match {
+      case EmptyTagPath => remove(tp.tag)
+      case tpsi: TagPathSequenceItem => getNested(tpsi).map(_.remove(tp.tag)).map(setNested(tpsi, _)).getOrElse(this)
+      case _ => throw new IllegalArgumentException("Unsupported tag path type")
+    }
+    case _ => throw new IllegalArgumentException("Unsupported tag path type")
+  }
   def filter(f: ElementSet => Boolean): Elements = copy(data = data.filter(f))
 
   def head: ElementSet = data.head
@@ -568,6 +580,11 @@ object Elements {
         copy(items = items :+ item)
       else
         copy(length = length + item.toBytes.length, items = items :+ item)
+    def removeItem(index: Int): Sequence =
+      if (indeterminate)
+        copy(items = items.patch(index - 1, Nil, 1))
+      else
+        copy(length = length - item(index).map(_.toBytes.length).getOrElse(0), items = items.patch(index - 1, Nil, 1))
     override def toBytes: ByteString = toElements.map(_.toBytes).reduce(_ ++ _)
     override def toElements: List[Element] = SequenceElement(tag, length, bigEndian, explicitVR) ::
       items.zipWithIndex.flatMap { case (item, index) => item.toElements(index + 1) } :::

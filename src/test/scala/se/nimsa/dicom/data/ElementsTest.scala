@@ -38,8 +38,8 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
   val patientID2: ValueElement = ValueElement.fromString(Tag.PatientID, "87654321")
   val patientID3: ValueElement = ValueElement.fromString(Tag.PatientID, "18273645")
   val seq: Sequence = Sequence.fromElements(Tag.DerivationCodeSequence, List(
-    Elements(defaultCharacterSet, systemZone, Vector(patientID1)),
-    Elements(defaultCharacterSet, systemZone, Vector(patientID2))
+    Elements.empty().set(patientID1),
+    Elements.empty().set(patientID2)
   ))
 
   val elements: Elements = create(studyDate, seq, patientName)
@@ -238,10 +238,34 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
   }
 
   it should "remove element if present" in {
-    elements.remove(Tag.DerivationCodeSequence) shouldBe Elements(elements.characterSets, elements.zoneOffset, Vector(studyDate, patientName))
+    val updatedSeq1 = seq.copy(items = seq.items.head :: seq.items(1).copy(elements = Elements.empty()) :: Nil)
+    val updatedSeq2 = seq.copy(items = seq.items.head :: Nil)
+    val deepSeq: Sequence = Sequence.fromElements(Tag.DerivationCodeSequence, List(Elements.empty().set(patientID1), Elements.empty().set(seq)))
+    val deepElements = create(studyDate, deepSeq, patientName)
+    val updatedDeepSeq = deepSeq.copy(items = deepSeq.items.head :: deepSeq.items(1).copy(elements = Elements.empty().set(updatedSeq2)) :: Nil)
+    val updatedDeepElements = create(studyDate, updatedDeepSeq, patientName)
+
+    elements.remove(Tag.DerivationCodeSequence) shouldBe elements.copy(data = Vector(studyDate, patientName))
     elements.remove(Tag.PatientName) shouldBe elements.copy(data = Vector(studyDate, seq))
     elements.remove(Tag.StudyDate) shouldBe elements.copy(data = Vector(seq, patientName))
     elements.remove(Tag.Modality) shouldBe elements
+    elements.remove(EmptyTagPath) shouldBe elements
+    elements.remove(TagPath.fromTag(Tag.StudyDate)) shouldBe elements.copy(data = Vector(seq, patientName))
+    elements.remove(TagPath.fromSequence(Tag.DerivationCodeSequence, 1)) shouldBe elements.copy(data = Vector(studyDate, seq.copy(items = seq.items.tail), patientName))
+    elements.remove(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenTag(Tag.PatientID)) shouldBe elements.copy(data = Vector(studyDate, updatedSeq1, patientName))
+    elements.remove(TagPath.fromSequence(Tag.DerivationCodeSequence, 3)) shouldBe elements
+    elements.remove(TagPath.fromSequence(Tag.DetectorInformationSequence, 1)) shouldBe elements
+    deepElements.remove(TagPath.fromSequence(Tag.DerivationCodeSequence,2).thenSequence(Tag.DerivationCodeSequence, 2)) shouldBe updatedDeepElements
+
+    intercept[IllegalArgumentException] {
+      elements.remove(TagPath.fromSequence(Tag.DerivationCodeSequence))
+    }
+    intercept[IllegalArgumentException] {
+      elements.remove(TagPath.fromSequence(Tag.DerivationCodeSequence).thenTag(Tag.PatientID))
+    }
+    intercept[IllegalArgumentException] {
+      elements.remove(TagPath.fromSequence(Tag.DerivationCodeSequence).thenSequence(Tag.DerivationCodeSequence, 1))
+    }
   }
 
   it should "set elements in the correct position" in {
@@ -278,20 +302,20 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
 
   it should "replace items in sequences" in {
     val newElements = Elements.empty().set(studyDate)
-    val updated = elements.setItem(TagPath.fromSequence(Tag.DerivationCodeSequence, 2), newElements)
+    val updated = elements.setNested(TagPath.fromSequence(Tag.DerivationCodeSequence, 2), newElements)
     updated.getNested(Tag.DerivationCodeSequence, 2) shouldBe Some(newElements)
   }
 
   it should "not add items when trying to replace item at specified index" in {
     val newElements = Elements.empty().set(studyDate)
-    val updated = elements.setItem(TagPath.fromSequence(Tag.DerivationCodeSequence, 3), newElements)
+    val updated = elements.setNested(TagPath.fromSequence(Tag.DerivationCodeSequence, 3), newElements)
     updated shouldBe elements
     updated.getNested(Tag.DerivationCodeSequence, 3) shouldBe None
   }
 
   it should "not add new sequences" in {
     val newElements = Elements.empty().set(studyDate)
-    val updated = elements.setItem(TagPath.fromSequence(Tag.DetectorInformationSequence, 1), newElements)
+    val updated = elements.setNested(TagPath.fromSequence(Tag.DetectorInformationSequence, 1), newElements)
     updated shouldBe elements
     updated.getNested(Tag.DetectorInformationSequence, 1) shouldBe None
   }
