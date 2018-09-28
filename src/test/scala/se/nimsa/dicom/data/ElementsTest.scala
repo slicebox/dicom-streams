@@ -77,6 +77,7 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
 
   it should "return value elements only" in {
     elements.getValueElement(Tag.PatientName) shouldBe defined
+    elements.getValueElement(TagPath.fromTag(Tag.PatientName)) shouldBe defined
     elements.getValueElement(Tag.SeriesDate) shouldBe empty
     elements.getValueElement(Tag.DerivationCodeSequence) shouldBe empty
   }
@@ -86,10 +87,12 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
     value shouldBe defined
     value.get.length should be > 0
     elements.getValue(Tag.SeriesDate) shouldBe empty
+    elements.getValue(TagPath.fromTag(Tag.PatientName)) shouldBe defined
   }
 
   it should "return the bytes of an element" in {
     elements.getBytes(Tag.PatientName) shouldBe defined
+    elements.getBytes(TagPath.fromTag(Tag.PatientName)) shouldBe defined
   }
 
   it should "return all strings in value with VM > 1" in {
@@ -97,50 +100,61 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
     val strings = elements.getStrings(Tag.ImageType)
     strings should have length 2
     strings(1) shouldBe "RECON TOMO"
+    elements.getStrings(TagPath.fromTag(Tag.ImageType)) should have length 2
     elements.getStrings(Tag.SeriesDate) should have length 0
     elements.getStrings(Tag.DerivationCodeSequence) should have length 0
   }
 
   it should "return a concatenated string in value with VM > 1" in {
     val elements = create(ValueElement.fromString(Tag.ImageType, """ORIGINAL\RECON TOMO"""))
-    val singleString = elements.getSingleString(Tag.ImageType)
-    singleString shouldBe Some("""ORIGINAL\RECON TOMO""")
+    elements.getSingleString(Tag.ImageType) shouldBe Some("""ORIGINAL\RECON TOMO""")
+    elements.getSingleString(TagPath.fromTag(Tag.ImageType)) shouldBe Some("""ORIGINAL\RECON TOMO""")
   }
 
   it should "return the first string of a value with VM > 1" in {
     val elements = create(ValueElement.fromString(Tag.ImageType, """ORIGINAL\RECON TOMO"""))
-    val string = elements.getString(Tag.ImageType)
-    string shouldBe Some("ORIGINAL")
+    elements.getString(Tag.ImageType) shouldBe Some("ORIGINAL")
+    elements.getString(TagPath.fromTag(Tag.ImageType)) shouldBe Some("ORIGINAL")
   }
 
   it should "return shorts" in {
     val elements = create(ValueElement.fromString(Tag.ReferencedFrameNumber, """1\2\3"""))
     elements.getShorts(Tag.ReferencedFrameNumber) shouldBe Seq(1, 2, 3).map(_.toShort)
     elements.getShort(Tag.ReferencedFrameNumber) shouldBe Some(1.toShort)
+    elements.getShorts(TagPath.fromTag(Tag.ReferencedFrameNumber)) shouldBe Seq(1, 2, 3).map(_.toShort)
+    elements.getShort(TagPath.fromTag(Tag.ReferencedFrameNumber)) shouldBe Some(1.toShort)
   }
 
   it should "return ints" in {
     val elements = create(ValueElement.fromString(Tag.ReferencedFrameNumber, """1\2\3"""))
     elements.getInts(Tag.ReferencedFrameNumber) shouldBe Seq(1, 2, 3)
     elements.getInt(Tag.ReferencedFrameNumber) shouldBe Some(1)
+    elements.getInts(TagPath.fromTag(Tag.ReferencedFrameNumber)) shouldBe Seq(1, 2, 3)
+    elements.getInt(TagPath.fromTag(Tag.ReferencedFrameNumber)) shouldBe Some(1)
   }
 
   it should "return longs" in {
     val elements = create(ValueElement.fromString(Tag.ReferencedFrameNumber, """1\2\3"""))
     elements.getLongs(Tag.ReferencedFrameNumber) shouldBe Seq(1L, 2L, 3L)
     elements.getLong(Tag.ReferencedFrameNumber) shouldBe Some(1L)
+    elements.getLongs(TagPath.fromTag(Tag.ReferencedFrameNumber)) shouldBe Seq(1L, 2L, 3L)
+    elements.getLong(TagPath.fromTag(Tag.ReferencedFrameNumber)) shouldBe Some(1L)
   }
 
   it should "return floats" in {
     val elements = create(ValueElement.fromString(Tag.ReferencedFrameNumber, """1\2\3"""))
     elements.getFloats(Tag.ReferencedFrameNumber) shouldBe Seq(1f, 2f, 3f)
     elements.getFloat(Tag.ReferencedFrameNumber) shouldBe Some(1f)
+    elements.getFloats(TagPath.fromTag(Tag.ReferencedFrameNumber)) shouldBe Seq(1f, 2f, 3f)
+    elements.getFloat(TagPath.fromTag(Tag.ReferencedFrameNumber)) shouldBe Some(1f)
   }
 
   it should "return doubles" in {
     val elements = create(ValueElement.fromString(Tag.ReferencedFrameNumber, """1\2\3"""))
     elements.getDoubles(Tag.ReferencedFrameNumber) shouldBe Seq(1.0, 2.0, 3.0)
     elements.getDouble(Tag.ReferencedFrameNumber) shouldBe Some(1.0)
+    elements.getDoubles(TagPath.fromTag(Tag.ReferencedFrameNumber)) shouldBe Seq(1.0, 2.0, 3.0)
+    elements.getDouble(TagPath.fromTag(Tag.ReferencedFrameNumber)) shouldBe Some(1.0)
   }
 
   it should "return dates" in {
@@ -148,6 +162,8 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
     val elements = create(ValueElement(Tag.StudyDate, Value.fromDates(VR.DA, dates)))
     elements.getDates(Tag.StudyDate) shouldBe dates
     elements.getDate(Tag.StudyDate) shouldBe dates.headOption
+    elements.getDates(TagPath.fromTag(Tag.StudyDate)) shouldBe dates
+    elements.getDate(TagPath.fromTag(Tag.StudyDate)) shouldBe dates.headOption
   }
 
   it should "return date times" in {
@@ -156,6 +172,8 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
     val elements = create(ValueElement(Tag.InstanceCoercionDateTime, Value.fromDateTimes(VR.DT, dateTimes)))
     elements.getDateTimes(Tag.InstanceCoercionDateTime) shouldBe dateTimes
     elements.getDateTime(Tag.InstanceCoercionDateTime) shouldBe dateTimes.headOption
+    elements.getDateTimes(TagPath.fromTag(Tag.InstanceCoercionDateTime)) shouldBe dateTimes
+    elements.getDateTime(TagPath.fromTag(Tag.InstanceCoercionDateTime)) shouldBe dateTimes.headOption
   }
 
   it should "return patient names" in {
@@ -164,6 +182,8 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
     val elements = create(ValueElement.fromString(Tag.PatientName, names.mkString("\\")))
     elements.getPatientNames(Tag.PatientName) shouldBe patientNames
     elements.getPatientName(Tag.PatientName) shouldBe patientNames.headOption
+    elements.getPatientNames(TagPath.fromTag(Tag.PatientName)) shouldBe patientNames
+    elements.getPatientName(TagPath.fromTag(Tag.PatientName)) shouldBe patientNames.headOption
   }
 
   it should "return sequences" in {

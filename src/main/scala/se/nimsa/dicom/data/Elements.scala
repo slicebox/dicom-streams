@@ -52,34 +52,67 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
     case _ => None
   }
 
+  private def getPath[A](tagPath: TagPathTag, f: ValueElement => Option[A]): Option[A] = apply(tagPath).flatMap {
+    case e: ValueElement => f(e)
+    case _ => None
+  }
+
   private def getAll[A](tag: Int, f: ValueElement => Seq[A]): Seq[A] = apply(tag).map {
     case e: ValueElement => f(e)
     case _ => Seq.empty
   }.getOrElse(Seq.empty)
 
+  private def getAllPath[A](tagPath: TagPathTag, f: ValueElement => Seq[A]): Seq[A] = apply(tagPath).map {
+    case e: ValueElement => f(e)
+    case _ => Seq.empty
+  }.getOrElse(Seq.empty)
+
   def getValueElement(tag: Int): Option[ValueElement] = get(tag, Option.apply)
+  def getValueElement(tagPath: TagPathTag): Option[ValueElement] = getPath(tagPath, Option.apply)
   def getValue(tag: Int): Option[Value] = getValueElement(tag).map(_.value)
+  def getValue(tagPath: TagPathTag): Option[Value] = getValueElement(tagPath).map(_.value)
   def getBytes(tag: Int): Option[ByteString] = getValue(tag).map(_.bytes)
+  def getBytes(tagPath: TagPathTag): Option[ByteString] = getValue(tagPath).map(_.bytes)
   def getStrings(tag: Int): Seq[String] = getAll(tag, v => v.value.toStrings(v.vr, v.bigEndian, characterSets))
+  def getStrings(tagPath: TagPathTag): Seq[String] = getAllPath(tagPath, v => v.value.toStrings(v.vr, v.bigEndian, characterSets))
   def getSingleString(tag: Int): Option[String] = get(tag, v => v.value.toSingleString(v.vr, v.bigEndian, characterSets))
+  def getSingleString(tagPath: TagPathTag): Option[String] = getPath(tagPath, v => v.value.toSingleString(v.vr, v.bigEndian, characterSets))
   def getString(tag: Int): Option[String] = get(tag, v => v.value.toString(v.vr, v.bigEndian, characterSets))
+  def getString(tagPath: TagPathTag): Option[String] = getPath(tagPath, v => v.value.toString(v.vr, v.bigEndian, characterSets))
   def getShorts(tag: Int): Seq[Short] = getAll(tag, v => v.value.toShorts(v.vr, v.bigEndian))
+  def getShorts(tagPath: TagPathTag): Seq[Short] = getAllPath(tagPath, v => v.value.toShorts(v.vr, v.bigEndian))
   def getShort(tag: Int): Option[Short] = get(tag, v => v.value.toShort(v.vr, v.bigEndian))
+  def getShort(tagPath: TagPathTag): Option[Short] = getPath(tagPath, v => v.value.toShort(v.vr, v.bigEndian))
   def getInts(tag: Int): Seq[Int] = getAll(tag, v => v.value.toInts(v.vr, v.bigEndian))
+  def getInts(tagPath: TagPathTag): Seq[Int] = getAllPath(tagPath, v => v.value.toInts(v.vr, v.bigEndian))
   def getInt(tag: Int): Option[Int] = get(tag, v => v.value.toInt(v.vr, v.bigEndian))
+  def getInt(tagPath: TagPathTag): Option[Int] = getPath(tagPath, v => v.value.toInt(v.vr, v.bigEndian))
   def getLongs(tag: Int): Seq[Long] = getAll(tag, v => v.value.toLongs(v.vr, v.bigEndian))
+  def getLongs(tagPath: TagPathTag): Seq[Long] = getAllPath(tagPath, v => v.value.toLongs(v.vr, v.bigEndian))
   def getLong(tag: Int): Option[Long] = get(tag, v => v.value.toLong(v.vr, v.bigEndian))
+  def getLong(tagPath: TagPathTag): Option[Long] = getPath(tagPath, v => v.value.toLong(v.vr, v.bigEndian))
   def getFloats(tag: Int): Seq[Float] = getAll(tag, v => v.value.toFloats(v.vr, v.bigEndian))
+  def getFloats(tagPath: TagPathTag): Seq[Float] = getAllPath(tagPath, v => v.value.toFloats(v.vr, v.bigEndian))
   def getFloat(tag: Int): Option[Float] = get(tag, v => v.value.toFloat(v.vr, v.bigEndian))
+  def getFloat(tagPath: TagPathTag): Option[Float] = getPath(tagPath, v => v.value.toFloat(v.vr, v.bigEndian))
   def getDoubles(tag: Int): Seq[Double] = getAll(tag, v => v.value.toDoubles(v.vr, v.bigEndian))
+  def getDoubles(tagPath: TagPathTag): Seq[Double] = getAllPath(tagPath, v => v.value.toDoubles(v.vr, v.bigEndian))
   def getDouble(tag: Int): Option[Double] = get(tag, v => v.value.toDouble(v.vr, v.bigEndian))
+  def getDouble(tagPath: TagPathTag): Option[Double] = getPath(tagPath, v => v.value.toDouble(v.vr, v.bigEndian))
   def getDates(tag: Int): Seq[LocalDate] = getAll(tag, v => v.value.toDates(v.vr))
+  def getDates(tagPath: TagPathTag): Seq[LocalDate] = getAllPath(tagPath, v => v.value.toDates(v.vr))
   def getDate(tag: Int): Option[LocalDate] = get(tag, v => v.value.toDate(v.vr))
+  def getDate(tagPath: TagPathTag): Option[LocalDate] = getPath(tagPath, v => v.value.toDate(v.vr))
   def getDateTimes(tag: Int): Seq[ZonedDateTime] = getAll(tag, v => v.value.toDateTimes(v.vr, zoneOffset))
+  def getDateTimes(tagPath: TagPathTag): Seq[ZonedDateTime] = getAllPath(tagPath, v => v.value.toDateTimes(v.vr, zoneOffset))
   def getDateTime(tag: Int): Option[ZonedDateTime] = get(tag, v => v.value.toDateTime(v.vr, zoneOffset))
+  def getDateTime(tagPath: TagPathTag): Option[ZonedDateTime] = getPath(tagPath, v => v.value.toDateTime(v.vr, zoneOffset))
   def getPatientNames(tag: Int): Seq[PatientName] = getAll(tag, v => v.value.toPatientNames(v.vr, characterSets))
+  def getPatientNames(tagPath: TagPathTag): Seq[PatientName] = getAllPath(tagPath, v => v.value.toPatientNames(v.vr, characterSets))
   def getPatientName(tag: Int): Option[PatientName] = get(tag, v => v.value.toPatientName(v.vr, characterSets))
+  def getPatientName(tagPath: TagPathTag): Option[PatientName] = getPath(tagPath, v => v.value.toPatientName(v.vr, characterSets))
   def getURI(tag: Int): Option[URI] = get(tag, v => v.value.toURI(v.vr))
+  def getURI(tagPath: TagPathTag): Option[URI] = getPath(tagPath, v => v.value.toURI(v.vr))
 
   private def traverseTrunk(elems: Option[Elements], trunk: TagPathTrunk): Option[Elements] = {
     if (trunk.isEmpty)
