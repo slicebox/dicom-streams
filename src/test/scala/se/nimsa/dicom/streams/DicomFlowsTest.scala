@@ -9,7 +9,7 @@ import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
-import se.nimsa.dicom.data.DicomParts.DicomPart
+import se.nimsa.dicom.data.DicomParts.{DicomPart, MetaPart}
 import se.nimsa.dicom.data.TestData._
 import se.nimsa.dicom.data._
 import se.nimsa.dicom.streams.ParseFlow._
@@ -477,10 +477,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   it should "ignore DICOM parts of unknown type" in {
-    case object SomePart extends DicomPart {
-      def bigEndian: Boolean = false
-      def bytes: ByteString = ByteString.empty
-    }
+    case object SomePart extends MetaPart
 
     val correctLength = transferSyntaxUID().length
     val bytes = preamble ++ transferSyntaxUID() // missing file meta information group length

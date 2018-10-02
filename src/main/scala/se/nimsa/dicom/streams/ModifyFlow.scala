@@ -58,6 +58,15 @@ object ModifyFlow {
   }
 
   /**
+    * Meta-part carriying tag modifications that when received by modify flow are picked up and added to or replaces the
+    * input tag modifications
+    *
+    * @param modifications additional tag modifications adding to or replacing input modifications
+    * @param replace       `true` if these modifications should replace the current ones
+    */
+  case class TagModificationsPart(modifications: List[TagModification], replace: Boolean = false) extends MetaPart
+
+  /**
     * Modification flow for inserting or overwriting the values of specified elements. When inserting a new element,
     * the corresponding modification function will be called with an empty `ByteString`. A modification is specified by
     * a tag path, a modification function from current value bytes to their replacement, and a flag specifying whether
@@ -69,14 +78,18 @@ object ModifyFlow {
     * changing an element may lead to invalid group length elements such as MediaStorageSOPInstanceUID. There are
     * utility functions in `se.nimsa.dicom.data` for padding values and flows for adjusting group lengths.
     *
-    * @param modifications Any number of `TagModification`s each specifying a tag path, a modification function, and
+    * Modifications can either be supplied as input arguments or passed at any time on the stream encapsulated in a
+    * [[se.nimsa.dicom.streams.ModifyFlow.TagModificationsPart]]
+    *
+    * @param modifications Any number of [[se.nimsa.dicom.streams.ModifyFlow.TagModification]]s each specifying a tag path, a modification function, and
     *                      a Boolean indicating whether absent values will be inserted or skipped.
     * @return the modified flow of DICOM parts
     */
   def modifyFlow(modifications: TagModification*): Flow[DicomPart, DicomPart, NotUsed] =
     DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with EndEvent[DicomPart] with TagPathTracking[DicomPart] {
 
-      val sortedModifications: List[TagModification] = modifications.toList.sortWith((a, b) => a.tagPath < b.tagPath)
+      var sortedModifications: List[TagModification] = Nil
+      setModifications(modifications.toList)
 
       var currentModification: Option[TagModification] = None // current modification
       var currentHeader: Option[HeaderPart] = None // header of current element being modified
@@ -84,6 +97,11 @@ object ModifyFlow {
       var value: ByteString = ByteString.empty // value of current element being modified
       var bigEndian = false // endianness of current element
       var explicitVR = true // VR representation of current element
+
+      def setModifications(modifications: List[TagModification]): Unit =
+        sortedModifications = modifications
+          .groupBy(_.tagPath).flatMap(_._2.headOption).toList // distinct on tag path
+          .sortWith((a, b) => a.tagPath < b.tagPath) // sorted by tag path
 
       def updateSyntax(header: HeaderPart): Unit = {
         bigEndian = header.bigEndian
@@ -127,6 +145,10 @@ object ModifyFlow {
 
       override def onPart(part: DicomPart): List[DicomPart] =
         part match {
+          case mods: TagModificationsPart =>
+            if (mods.replace) setModifications(mods.modifications) else setModifications(sortedModifications ++ mods.modifications)
+            Nil
+
           case header: HeaderPart =>
             updateSyntax(header)
             val insertParts = findInsertParts

@@ -105,10 +105,7 @@ abstract class DeferToPartFlow[Out] extends DicomFlow[Out] {
   def onPart(part: DicomPart): List[Out]
 }
 
-case object DicomStartMarker extends DicomPart {
-  def bigEndian: Boolean = false
-  def bytes: ByteString = ByteString.empty
-}
+case object DicomStartMarker extends MetaPart
 
 /**
   * This mixin adds an event marking the start of the DICOM stream. It does not add DICOM parts to the stream.
@@ -125,10 +122,7 @@ trait StartEvent[Out] extends DicomFlow[Out] {
   }
 }
 
-case object DicomEndMarker extends DicomPart {
-  def bigEndian: Boolean = false
-  def bytes: ByteString = ByteString.empty
-}
+case object DicomEndMarker extends MetaPart
 
 /**
   * This mixin adds an event marking the end of the DICOM stream. It does not add DICOM parts to the stream.
@@ -179,7 +173,7 @@ object ValueChunkMarker extends ValueChunk(bigEndian = false, ByteString.empty, 
 
 /**
   * This mixin makes sure the `onValueChunk` event is called also for empty elements. This special case requires
-  * special handling since empty elements consist of a `DicomHeader`, but is not followed by a `DicomValueChunk`.
+  * special handling since empty elements consist of a `HeaderPart`, but is not followed by a `ValueChunk`.
   */
 trait GuaranteedValueEvent[Out] extends InFragments[Out] {
 

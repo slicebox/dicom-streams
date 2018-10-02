@@ -24,9 +24,7 @@ object TestUtils {
     out
   }
 
-  case class TestPart(id: String) extends DicomPart {
-    override def bigEndian: Boolean = false
-    override def bytes: ByteString = ByteString.empty
+  case class TestPart(id: String) extends MetaPart {
     override def toString = s"${getClass.getSimpleName}: $id"
   }
 
@@ -37,106 +35,106 @@ object TestUtils {
       .request(1)
       .expectNextChainingPF {
         case _: PreamblePart => true
-        case p => throw new RuntimeException(s"Expected DicomPreamble, got $p")
+        case p => throw new RuntimeException(s"Expected PreamblePart, got $p")
       }
 
     def expectValueChunk(): PartProbe = probe
       .request(1)
       .expectNextChainingPF {
         case _: ValueChunk => true
-        case p => throw new RuntimeException(s"Expected DicomValueChunk, got $p")
+        case p => throw new RuntimeException(s"Expected ValueChunk, got $p")
       }
 
     def expectValueChunk(length: Int): PartProbe = probe
       .request(1)
       .expectNextChainingPF {
         case chunk: ValueChunk if chunk.bytes.length == length => true
-        case p => throw new RuntimeException(s"Expected DicomValueChunk with length = $length, got $p")
+        case p => throw new RuntimeException(s"Expected ValueChunk with length = $length, got $p")
       }
 
     def expectValueChunk(bytes: ByteString): PartProbe = probe
       .request(1)
       .expectNextChainingPF {
         case chunk: ValueChunk if chunk.bytes == bytes => true
-        case chunk: ValueChunk => throw new RuntimeException(s"Expected DicomValueChunk with bytes = $bytes, got $chunk with bytes ${chunk.bytes}")
-        case p => throw new RuntimeException(s"Expected DicomValueChunk with bytes = $bytes, got $p")
+        case chunk: ValueChunk => throw new RuntimeException(s"Expected ValueChunk with bytes = $bytes, got $chunk with bytes ${chunk.bytes}")
+        case p => throw new RuntimeException(s"Expected ValueChunk with bytes = $bytes, got $p")
       }
 
     def expectItem(index: Int): PartProbe = probe
       .request(1)
       .expectNextChainingPF {
         case item: ItemPart if item.index == index => true
-        case p => throw new RuntimeException(s"Expected DicomItem with index = $index, got $p")
+        case p => throw new RuntimeException(s"Expected ItemPart with index = $index, got $p")
       }
 
     def expectItem(index: Int, length: Int): PartProbe = probe
       .request(1)
       .expectNextChainingPF {
         case item: ItemPart if item.index == index && item.length == length => true
-        case p => throw new RuntimeException(s"Expected DicomItem with index = $index and length $length, got $p")
+        case p => throw new RuntimeException(s"Expected ItemPart with index = $index and length $length, got $p")
       }
 
     def expectItemDelimitation(): PartProbe = probe
       .request(1)
       .expectNextChainingPF {
         case _: ItemDelimitationPart => true
-        case p => throw new RuntimeException(s"Expected DicomItemDelimitation, got $p")
+        case p => throw new RuntimeException(s"Expected ItemDelimitationPart, got $p")
       }
 
     def expectFragments(): PartProbe = probe
       .request(1)
       .expectNextChainingPF {
         case _: FragmentsPart => true
-        case p => throw new RuntimeException(s"Expected DicomFragments, got $p")
+        case p => throw new RuntimeException(s"Expected FragmentsPart, got $p")
       }
 
     def expectFragment(index: Int, length: Int): PartProbe = probe
       .request(1)
       .expectNextChainingPF {
         case item: ItemPart if item.index == index && item.length == length => true
-        case p => throw new RuntimeException(s"Expected DicomFragment with index = $index and length $length, got $p")
+        case p => throw new RuntimeException(s"Expected FragmentsPart with index = $index and length $length, got $p")
       }
 
     def expectFragmentsDelimitation(): PartProbe = probe
       .request(1)
       .expectNextChainingPF {
         case _: SequenceDelimitationPart => true
-        case p => throw new RuntimeException(s"Expected DicomFragmentsDelimitation, got $p")
+        case p => throw new RuntimeException(s"Expected SequenceDelimitationPart, got $p")
       }
 
     def expectHeader(tag: Int): PartProbe = probe
       .request(1)
       .expectNextChainingPF {
         case h: HeaderPart if h.tag == tag => true
-        case p => throw new RuntimeException(s"Expected DicomHeader with tag = ${tagToString(tag)}, got $p")
+        case p => throw new RuntimeException(s"Expected HeaderPart with tag = ${tagToString(tag)}, got $p")
       }
 
     def expectHeader(tag: Int, vr: VR, length: Long): PartProbe = probe
       .request(1)
       .expectNextChainingPF {
         case h: HeaderPart if h.tag == tag && h.vr == vr && h.length == length => true
-        case p => throw new RuntimeException(s"Expected DicomHeader with tag = ${tagToString(tag)}, VR = $vr and length = $length, got $p")
+        case p => throw new RuntimeException(s"Expected HeaderPart with tag = ${tagToString(tag)}, VR = $vr and length = $length, got $p")
       }
 
     def expectSequence(tag: Int): PartProbe = probe
       .request(1)
       .expectNextChainingPF {
         case h: SequencePart if h.tag == tag => true
-        case p => throw new RuntimeException(s"Expected DicomSequence with tag = ${tagToString(tag)}, got $p")
+        case p => throw new RuntimeException(s"Expected SequencePart with tag = ${tagToString(tag)}, got $p")
       }
 
     def expectSequence(tag: Int, length: Int): PartProbe = probe
       .request(1)
       .expectNextChainingPF {
         case h: SequencePart if h.tag == tag && h.length == length => true
-        case p => throw new RuntimeException(s"Expected DicomSequence with tag = ${tagToString(tag)} and length = $length, got $p")
+        case p => throw new RuntimeException(s"Expected SequencePart with tag = ${tagToString(tag)} and length = $length, got $p")
       }
 
     def expectSequenceDelimitation(): PartProbe = probe
       .request(1)
       .expectNextChainingPF {
         case _: SequenceDelimitationPart => true
-        case p => throw new RuntimeException(s"Expected DicomSequenceDelimitation, got $p")
+        case p => throw new RuntimeException(s"Expected SequenceDelimitationPart, got $p")
       }
 
     def expectUnknownPart(): PartProbe = probe
@@ -150,7 +148,7 @@ object TestUtils {
       .request(1)
       .expectNextChainingPF {
         case _: DeflatedChunk => true
-        case p => throw new RuntimeException(s"Expected DicomDeflatedChunk, got $p")
+        case p => throw new RuntimeException(s"Expected DeflatedChunk, got $p")
       }
 
     def expectDicomComplete(): PartProbe = probe

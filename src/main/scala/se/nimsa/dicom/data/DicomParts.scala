@@ -90,15 +90,17 @@ object DicomParts {
 
   case class UnknownPart(bigEndian: Boolean, bytes: ByteString) extends DicomPart
 
+  trait MetaPart extends DicomPart {
+    def bigEndian: Boolean = false
+    def bytes: ByteString = ByteString.empty
+  }
+
   /**
     * Meta-part that encapsulates a dataset
     *
     * @param label    a string label used to keep datasets apart when more than one are present in the same stream
     * @param elements a dataset
     */
-  case class ElementsPart(label: String, elements: Elements) extends DicomPart {
-    override def bigEndian: Boolean = false
-    override def bytes: ByteString = ByteString.empty
-  }
+  case class ElementsPart(label: String, elements: Elements) extends MetaPart
 
 }
