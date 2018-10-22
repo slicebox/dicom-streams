@@ -37,6 +37,8 @@ libraryDependencies ++= {
 
 updateOptions := updateOptions.value.withCachedResolution(true)
 
+// specify that there are managed sources and their destinations
+
 sourceGenerators in Compile += Def.task {
   val tagFile = (sourceManaged in Compile).value / "sbt-dicomdata" / "Tag.scala"
   val keywordFile = (sourceManaged in Compile).value / "sbt-dicomdata" / "Keyword.scala"
@@ -48,6 +50,14 @@ sourceGenerators in Compile += Def.task {
   IO.write(dictionaryFile, generateDictionary())
   Seq(tagFile, keywordFile, uidFile, dictionaryFile)
 }.taskValue
+
+// include managed sources among other sources when publishing
+
+mappings in (Compile, packageSrc) ++= {
+  val base  = (sourceManaged  in Compile).value
+  val files = (managedSources in Compile).value
+  files.map { f => (f, f.relativeTo(base).get.getPath) }
+}
 
 // for automatic license stub generation
 
