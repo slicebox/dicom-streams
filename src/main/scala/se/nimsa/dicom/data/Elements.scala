@@ -404,12 +404,12 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
         val strings = e.value.toStrings(e.vr, e.bigEndian, characterSets)
         val s = strings.mkString(multiValueDelimiter)
         val vm = strings.length.toString
-        s"$indent${tagToString(e.tag)} ${e.vr} [$s] ${space1(s)} # ${space2(e.length)} ${e.length}, $vm ${Keyword.valueOf(e.tag)}" :: Nil
+        s"$indent${tagToString(e.tag)} ${e.vr} [$s] ${space1(s)} # ${space2(e.length)} ${e.length}, $vm ${Dictionary.keywordOf(e.tag)}" :: Nil
 
       case s: Sequence =>
         val heading = {
           val description = if (s.length == indeterminateLength) "Sequence with indeterminate length" else s"Sequence with explicit length ${s.length}"
-          s"$indent${tagToString(s.tag)} SQ ($description) ${space1(description)} # ${space2(s.length)} ${s.length}, 1 ${Keyword.valueOf(s.tag)}"
+          s"$indent${tagToString(s.tag)} SQ ($description) ${space1(description)} # ${space2(s.length)} ${s.length}, 1 ${Dictionary.keywordOf(s.tag)}"
         }
         val items = s.items.flatMap { i =>
           val heading = {
@@ -426,7 +426,7 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
       case f: Fragments =>
         val heading = {
           val description = s"Fragments with ${f.size} fragment(s)"
-          s"$indent${tagToString(f.tag)} ${f.vr} ($description) ${space1(description)} #    na, 1 ${Keyword.valueOf(f.tag)}"
+          s"$indent${tagToString(f.tag)} ${f.vr} ($description) ${space1(description)} #    na, 1 ${Dictionary.keywordOf(f.tag)}"
         }
         val offsets = f.offsets.map { o =>
           val description = s"Offsets table with ${o.length} offset(s)"
@@ -513,7 +513,7 @@ object Elements {
       val strings = value.toStrings(vr, bigEndian, CharacterSets.defaultOnly)
       val s = strings.mkString(multiValueDelimiter)
       val vm = strings.length.toString
-      s"ValueElement(${tagToString(tag)} $vr [$s] # $length, $vm ${Keyword.valueOf(tag)})"
+      s"ValueElement(${tagToString(tag)} $vr [$s] # $length, $vm ${Dictionary.keywordOf(tag)})"
     }
   }
 
@@ -531,13 +531,13 @@ object Elements {
   case class SequenceElement(tag: Int, length: Long, bigEndian: Boolean = false, explicitVR: Boolean = true) extends Element {
     override def toBytes: ByteString = HeaderPart(tag, VR.SQ, length, isFmi = false, bigEndian, explicitVR).bytes
     override def toParts: List[DicomPart] = SequencePart(tag, length, bigEndian, explicitVR, toBytes) :: Nil
-    override def toString: String = s"SequenceElement(${tagToString(tag)} SQ # $length ${Keyword.valueOf(tag)})"
+    override def toString: String = s"SequenceElement(${tagToString(tag)} SQ # $length ${Dictionary.keywordOf(tag)})"
   }
 
   case class FragmentsElement(tag: Int, vr: VR, bigEndian: Boolean = false, explicitVR: Boolean = true) extends Element {
     override def toBytes: ByteString = toParts.head.bytes
     override def toParts: List[DicomPart] = HeaderPart(tag, vr, indeterminateLength, isFmi = false, bigEndian, explicitVR) :: Nil
-    override def toString: String = s"FragmentsElement(${tagToString(tag)} $vr # ${Keyword.valueOf(tag)})"
+    override def toString: String = s"FragmentsElement(${tagToString(tag)} $vr # ${Dictionary.keywordOf(tag)})"
   }
 
   case class FragmentElement(index: Int, length: Long, value: Value, bigEndian: Boolean = false) extends Element {
@@ -591,7 +591,7 @@ object Elements {
       SequenceDelimitationElement(marker = !indeterminate, bigEndian) :: Nil
     def size: Int = items.length
     def setItem(index: Int, item: Item): Sequence = copy(items = items.updated(index - 1, item))
-    override def toString: String = s"Sequence(${tagToString(tag)} SQ # $length ${items.length} ${Keyword.valueOf(tag)})"
+    override def toString: String = s"Sequence(${tagToString(tag)} SQ # $length ${items.length} ${Dictionary.keywordOf(tag)})"
   }
 
   object Sequence {
@@ -690,7 +690,7 @@ object Elements {
       fragments.zipWithIndex.map { case (fragment, index) => fragment.toElement(index + 2) } :::
       SequenceDelimitationElement(bigEndian) :: Nil
     def setFragment(index: Int, fragment: Fragment): Fragments = copy(fragments = fragments.updated(index - 1, fragment))
-    override def toString: String = s"Fragments(${tagToString(tag)} $vr # ${fragments.length} ${Keyword.valueOf(tag)})"
+    override def toString: String = s"Fragments(${tagToString(tag)} $vr # ${fragments.length} ${Dictionary.keywordOf(tag)})"
   }
 
   object Fragments {

@@ -41,14 +41,16 @@ updateOptions := updateOptions.value.withCachedResolution(true)
 
 sourceGenerators in Compile += Def.task {
   val tagFile = (sourceManaged in Compile).value / "sbt-dicomdata" / "Tag.scala"
-  val keywordFile = (sourceManaged in Compile).value / "sbt-dicomdata" / "Keyword.scala"
   val uidFile = (sourceManaged in Compile).value / "sbt-dicomdata" / "UID.scala"
-  val dictionaryFile = (sourceManaged in Compile).value / "sbt-dicomdata" / "Dictionary.scala"
+  val tagToVRFile = (sourceManaged in Compile).value / "sbt-dicomdata" / "TagToVR.scala"
+  val tagToVMFile = (sourceManaged in Compile).value / "sbt-dicomdata" / "TagToVM.scala"
+  val tagToKeywordFile = (sourceManaged in Compile).value / "sbt-dicomdata" / "TagToKeyword.scala"
   IO.write(tagFile, generateTag())
-  IO.write(keywordFile, generateKeyword())
   IO.write(uidFile, generateUID())
-  IO.write(dictionaryFile, generateDictionary())
-  Seq(tagFile, keywordFile, uidFile, dictionaryFile)
+  IO.write(tagToKeywordFile, generateTagToKeyword())
+  IO.write(tagToVRFile, generateTagToVR())
+  IO.write(tagToVMFile, generateTagToVM())
+  Seq(tagFile, uidFile, tagToKeywordFile, tagToVRFile, tagToVMFile)
 }.taskValue
 
 // include managed sources among other sources when publishing
@@ -67,7 +69,7 @@ licenses += ("Apache-2.0", new URL("https://www.apache.org/licenses/LICENSE-2.0.
 
 // coverage
 
-coverageExcludedPackages := ".*\\.BuildInfo.*;.*\\.Tag.*;.*\\.UID.*;.*\\.Dictionary.*;.*\\.Keyword.*"
+coverageExcludedPackages := ".*\\.BuildInfo.*;.*\\.Tag.*;.*\\.UID.*;.*\\.TagToKeyword.*;.*\\.TagToVR.*;.*\\.TagToVM.*"
 
 // publish
 publishMavenStyle := true
