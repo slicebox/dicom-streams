@@ -11,7 +11,9 @@ class KeywordToTagTest extends FlatSpec with Matchers {
     mappedTag shouldBe realTag
   }
 
-  it should "map to -1 for unknown keywords" in {
-    KeywordToTag.tagOf("oups") shouldBe -1
+  it should "throw exception for unknown keywords" in {
+    intercept[IllegalArgumentException] {
+      KeywordToTag.tagOf("oups")
+    }
   }
 }

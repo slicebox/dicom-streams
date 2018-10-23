@@ -12,4 +12,5 @@ object Dictionary {
 
   def tagOf(keyword: String): Int = KeywordToTag.tagOf(keyword)
 
+  def keywords(): List[String] = Tag.getClass.getMethods.map(_.getName).filter(_.head.isUpper).toList
 }

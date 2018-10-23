@@ -446,6 +446,14 @@ class TagPathTest extends FlatSpec with Matchers {
     }
   }
 
+  it should "accept both tag numbers and keywords" in {
+    val ref = TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientName)
+    TagPath.parse("(0008,9215)[1].(0010,0010)") shouldBe ref
+    TagPath.parse("DerivationCodeSequence[1].(0010,0010)") shouldBe ref
+    TagPath.parse("(0008,9215)[1].PatientName") shouldBe ref
+    TagPath.parse("DerivationCodeSequence[1].PatientName") shouldBe ref
+  }
+
   "The contains test" should "return for any tag number on the tag path" in {
     val path = TagPath.fromSequence(1, 1).thenSequence(2).thenTag(3)
     path.contains(1) shouldBe true

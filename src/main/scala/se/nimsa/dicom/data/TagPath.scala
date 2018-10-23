@@ -393,30 +393,38 @@ object TagPath {
   def fromSequence(tag: Int, item: Int): TagPathSequenceItem = EmptyTagPath.thenSequence(tag, item)
 
   /**
-    * Parse the string representation of a tag path into a tag path object.
+    * Parse the string representation of a tag path into a tag path object. Tag paths can either be specified using tag
+    * numbers or their corresponding keywords.
+    *
+    * Examples: (0008,9215)[1].(0010,0010) = DerivationCodeSequence[1].(0010,0010) = (0008,9215)[1].PatientName =
+    * DerivationCodeSequence[1].PatientName
     *
     * @param s string to parse
     * @return a tag path
     * @throws IllegalArgumentException for malformed input
     */
   def parse(s: String): TagPath = {
-    def isSeq(s: String) = s.length > 11
+    def isSeq(s: String): Boolean = s.last == ']'
 
-    def parseTagNumber(s: String) = Integer.parseInt(s.substring(1, 5) + s.substring(6, 10), 16)
+    def indexPart(s: String): String = s.substring(s.lastIndexOf('[') + 1, s.length - 1)
+    def tagPart(s: String): String = s.substring(0, s.indexOf('['))
 
-    def parseIndex(s: String) = if (s.charAt(12) == '*') None else Some(Integer.parseInt(s.substring(12, s.length - 1)))
+    def parseTag(s: String): Int = try Integer.parseInt(s.substring(1, 5) + s.substring(6, 10), 16) catch {
+      case _: Throwable =>
+        Dictionary.tagOf(s)
+    }
+    def parseIndex(s: String): Option[Int] = if (s == "*") None else Some(Integer.parseInt(s))
 
-    def createTag(s: String) = TagPath.fromTag(parseTagNumber(s))
+    def createTag(s: String): TagPathTag = TagPath.fromTag(parseTag(s))
+    def addTag(s: String, path: TagPathTrunk): TagPathTag = path.thenTag(parseTag(s))
 
-    def createSeq(s: String) = parseIndex(s)
-      .map(index => TagPath.fromSequence(parseTagNumber(s), index))
-      .getOrElse(TagPath.fromSequence(parseTagNumber(s)))
+    def createSeq(s: String): TagPathTrunk = parseIndex(indexPart(s))
+      .map(index => TagPath.fromSequence(parseTag(tagPart(s)), index))
+      .getOrElse(TagPath.fromSequence(parseTag(tagPart(s))))
+    def addSeq(s: String, path: TagPathTrunk): TagPathTrunk = parseIndex(indexPart(s))
+      .map(index => path.thenSequence(parseTag(tagPart(s)), index))
+      .getOrElse(path.thenSequence(parseTag(tagPart(s))))
 
-    def addSeq(s: String, path: TagPathTrunk) = parseIndex(s)
-      .map(index => path.thenSequence(parseTagNumber(s), index))
-      .getOrElse(path.thenSequence(parseTagNumber(s)))
-
-    def addTag(s: String, path: TagPathTrunk) = path.thenTag(parseTagNumber(s))
 
     val tags = if (s.indexOf('.') > 0) s.split("\\.").toList else List(s)
     val seqTags = if (tags.length > 1) tags.init else Nil // list of sequence tags, if any
