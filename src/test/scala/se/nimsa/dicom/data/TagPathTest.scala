@@ -21,7 +21,12 @@ class TagPathTest extends FlatSpec with Matchers {
 
   "A tag path" should "have a legible string representation" in {
     val path = TagPath.fromSequence(Tag.DerivationCodeSequence).thenSequence(Tag.DerivationCodeSequence, 3).thenSequence(Tag.DerivationCodeSequence).thenTag(Tag.PatientID)
-    path.toString shouldBe "(0008,9215)[*].(0008,9215)[3].(0008,9215)[*].(0010,0020)"
+    path.toString(lookup = false) shouldBe "(0008,9215)[*].(0008,9215)[3].(0008,9215)[*].(0010,0020)"
+  }
+
+  it should "support string representations with keywords instead of tag numbers where possible" in {
+    val path = TagPath.fromSequence(Tag.DerivationCodeSequence).thenSequence(0x11110100, 3).thenSequence(Tag.DetectorInformationSequence).thenTag(Tag.PatientID)
+    path.toString(lookup = true) shouldBe "DerivationCodeSequence[*].(1111,0100)[3].DetectorInformationSequence[*].PatientID"
   }
 
   it should "be root when pointing to root dataset" in {

@@ -278,7 +278,14 @@ sealed trait TagPath {
     take(path = this, i = depth - n)
   }
 
-  override def toString: String = {
+  def toString(lookup: Boolean): String = {
+    def toTagString(tag: Int): String = if (lookup) {
+      val keyword = Dictionary.keywordOf(tag)
+      if (keyword.isEmpty) tagToString(tag) else keyword
+    }
+    else
+      tagToString(tag)
+
     @tailrec
     def toTagPathString(path: TagPath, tail: String): String = {
       val itemIndexSuffix = path match {
@@ -286,13 +293,15 @@ sealed trait TagPath {
         case s: TagPathSequenceItem => s"[${s.item}]"
         case _ => ""
       }
-      val head = tagToString(path.tag) + itemIndexSuffix
+      val head = toTagString(path.tag) + itemIndexSuffix
       val part = head + tail
       if (path.isRoot) part else toTagPathString(path.previous, "." + part)
     }
 
     if (isEmpty) "<empty path>" else toTagPathString(path = this, tail = "")
   }
+
+  override def toString: String = toString(lookup = true)
 
   override def hashCode(): Int = this match {
     case EmptyTagPath => 0
@@ -407,20 +416,24 @@ object TagPath {
     def isSeq(s: String): Boolean = s.last == ']'
 
     def indexPart(s: String): String = s.substring(s.lastIndexOf('[') + 1, s.length - 1)
+
     def tagPart(s: String): String = s.substring(0, s.indexOf('['))
 
     def parseTag(s: String): Int = try Integer.parseInt(s.substring(1, 5) + s.substring(6, 10), 16) catch {
       case _: Throwable =>
         Dictionary.tagOf(s)
     }
+
     def parseIndex(s: String): Option[Int] = if (s == "*") None else Some(Integer.parseInt(s))
 
     def createTag(s: String): TagPathTag = TagPath.fromTag(parseTag(s))
+
     def addTag(s: String, path: TagPathTrunk): TagPathTag = path.thenTag(parseTag(s))
 
     def createSeq(s: String): TagPathTrunk = parseIndex(indexPart(s))
       .map(index => TagPath.fromSequence(parseTag(tagPart(s)), index))
       .getOrElse(TagPath.fromSequence(parseTag(tagPart(s))))
+
     def addSeq(s: String, path: TagPathTrunk): TagPathTrunk = parseIndex(indexPart(s))
       .map(index => path.thenSequence(parseTag(tagPart(s)), index))
       .getOrElse(path.thenSequence(parseTag(tagPart(s))))
