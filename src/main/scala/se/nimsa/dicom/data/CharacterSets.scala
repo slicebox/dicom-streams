@@ -73,6 +73,11 @@ class CharacterSets(val charsetNames: Seq[String]) {
   }
 
   override def toString: String = s"${getClass.getSimpleName} [${specifiedCharsets.map(_.charset.toString).mkString(",")}]"
+
+  override def equals(that: Any): Boolean = that match {
+    case thatCharSets: CharacterSets => charsetNames == thatCharSets.charsetNames
+    case _ => this == that
+  }
 }
 
 object CharacterSets {

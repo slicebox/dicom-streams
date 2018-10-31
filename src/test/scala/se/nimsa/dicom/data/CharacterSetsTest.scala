@@ -103,6 +103,12 @@ class CharacterSetsTest extends TestKit(ActorSystem("CharacterSetsSpec")) with F
     checkPatientName(name, nameCodePoints)
   }
 
+  "CharacterSets" should "be comparable" in {
+    val cs1 = new CharacterSets(Seq("ISO 2022 IR 13", "ISO 2022 IR 87"))
+    val cs2 = new CharacterSets(Seq("ISO 2022 IR 13", "ISO 2022 IR 87"))
+    cs1 shouldBe cs2
+  }
+
   private def checkPatientName(name: String, expectedCodePoints: Array[Int]): Unit = {
     val codePoints = new Array[Int](name.codePointCount(0, name.length))
     val length = name.length
