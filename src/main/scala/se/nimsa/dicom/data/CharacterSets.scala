@@ -78,6 +78,8 @@ class CharacterSets(val charsetNames: Seq[String]) {
     case thatCharSets: CharacterSets => charsetNames == thatCharSets.charsetNames
     case _ => this == that
   }
+
+  override def hashCode(): Int = charsetNames.hashCode
 }
 
 object CharacterSets {
