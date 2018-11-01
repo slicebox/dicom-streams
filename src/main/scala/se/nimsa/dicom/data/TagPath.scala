@@ -40,10 +40,14 @@ sealed trait TagPath {
   }
 
   /**
-    * Test if this tag path is less than the input path, comparing their parts pairwise according to the following rules
+    * Test if this tag path is less than the input path, comparing their parts pairwise from root to leaf according to
+    * the following rules:
     * (1) a is less than b if the a's tag number is less b's tag number
     * (2) a is less than b if tag numbers are equal and a's item index is less than b's item index
-    * in all other cases a is not less than b
+    * in all other cases a is not less than b. Note that this means that the ordering of sequence items and sequence
+    * wildcards with the same tag number is not defined, e.g. the path `(300A,00B0)[1]` is equal in terms of ordering to
+    * `(300A,00B0)[*]` in the sense that `(300A,00B0)[1] &lt; (300A,00B0)[*] = false` and
+    * `(300A,00B0)[*] &lt; (300A,00B0)[1] = false`.
     *
     * @param that the tag path to compare with
     * @return `true` if this tag path is less than the input path
@@ -53,8 +57,10 @@ sealed trait TagPath {
     val thatList = that.toList
 
     thisList.zip(thatList).foreach {
-      case (EmptyTagPath, thatPath) => !thatPath.isEmpty
-      case (_, EmptyTagPath) => false
+      case (EmptyTagPath, thatPath) =>
+        return !thatPath.isEmpty
+      case (_, EmptyTagPath) =>
+        return false
       case (thisPath, thatPath) if thisPath.tag != thatPath.tag =>
         return intToUnsignedLong(thisPath.tag) < intToUnsignedLong(thatPath.tag)
       case (thisPath: TagPathSequenceItem, thatPath: TagPathSequenceItem) if thisPath.item != thatPath.item =>
