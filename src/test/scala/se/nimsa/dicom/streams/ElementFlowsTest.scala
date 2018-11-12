@@ -103,15 +103,15 @@ class ElementFlowsTest extends TestKit(ActorSystem("ElementFlowsSpec")) with Fla
       }
       .request(1)
       .expectNextChainingPF {
-        case (tp: TagPath, e: ItemElement) if e.index == 1 && tp == TagPath.fromSequence(Tag.DerivationCodeSequence, 1) => true
+        case (tp: TagPath, e: ItemElement) if e.index == 1 && tp == TagPath.fromItem(Tag.DerivationCodeSequence, 1) => true
       }
       .request(1)
       .expectNextChainingPF {
-        case (tp: TagPath, e: ValueElement) if e.tag == Tag.PatientName && tp == TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientName) => true
+        case (tp: TagPath, e: ValueElement) if e.tag == Tag.PatientName && tp == TagPath.fromItem(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientName) => true
       }
       .request(1)
       .expectNextChainingPF {
-        case (tp: TagPath, e: ItemDelimitationElement) if e.index == 1 && tp == TagPath.fromSequence(Tag.DerivationCodeSequence, 1) => true
+        case (tp: TagPath, e: ItemDelimitationElement) if e.index == 1 && tp == TagPath.fromItem(Tag.DerivationCodeSequence, 1) => true
       }
       .request(1)
       .expectNextChainingPF {

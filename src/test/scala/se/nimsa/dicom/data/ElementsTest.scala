@@ -47,20 +47,18 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
   "Elements" should "return an existing element" in {
     elements(Tag.PatientName) shouldBe Some(patientName)
     elements(TagPath.fromTag(Tag.PatientName)) shouldBe Some(patientName)
-    elements(TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientID)) shouldBe Some(patientID1)
-    elements(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenTag(Tag.PatientID)) shouldBe Some(patientID2)
+    elements(TagPath.fromItem(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientID)) shouldBe Some(patientID1)
+    elements(TagPath.fromItem(Tag.DerivationCodeSequence, 2).thenTag(Tag.PatientID)) shouldBe Some(patientID2)
   }
 
   it should "support empty and contains tests" in {
     elements.isEmpty shouldBe false
     elements.nonEmpty shouldBe true
     elements.contains(Tag.StudyDate) shouldBe true
-    elements.contains(EmptyTagPath) shouldBe true
-    elements.contains(TagPath.fromSequence(Tag.DerivationCodeSequence, 1)) shouldBe true
-    elements.contains(TagPath.fromSequence(Tag.DerivationCodeSequence, 3)) shouldBe false
-    elements.contains(TagPath.fromSequence(Tag.DerivationCodeSequence)) shouldBe true
-    elements.contains(TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientID)) shouldBe true
-    elements.contains(TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientName)) shouldBe false
+    elements.contains(TagPath.fromItem(Tag.DerivationCodeSequence, 1)) shouldBe true
+    elements.contains(TagPath.fromItem(Tag.DerivationCodeSequence, 3)) shouldBe false
+    elements.contains(TagPath.fromItem(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientID)) shouldBe true
+    elements.contains(TagPath.fromItem(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientName)) shouldBe false
     elements.head shouldBe studyDate
   }
 
@@ -203,25 +201,16 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
   }
 
   it should "return nested elements" in {
-    elements.getNested(TagPath.fromSequence(Tag.DerivationCodeSequence, 1)).get shouldBe create(patientID1)
-    elements.getNested(TagPath.fromSequence(Tag.DerivationCodeSequence, 2)).get shouldBe create(patientID2)
-    elements.getNested(Tag.DerivationCodeSequence, 1) shouldBe elements.getNested(TagPath.fromSequence(Tag.DerivationCodeSequence, 1))
+    elements.getNested(TagPath.fromItem(Tag.DerivationCodeSequence, 1)).get shouldBe create(patientID1)
+    elements.getNested(TagPath.fromItem(Tag.DerivationCodeSequence, 2)).get shouldBe create(patientID2)
+    elements.getNested(Tag.DerivationCodeSequence, 1) shouldBe elements.getNested(TagPath.fromItem(Tag.DerivationCodeSequence, 1))
   }
 
   it should "return deeply nested elements" in {
     val elements = create(seq + Item(create(seq)))
     elements.getNested(TagPath
-      .fromSequence(Tag.DerivationCodeSequence, 3)
-      .thenSequence(Tag.DerivationCodeSequence, 1)).get shouldBe create(patientID1)
-  }
-
-  it should "not support using wildcards when getting nested elements" in {
-    val elements = create(seq + Item(create(seq)))
-    intercept[IllegalArgumentException] {
-      elements.getNested(TagPath
-        .fromSequence(Tag.DerivationCodeSequence)
-        .thenSequence(Tag.DerivationCodeSequence, 1))
-    }
+      .fromItem(Tag.DerivationCodeSequence, 3)
+      .thenItem(Tag.DerivationCodeSequence, 1)).get shouldBe create(patientID1)
   }
 
   it should "return fragments" in {
@@ -251,21 +240,11 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
     elements.remove(Tag.Modality) shouldBe elements
     elements.remove(EmptyTagPath) shouldBe elements
     elements.remove(TagPath.fromTag(Tag.StudyDate)) shouldBe elements.copy(data = Vector(seq, patientName))
-    elements.remove(TagPath.fromSequence(Tag.DerivationCodeSequence, 1)) shouldBe elements.copy(data = Vector(studyDate, seq.copy(items = seq.items.tail), patientName))
-    elements.remove(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenTag(Tag.PatientID)) shouldBe elements.copy(data = Vector(studyDate, updatedSeq1, patientName))
-    elements.remove(TagPath.fromSequence(Tag.DerivationCodeSequence, 3)) shouldBe elements
-    elements.remove(TagPath.fromSequence(Tag.DetectorInformationSequence, 1)) shouldBe elements
-    deepElements.remove(TagPath.fromSequence(Tag.DerivationCodeSequence,2).thenSequence(Tag.DerivationCodeSequence, 2)) shouldBe updatedDeepElements
-
-    intercept[IllegalArgumentException] {
-      elements.remove(TagPath.fromSequence(Tag.DerivationCodeSequence))
-    }
-    intercept[IllegalArgumentException] {
-      elements.remove(TagPath.fromSequence(Tag.DerivationCodeSequence).thenTag(Tag.PatientID))
-    }
-    intercept[IllegalArgumentException] {
-      elements.remove(TagPath.fromSequence(Tag.DerivationCodeSequence).thenSequence(Tag.DerivationCodeSequence, 1))
-    }
+    elements.remove(TagPath.fromItem(Tag.DerivationCodeSequence, 1)) shouldBe elements.copy(data = Vector(studyDate, seq.copy(items = seq.items.tail), patientName))
+    elements.remove(TagPath.fromItem(Tag.DerivationCodeSequence, 2).thenTag(Tag.PatientID)) shouldBe elements.copy(data = Vector(studyDate, updatedSeq1, patientName))
+    elements.remove(TagPath.fromItem(Tag.DerivationCodeSequence, 3)) shouldBe elements
+    elements.remove(TagPath.fromItem(Tag.DetectorInformationSequence, 1)) shouldBe elements
+    deepElements.remove(TagPath.fromItem(Tag.DerivationCodeSequence,2).thenItem(Tag.DerivationCodeSequence, 2)) shouldBe updatedDeepElements
   }
 
   it should "set elements in the correct position" in {
@@ -284,38 +263,31 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
   }
 
   it should "set elements in sequences" in {
-    val updated = elements.set(TagPath.fromSequence(Tag.DerivationCodeSequence, 2), studyDate)
-    updated(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenTag(Tag.StudyDate)).get shouldBe studyDate
+    val updated = elements.set(TagPath.fromItem(Tag.DerivationCodeSequence, 2), studyDate)
+    updated(TagPath.fromItem(Tag.DerivationCodeSequence, 2).thenTag(Tag.StudyDate)).get shouldBe studyDate
   }
 
   it should "not add elements to sequences that does not exist" in {
-    val updated = elements.set(TagPath.fromSequence(Tag.DetectorInformationSequence, 1), studyDate)
+    val updated = elements.set(TagPath.fromItem(Tag.DetectorInformationSequence, 1), studyDate)
     updated shouldBe elements
-  }
-
-  it should "not support using wildcards when setting sequences" in {
-    val elements = create(seq + Item(create(seq)))
-    intercept[IllegalArgumentException] {
-      elements.set(TagPath.fromSequence(Tag.DerivationCodeSequence).thenSequence(Tag.DerivationCodeSequence, 1), studyDate)
-    }
   }
 
   it should "replace items in sequences" in {
     val newElements = Elements.empty().set(studyDate)
-    val updated = elements.setNested(TagPath.fromSequence(Tag.DerivationCodeSequence, 2), newElements)
+    val updated = elements.setNested(TagPath.fromItem(Tag.DerivationCodeSequence, 2), newElements)
     updated.getNested(Tag.DerivationCodeSequence, 2) shouldBe Some(newElements)
   }
 
   it should "not add items when trying to replace item at specified index" in {
     val newElements = Elements.empty().set(studyDate)
-    val updated = elements.setNested(TagPath.fromSequence(Tag.DerivationCodeSequence, 3), newElements)
+    val updated = elements.setNested(TagPath.fromItem(Tag.DerivationCodeSequence, 3), newElements)
     updated shouldBe elements
     updated.getNested(Tag.DerivationCodeSequence, 3) shouldBe None
   }
 
   it should "not add new sequences" in {
     val newElements = Elements.empty().set(studyDate)
-    val updated = elements.setNested(TagPath.fromSequence(Tag.DetectorInformationSequence, 1), newElements)
+    val updated = elements.setNested(TagPath.fromItem(Tag.DetectorInformationSequence, 1), newElements)
     updated shouldBe elements
     updated.getNested(Tag.DetectorInformationSequence, 1) shouldBe None
   }
@@ -334,14 +306,14 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
 
   it should "add a new sequence" in {
     val updated = elements.setSequence(
-      TagPath.fromSequence(Tag.DerivationCodeSequence,1),
+      TagPath.fromItem(Tag.DerivationCodeSequence,1),
       Sequence(
         Tag.DetectorInformationSequence,
         indeterminateLength,
         List(Item(Elements.empty().set(studyDate)))
       )
     )
-    updated(TagPath.fromSequence(Tag.DerivationCodeSequence,1).thenSequence(Tag.DetectorInformationSequence,1).thenTag(Tag.StudyDate)).get shouldBe studyDate
+    updated(TagPath.fromItem(Tag.DerivationCodeSequence,1).thenItem(Tag.DetectorInformationSequence,1).thenTag(Tag.StudyDate)).get shouldBe studyDate
   }
 
   it should "overwrite element if already present" in {
@@ -495,27 +467,21 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
   }
 
   it should "return the specified element based on tag path" in {
-    elements(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenTag(Tag.PatientID)) shouldBe Some(patientID2)
-    elements(TagPath.fromSequence(Tag.DerivationCodeSequence, 3).thenTag(Tag.PatientID)) shouldBe None
-    elements(TagPath.fromSequence(Tag.DerivationCodeSequence, 3).thenTag(Tag.PatientID)) shouldBe None
-    elements(TagPath.fromSequence(Tag.DerivationCodeSequence, 2).thenTag(Tag.PatientName)) shouldBe None
-    elements(TagPath.fromSequence(Tag.AbstractPriorCodeSequence, 1).thenTag(Tag.PatientID)) shouldBe None
-  }
-
-  it should "not accept wildcards in tag paths" in {
-    intercept[IllegalArgumentException] {
-      elements(TagPath.fromSequence(Tag.DerivationCodeSequence).thenTag(Tag.PatientID))
-    }
+    elements(TagPath.fromItem(Tag.DerivationCodeSequence, 2).thenTag(Tag.PatientID)) shouldBe Some(patientID2)
+    elements(TagPath.fromItem(Tag.DerivationCodeSequence, 3).thenTag(Tag.PatientID)) shouldBe None
+    elements(TagPath.fromItem(Tag.DerivationCodeSequence, 3).thenTag(Tag.PatientID)) shouldBe None
+    elements(TagPath.fromItem(Tag.DerivationCodeSequence, 2).thenTag(Tag.PatientName)) shouldBe None
+    elements(TagPath.fromItem(Tag.AbstractPriorCodeSequence, 1).thenTag(Tag.PatientID)) shouldBe None
   }
 
   it should "return the specified seqeunce based on tag path" in {
-    elements.getNested(TagPath.fromSequence(Tag.DerivationCodeSequence, 1)) shouldBe seq.item(1).map(_.elements)
+    elements.getNested(TagPath.fromItem(Tag.DerivationCodeSequence, 1)) shouldBe seq.item(1).map(_.elements)
   }
 
   it should "update element specified by tag path" in {
-    elements(TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientID)) shouldBe Some(patientID1)
-    val e2 = elements.set(TagPath.fromSequence(Tag.DerivationCodeSequence, 1), patientID2)
-    e2(TagPath.fromSequence(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientID)) shouldBe Some(patientID2)
+    elements(TagPath.fromItem(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientID)) shouldBe Some(patientID1)
+    val e2 = elements.set(TagPath.fromItem(Tag.DerivationCodeSequence, 1), patientID2)
+    e2(TagPath.fromItem(Tag.DerivationCodeSequence, 1).thenTag(Tag.PatientID)) shouldBe Some(patientID2)
   }
 
   it should "provide a legible toString" in {

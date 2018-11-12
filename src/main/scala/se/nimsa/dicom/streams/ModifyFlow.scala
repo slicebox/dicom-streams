@@ -29,42 +29,44 @@ object ModifyFlow {
   /**
     * Class used to specify modifications to individual elements of a dataset
     *
-    * @param tagPath      tag path
     * @param matches      function used to determine if another tag path is matching the tag path of this modification
     *                     (may mean e.g. equals, starts with or ends with)
     * @param modification a modification function
-    * @param insert       if tag is absent in dataset it will be created and inserted when `true`
     */
-  case class TagModification(tagPath: TagPathTag, matches: TagPath => Boolean, modification: ByteString => ByteString, insert: Boolean)
+  case class TagModification(matches: TagPath => Boolean, modification: ByteString => ByteString)
 
   object TagModification {
 
     /**
-      * Modification that will modify dataset elements contained within its tag path. "Contained" means equals unless
-      * item wildcards are used. E.g. if the modification tag path is (0008,9215)[*}.(0010,0010) the path
-      * (0008,9215)[1].(0010,0010) will be contained in that path along with any other item indices. Useful for changing
-      * specific elements in a dataset.
+      * Modification that will modify dataset elements matching its tag path.
       */
-    def contains(tagPath: TagPathTag, modification: ByteString => ByteString, insert: Boolean) =
-      TagModification(tagPath, tagPath.hasSubPath, modification, insert)
+    def equals(tagPath: TagPathTag, modification: ByteString => ByteString) = TagModification(tagPath.equals, modification)
 
     /**
       * Modification that will modify dataset elements where the corresponding tag path ends with the tag path of this
       * modification. E.g. both the dataset elements (0010,0010) and (0008,9215)[1].(0010,0010) will be modified if
       * this tag path is (0010,0010). Useful for changing all instances of a certain element.
       */
-    def endsWith(tagPath: TagPathTag, modification: ByteString => ByteString, insert: Boolean) =
-      TagModification(tagPath, _.endsWith(tagPath), modification, insert)
+    def endsWith(tagPath: TagPathTag, modification: ByteString => ByteString) = TagModification(_.endsWith(tagPath), modification)
   }
 
   /**
-    * Meta-part carriying tag modifications that when received by modify flow are picked up and added to or replaces the
-    * input tag modifications
+    * Class used to specify insertions (or replacements) of elements into a dataset
     *
-    * @param modifications additional tag modifications adding to or replacing input modifications
-    * @param replace       `true` if these modifications should replace the current ones
+    * @param tagPath tag path pointing to position to insert or replace data
+    * @param value   insertion data
     */
-  case class TagModificationsPart(modifications: List[TagModification], replace: Boolean = false) extends MetaPart
+  case class TagInsertion(tagPath: TagPathTag, value: ByteString)
+
+  /**
+    * Meta-part carrying tag modifications and element insertions that when received by modify flow are picked up and
+    * added to or replaces the input tag modifications
+    *
+    * @param modifications additional tag modifications
+    * @param insertions    additional element insertions
+    * @param replace       `true` if these modifications/insertions should replace the current ones
+    */
+  case class TagModificationsPart(modifications: Seq[TagModification], insertions: Seq[TagInsertion], replace: Boolean = false) extends MetaPart
 
   /**
     * Modification flow for inserting or overwriting the values of specified elements. When inserting a new element,
@@ -81,15 +83,18 @@ object ModifyFlow {
     * Modifications can either be supplied as input arguments or passed at any time on the stream encapsulated in a
     * [[se.nimsa.dicom.streams.ModifyFlow.TagModificationsPart]]
     *
-    * @param modifications Any number of [[se.nimsa.dicom.streams.ModifyFlow.TagModification]]s each specifying a tag path, a modification function, and
-    *                      a Boolean indicating whether absent values will be inserted or skipped.
+    * @param modifications a sequence of tag modifications each with its on trigger function on current tag path, and
+    *                      modification function for element value when triggered
+    * @param insertions    a sequence of tag insertion specifications each with a tag path pointer to the element to
+    *                      be replaced or inserted, and the new value
     * @return the modified flow of DICOM parts
     */
-  def modifyFlow(modifications: TagModification*): Flow[DicomPart, DicomPart, NotUsed] =
+  def modifyFlow(modifications: Seq[TagModification] = Seq.empty, insertions: Seq[TagInsertion] = Seq.empty): Flow[DicomPart, DicomPart, NotUsed] =
     DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with EndEvent[DicomPart] with TagPathTracking[DicomPart] {
 
-      var sortedModifications: List[TagModification] = Nil
-      setModifications(modifications.toList)
+      var currentModifications: List[TagModification] = Nil
+      var currentInsertions: List[TagInsertion] = Nil
+      set(modifications, insertions)
 
       var currentModification: Option[TagModification] = None // current modification
       var currentHeader: Option[HeaderPart] = None // header of current element being modified
@@ -98,10 +103,12 @@ object ModifyFlow {
       var bigEndian = false // endianness of current element
       var explicitVR = true // VR representation of current element
 
-      def setModifications(modifications: List[TagModification]): Unit =
-        sortedModifications = modifications
+      def set(m: Seq[TagModification], i: Seq[TagInsertion]): Unit = {
+        currentModifications = m.toList
+        currentInsertions = i
           .groupBy(_.tagPath).flatMap(_._2.headOption).toList // distinct on tag path
           .sortWith((a, b) => a.tagPath < b.tagPath) // sorted by tag path
+      }
 
       def updateSyntax(header: HeaderPart): Unit = {
         bigEndian = header.bigEndian
@@ -125,15 +132,14 @@ object ModifyFlow {
         lowerTag < tagToTest && tagToTest < upperTag
 
       def isInDataset(tagToTest: TagPath, tagPath: TagPath): Boolean =
-        tagToTest.previous.hasSubPath(tagPath.previous)
+        tagToTest.previous == tagPath.previous
 
-      def findInsertParts: List[DicomPart] = sortedModifications
-        .filter(_.insert)
+      def findInsertParts: List[DicomPart] = currentInsertions
         .filter(m => isBetween(latestTagPath, m.tagPath, tagPath))
         .filter(m => isInDataset(m.tagPath, tagPath))
-        .flatMap(m => headerAndValueParts(m.tagPath, m.modification))
+        .flatMap(m => headerAndValueParts(m.tagPath, _ => m.value))
 
-      def findModifyPart(header: HeaderPart): List[DicomPart] = sortedModifications
+      def findModifyPart(header: HeaderPart): List[DicomPart] = currentModifications
         .find(m => m.matches(tagPath))
         .map { tagModification =>
           currentHeader = Some(header)
@@ -145,8 +151,11 @@ object ModifyFlow {
 
       override def onPart(part: DicomPart): List[DicomPart] =
         part match {
-          case mods: TagModificationsPart =>
-            if (mods.replace) setModifications(mods.modifications) else setModifications(sortedModifications ++ mods.modifications)
+          case modsPart: TagModificationsPart =>
+            if (modsPart.replace)
+              set(modsPart.modifications, modsPart.insertions)
+            else
+              set(currentModifications ++ modsPart.modifications, currentInsertions ++ modsPart.insertions)
             Nil
 
           case header: HeaderPart =>
@@ -181,11 +190,10 @@ object ModifyFlow {
         }
 
       override def onEnd(): List[DicomPart] = if (latestTagPath.isEmpty) Nil else
-        sortedModifications
-          .filter(_.insert)
+        currentInsertions
           .filter(_.tagPath.isRoot)
           .filter(m => latestTagPath < m.tagPath)
-          .flatMap(m => headerAndValueParts(m.tagPath, m.modification))
+          .flatMap(m => headerAndValueParts(m.tagPath, _ => m.value))
     })
 
 }

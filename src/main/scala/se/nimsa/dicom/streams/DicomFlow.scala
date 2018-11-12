@@ -267,7 +267,7 @@ trait TagPathTracking[Out] extends DicomFlow[Out] with GuaranteedValueEvent[Out]
 
   abstract override def onHeader(part: HeaderPart): List[Out] = {
     tagPath = tagPath match {
-      case t: TagPathSequenceItem => t.thenTag(part.tag)
+      case t: TagPathItem => t.thenTag(part.tag)
       case t => t.previous.thenTag(part.tag)
     }
     super.onHeader(part)
@@ -275,7 +275,7 @@ trait TagPathTracking[Out] extends DicomFlow[Out] with GuaranteedValueEvent[Out]
 
   abstract override def onFragments(part: FragmentsPart): List[Out] = {
     tagPath = tagPath match {
-      case t: TagPathSequenceItem => t.thenTag(part.tag)
+      case t: TagPathItem => t.thenTag(part.tag)
       case t => t.previous.thenTag(part.tag)
     }
     super.onFragments(part)
@@ -283,25 +283,25 @@ trait TagPathTracking[Out] extends DicomFlow[Out] with GuaranteedValueEvent[Out]
 
   abstract override def onSequence(part: SequencePart): List[Out] = {
     tagPath = tagPath match {
-      case t: TagPathSequenceItem => t.thenSequence(part.tag)
+      case t: TagPathItem => t.thenSequence(part.tag)
       case t => t.previous.thenSequence(part.tag)
     }
     super.onSequence(part)
   }
 
   abstract override def onSequenceDelimitation(part: SequenceDelimitationPart): List[Out] = {
-    if (!inFragments) tagPath = tagPath.previous.thenSequence(tagPath.tag)
+    if (!inFragments) tagPath = tagPath.previous.thenSequenceEnd(tagPath.tag)
     super.onSequenceDelimitation(part)
   }
 
   abstract override def onItem(part: ItemPart): List[Out] = {
-      if (!inFragments) tagPath = tagPath.previous.thenSequence(tagPath.tag, part.index)
+      if (!inFragments) tagPath = tagPath.previous.thenItem(tagPath.tag, part.index)
     super.onItem(part)
   }
 
   abstract override def onItemDelimitation(part: ItemDelimitationPart): List[Out] = {
     tagPath = tagPath match {
-      case t: TagPathSequenceItem => tagPath.previous.thenSequence(t.tag, t.item)
+      case t: TagPathItem => tagPath.previous.thenItemEnd(t.tag, t.item)
       case t => t.previous
     }
     super.onItemDelimitation(part)

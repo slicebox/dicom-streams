@@ -28,7 +28,7 @@ object CollectFlow {
     */
   def collectFlow(tags: Set[TagPath], label: String, maxBufferSize: Int = 1000000): Flow[DicomPart, DicomPart, NotUsed] = {
     val maxTag = if (tags.isEmpty) 0 else tags.map(_.toList.head.tag).max
-    val tagCondition = (tagPath: TagPath) => tags.exists(tagPath.startsWithSuperPath)
+    val tagCondition = (tagPath: TagPath) => tags.exists(tagPath.startsWith)
     val stopCondition = if (tags.isEmpty)
       (_: TagPath) => true
     else

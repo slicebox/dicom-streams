@@ -193,7 +193,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
-      .via(whitelistFilter(Set(TagPath.fromTag(Tag.StudyDate))))
+      .via(whitelistFilter(Set(TagTree.fromTag(Tag.StudyDate))))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.StudyDate)
@@ -206,7 +206,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
-      .via(whitelistFilter(Set(TagPath.fromTag(Tag.StudyDate))))
+      .via(whitelistFilter(Set(TagTree.fromTag(Tag.StudyDate))))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.StudyDate)
@@ -219,7 +219,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
-      .via(whitelistFilter(Set(TagPath.fromTag(Tag.StudyDate))))
+      .via(whitelistFilter(Set(TagTree.fromTag(Tag.StudyDate))))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectDicomComplete()
@@ -236,6 +236,23 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectDicomComplete()
   }
 
+  it should "preserve sequences and items in nested structures" in {
+    val bytes = patientNameJohnDoe() ++ sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation()
+
+    val source = Source.single(bytes)
+      .via(new ParseFlow())
+      .via(whitelistFilter(Set(TagTree.fromAnyItem(Tag.DerivationCodeSequence).thenTag(Tag.StudyDate))))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectSequence(Tag.DerivationCodeSequence)
+      .expectItem(1)
+      .expectHeader(Tag.StudyDate)
+      .expectValueChunk()
+      .expectItemDelimitation()
+      .expectSequenceDelimitation()
+      .expectDicomComplete()
+  }
+
   "The blacklist filter" should "block the entire sequence when a sequence tag is on the black list" in {
     val bytes = studyDate() ++
       (sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++
@@ -245,7 +262,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(blacklistFilter(Set(TagPath.fromSequence(Tag.DerivationCodeSequence))))
+      .via(blacklistFilter(Set(TagTree.fromAnyItem(Tag.DerivationCodeSequence))))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.StudyDate)
@@ -261,7 +278,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(blacklistFilter(Set(TagPath.fromTag(Tag.StudyDate), TagPath.fromSequence(Tag.DerivationCodeSequence, 1))))
+      .via(blacklistFilter(Set(TagTree.fromTag(Tag.StudyDate), TagTree.fromItem(Tag.DerivationCodeSequence, 1))))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectSequence(Tag.DerivationCodeSequence)
@@ -279,9 +296,9 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val source = Source.single(bytes)
       .via(new ParseFlow())
       .via(deflateDatasetFlow)
-      .via(modifyFlow(
-        TagModification.contains(TagPath.fromTag(Tag.FileMetaInformationGroupLength), _ => fmiGroupLength(transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian)), insert = false),
-        TagModification.contains(TagPath.fromTag(Tag.TransferSyntaxUID), _ => transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian).drop(8), insert = false)))
+      .via(modifyFlow(modifications = Seq(
+        TagModification.equals(TagPath.fromTag(Tag.FileMetaInformationGroupLength), _ => fmiGroupLength(transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian))),
+        TagModification.equals(TagPath.fromTag(Tag.TransferSyntaxUID), _ => transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian).drop(8)))))
       .map(_.bytes)
       .via(new ParseFlow())
 

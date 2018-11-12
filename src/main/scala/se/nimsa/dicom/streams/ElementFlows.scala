@@ -73,33 +73,33 @@ object ElementFlows {
       () => {
         case e: ValueElement =>
           tagPath = tagPath match {
-            case t: TagPathSequenceItem => t.thenTag(e.tag)
+            case t: TagPathItem => t.thenTag(e.tag)
             case t => t.previous.thenTag(e.tag)
           }
           (tagPath, e) :: Nil
         case e: FragmentsElement =>
           tagPath = tagPath match {
-            case t: TagPathSequenceItem => t.thenTag(e.tag)
+            case t: TagPathItem => t.thenTag(e.tag)
             case t => t.previous.thenTag(e.tag)
           }
           inFragments = true
           (tagPath, e) :: Nil
         case e: SequenceElement =>
           tagPath = tagPath match {
-            case t: TagPathSequenceItem => t.thenSequence(e.tag)
+            case t: TagPathItem => t.thenSequence(e.tag)
             case t => t.previous.thenSequence(e.tag)
           }
           (tagPath, e) :: Nil
         case e: SequenceDelimitationElement =>
-          if (!inFragments) tagPath = tagPath.previous.thenSequence(tagPath.tag)
+          if (!inFragments) tagPath = tagPath.previous.thenSequenceEnd(tagPath.tag)
           inFragments = false
           (tagPath, e) :: Nil
         case e: ItemElement =>
-          if (!inFragments) tagPath = tagPath.previous.thenSequence(tagPath.tag, e.index)
+          if (!inFragments) tagPath = tagPath.previous.thenItem(tagPath.tag, e.index)
           (tagPath, e) :: Nil
         case e: ItemDelimitationElement =>
           tagPath = tagPath match {
-            case t: TagPathSequenceItem => tagPath.previous.thenSequence(t.tag, t.item)
+            case t: TagPathItem => tagPath.previous.thenItemEnd(t.tag, t.item)
             case t => t.previous
           }
           (tagPath, e) :: Nil
