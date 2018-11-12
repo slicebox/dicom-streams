@@ -147,6 +147,16 @@ object ModifyFlow {
           value = ByteString.empty
           Nil
         }
+        .orElse {
+          currentInsertions
+            .find(_.tagPath == tagPath)
+            .map { insertion =>
+              currentHeader = Some(header)
+              currentModification = Some(TagModification(_ == insertion.tagPath, _ => insertion.value))
+              value = ByteString.empty
+              Nil
+            }
+        }
         .getOrElse(header :: Nil)
 
       override def onPart(part: DicomPart): List[DicomPart] =

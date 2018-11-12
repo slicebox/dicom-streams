@@ -20,6 +20,10 @@ import se.nimsa.dicom.data.TagPath._
 
 import scala.annotation.tailrec
 
+/**
+  * Representation of a single pointer into a DICOM dataset described by a (possibly empty) sequence of
+  * (sequence tag, item) pairs and (optionally) a leaf tag.
+  */
 sealed trait TagPath extends TagPathLike {
 
   override type P = TagPath
@@ -27,8 +31,6 @@ sealed trait TagPath extends TagPathLike {
   override type E = EmptyTagPath.type
 
   override protected val empty: E = EmptyTagPath
-
-  def tag: Int
 
   /**
     * Test if this tag path is less than the input path, comparing their parts pairwise from root to leaf according to
@@ -65,7 +67,6 @@ sealed trait TagPath extends TagPathLike {
     * @example (0010,0010) == (0010,0010)
     * @example (0010,0010) != (0010,0020)
     * @example (0010,0010) != (0008,9215)[1].(0010,0010)
-    * @example (0008,9215)[*].(0010,0010) != (0008,9215)[1].(0010,0010)
     * @example (0008,9215)[3].(0010,0010) == (0008,9215)[3].(0010,0010)
     */
   override def equals(that: Any): Boolean = (this, that) match {
@@ -78,6 +79,15 @@ sealed trait TagPath extends TagPathLike {
     case _ => false
   }
 
+  /**
+    * @param that tag path to test
+    * @return `true` if this tag path begins with the input tag path.
+    * @example (0010,0010) starts with (0010,0010)
+    * @example (0008,9215)[2].(0010,0010) starts with (0008,9215)[2]
+    * @example (0008,9215)[2].(0010,0010) starts with the empty tag path
+    * @example (0008,9215)[2].(0010,0010) does not start with (0008,9215)[1]
+    * @example (0008,9215)[2] does not start with (0008,9215)[2].(0010,0010)
+    */
   def startsWith(that: TagPath): Boolean = {
     if (this.depth >= that.depth)
       this.toList.zip(that.toList).forall {
@@ -89,6 +99,14 @@ sealed trait TagPath extends TagPathLike {
       false
   }
 
+  /**
+    * @param that tag path to test
+    * @return `true` if this tag path ends with the input tag path
+    * @example (0010,0010) ends with (0010,0010)
+    * @example (0008,9215)[2].(0010,0010) ends with (0010,0010)
+    * @example (0008,9215)[2].(0010,0010) ends with the empty tag path
+    * @example (0010,0010) does not end with (0008,9215)[2].(0010,0010)
+    */
   def endsWith(that: TagPath): Boolean =
     ((this, that) match {
       case (EmptyTagPath, EmptyTagPath) => true
@@ -101,12 +119,6 @@ sealed trait TagPath extends TagPathLike {
       case (thisPrev, thatPrev) => thisPrev.endsWith(thatPrev)
     })
 
-  /**
-    * Drop n steps of this path from the left
-    *
-    * @param n the number of steps to omit, counted from the lef-most root path
-    * @return a new TagPath
-    */
   def drop(n: Int): TagPath = {
     def drop(path: TagPath, i: Int): TagPath =
       if (i < 0)
@@ -170,6 +182,9 @@ sealed trait TagPath extends TagPathLike {
 object TagPath {
 
 
+  /**
+    * Common trait for tag path nodes with an item index
+    */
   trait ItemIndex {
     val item: Int
   }
@@ -178,7 +193,7 @@ object TagPath {
     * A tag path that points to a non-sequence tag
     *
     * @param tag      the tag number
-    * @param previous a link to the part of this tag part to the left of this tag
+    * @param previous a link to the part of this tag path to the left of this tag
     */
   class TagPathTag private[TagPath](val tag: Int, val previous: TagPathTrunk) extends TagPath
 
@@ -229,39 +244,72 @@ object TagPath {
     }
   }
 
+  /**
+    * Representation of the start of a sequence
+    */
   class TagPathSequence private[TagPath](val tag: Int, val previous: TagPathTrunk) extends TagPath
 
+  /**
+    * Representation of the end of a sequence
+    */
   class TagPathSequenceEnd private[TagPath](val tag: Int, val previous: TagPathTrunk) extends TagPath
 
+  /**
+    * Representation of the start or body of an item
+    */
   class TagPathItem private[TagPath](val tag: Int, val item: Int, val previous: TagPathTrunk) extends TagPathTrunk with ItemIndex
 
+  /**
+    * Representation of the end of an item
+    */
   class TagPathItemEnd private[TagPath](val tag: Int, val item: Int, val previous: TagPathTrunk) extends TagPath with ItemIndex
 
   /**
-    * A tag path that points to a sequence, or the empty tag path
+    * A tag path that points to a node that may be non-terminal, i.e. an item or the empty tag path. All other types end
+    * a tag path; therefore builder functions reside in this trait.
     */
   trait TagPathTrunk extends TagPath {
 
     /**
-      * Path to a specific tag
+      * Add a tag node
       *
-      * @param tag tag number
+      * @param tag tag number of new node (terminal)
       * @return the tag path
       */
     def thenTag(tag: Int) = new TagPathTag(tag, this)
 
     /**
-      * Path to all items in a sequence
+      * Add a node pointing to the start of a sequence (terminal)
       *
-      * @param tag tag number
+      * @param tag tag number of sequence
       * @return the tag path
       */
     def thenSequence(tag: Int) = new TagPathSequence(tag, this)
 
+    /**
+      * Add a node pointing to the end of a sequence (terminal)
+      *
+      * @param tag tag number of sequence to end
+      * @return the tag path
+      */
     def thenSequenceEnd(tag: Int) = new TagPathSequenceEnd(tag, this)
 
+    /**
+      * Add a node pointing to an item in a sequence (non-terminal)
+      *
+      * @param tag  tag number of sequence item
+      * @param item item number (1-based)
+      * @return the tag path
+      */
     def thenItem(tag: Int, item: Int) = new TagPathItem(tag, item, this)
 
+    /**
+      * Add a node pointing to the end of an item (terminal)
+      *
+      * @param tag  tag number of sequence item to end
+      * @param item item number
+      * @return the tag path
+      */
     def thenItemEnd(tag: Int, item: Int) = new TagPathItemEnd(tag, item, this)
   }
 
@@ -274,7 +322,7 @@ object TagPath {
   }
 
   /**
-    * Create a path to a specific tag
+    * Create a path to a specific tag (terminal)
     *
     * @param tag tag number
     * @return the tag path
@@ -282,17 +330,35 @@ object TagPath {
   def fromTag(tag: Int): TagPathTag = EmptyTagPath.thenTag(tag)
 
   /**
-    * Create a path to a specific item within a sequence
+    * Create a path to the start of a sequence (terminal)
     *
     * @param tag tag number
     * @return the tag path
     */
   def fromSequence(tag: Int): TagPathSequence = EmptyTagPath.thenSequence(tag)
 
+  /**
+    * Create a path to the end of a sequence (terminal)
+    *
+    * @param tag tag number
+    * @return the tag path
+    */
+  def fromSequenceEnd(tag: Int): TagPathSequenceEnd = EmptyTagPath.thenSequenceEnd(tag)
+
+  /**
+    * Create a path to a specific item within a sequence (non-terminal)
+    *
+    * @param tag tag number
+    * @return the tag path
+    */
   def fromItem(tag: Int, item: Int): TagPathItem = EmptyTagPath.thenItem(tag, item)
 
+  /**
+    * Create a path to the end of a sequence item (terminal)
+    *
+    * @param tag tag number
+    * @return the tag path
+    */
   def fromItemEnd(tag: Int, item: Int): TagPathItemEnd = EmptyTagPath.thenItemEnd(tag, item)
-
-  def fromSequenceEnd(tag: Int): TagPathSequenceEnd = EmptyTagPath.thenSequenceEnd(tag)
 
 }

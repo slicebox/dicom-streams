@@ -99,8 +99,11 @@ object ElementFlows {
           (tagPath, e) :: Nil
         case e: ItemDelimitationElement =>
           tagPath = tagPath match {
-            case t: TagPathItem => tagPath.previous.thenItemEnd(t.tag, t.item)
-            case t => t.previous
+            case t: TagPathItem => t.previous.thenItemEnd(t.tag, t.item)
+            case t => t.previous match {
+              case ti: TagPathItem => ti.previous.thenItemEnd(ti.tag, ti.item)
+              case _ => tagPath // should never get delimitation when not inside item
+            }
           }
           (tagPath, e) :: Nil
         case e =>

@@ -21,6 +21,14 @@ import se.nimsa.dicom.data.TagTree._
 
 import scala.annotation.tailrec
 
+/**
+  * Representation of a tag path with support for pointing to all items in sequences, thus forming a tree of tag paths.
+  *
+  * The nomenclature of tag trees is as follows. The left-most node is called the <i>root</i>. The right-most node is a
+  * <i>leaf</i>. A path extending from a root to a leaf is called a <i>branch</i>. A path starting at the root and
+  * extends to some point in the tree, not necessarily a leaf, is called a <i>trunk</i>. A path starting from any point
+  * in the tree and extends to a leaf is called a <i>twig</i>.
+  */
 sealed trait TagTree extends TagPathLike {
 
   override type P = TagTree
@@ -29,11 +37,9 @@ sealed trait TagTree extends TagPathLike {
 
   override protected val empty: E = EmptyTagTree
 
-  def tag: Int
-
   /**
-    * @param that tag path to test
-    * @return `true` if the input tag path is equal to this tag path. TagTree nodes are compared pairwise from the end
+    * @param that tag tree to test
+    * @return `true` if the input tag tree is equal to this tag tree. TagTree nodes are compared pairwise from the end
     *         towards the start of the paths. Node types, tag numbers as well as item indices where applicable must be
     *         equal. Paths of different lengths cannot be equal.
     * @example (0010,0010) == (0010,0010)
@@ -50,18 +56,30 @@ sealed trait TagTree extends TagPathLike {
     case _ => false
   }
 
+  /**
+    * @return `true` if this tree does not contain any wildcard (all-items) pointers and is thus structurally equivalent
+    *         to a tag path
+    * @example (0008,9215)[3].(0010,0010) is a path
+    * @example (0008,9215)[*].(0010,0010) is not a path
+    * @example the empty tag tree is a path
+    */
   def isPath: Boolean = this match {
     case EmptyTagTree => true
     case _: TagTreeAnyItem => false
     case t => t.previous.isPath
   }
 
+  /**
+    * @param tagPath tag path to test
+    * @return `true` if the input tag path is a branch (from root to leaf) of this tree
+    * @example (0008,9215)[1].(0010,0010) is a branch of (0008,9215)[*].(0010,0010)
+    * @example (0008,9215)[1] is not a branch of (0008,9215)[*].(0010,0010)
+    * @example the empty tag path is a branch of the empty tag tree
+    */
   def hasBranch(tagPath: TagPath): Boolean = (this, tagPath) match {
     case (EmptyTagTree, EmptyTagPath) => true
     case (t: TagTreeTag, p: TagPathTag) => t.tag == p.tag && t.previous.hasBranch(p.previous)
     case (t: TagTreeItem, p: TagPath with ItemIndex) => t.item == p.item && t.tag == p.tag && t.previous.hasBranch(p.previous)
-    case (t: TagTreeItem, p: TagPathSequence) => t.tag == p.tag && t.previous.hasBranch(p.previous)
-    case (t: TagTreeItem, p: TagPathSequenceEnd) => t.tag == p.tag && t.previous.hasBranch(p.previous)
     case (t: TagTreeAnyItem, p: TagPath with ItemIndex) => t.tag == p.tag && t.previous.hasBranch(p.previous)
     case (t: TagTreeAnyItem, p: TagPathSequence) => t.tag == p.tag && t.previous.hasBranch(p.previous)
     case (t: TagTreeAnyItem, p: TagPathSequenceEnd) => t.tag == p.tag && t.previous.hasBranch(p.previous)
@@ -71,8 +89,6 @@ sealed trait TagTree extends TagPathLike {
   private def matchTrunk(that: TagPath): Boolean =
     this.toList.zip(that.toList).forall {
       case (t: TagTreeItem, p: TagPath with ItemIndex) => t.tag == p.tag && t.item == p.item
-      case (t: TagTreeItem, p: TagPathSequence) => t.tag == p.tag
-      case (t: TagTreeItem, p: TagPathSequenceEnd) => t.tag == p.tag
       case (t: TagTreeAnyItem, p: TagPath with ItemIndex) => t.tag == p.tag
       case (t: TagTreeAnyItem, p: TagPathSequence) => t.tag == p.tag
       case (t: TagTreeAnyItem, p: TagPathSequenceEnd) => t.tag == p.tag
@@ -80,10 +96,33 @@ sealed trait TagTree extends TagPathLike {
       case _ => false
     }
 
+  /**
+    * @param tagPath tag path to test
+    * @return `true` if the input tag path is a trunk of this tree
+    * @example (0008,9215)[1].(0010,0010) is a trunk of (0008,9215)[*].(0010,0010)
+    * @example (0008,9215)[1] is a trunk of (0008,9215)[*].(0010,0010)
+    * @example (0010,0010) is not a trunk of (0008,9215)[*].(0010,0010)
+    */
   def hasTrunk(tagPath: TagPath): Boolean = if (this.depth >= tagPath.depth) matchTrunk(tagPath) else false
 
+  /**
+    * @param tagPath tag path to test
+    * @return `true` if any branch of this tree is a trunk (the start of) the input tag path
+    * @example (0008,9215)[1].(0010,0010) has trunk (0008,9215)[1].(0010,0010)
+    * @example (0008,9215)[1].(0010,0010) has trunk (0008,9215)[*].(0010,0010)
+    * @example (0008,9215)[1].(0010,0010) has trunk (0008,9215)[*]
+    * @example (0008,9215)[1].(0010,0010) does not have trunk (0008,9215)[3]
+    * @example (0008,9215)[1].(0010,0010) does not have trunk (0010,0010)
+    */
   def isTrunkOf(tagPath: TagPath): Boolean = if (this.depth <= tagPath.depth) matchTrunk(tagPath) else false
 
+  /**
+    * @param tagPath tag path to test
+    * @return `true` if the input tag path is a twig in this tree
+    * @example (0008,9215)[1].(0010,0010) is a twig of (0008,9215)[*].(0010,0010)
+    * @example (0010,0010) is a twig of (0008,9215)[*].(0010,0010)
+    * @example (0008,9215)[1] is not a twig of (0008,9215)[*].(0010,0010)
+    */
   def hasTwig(tagPath: TagPath): Boolean =
     ((this, tagPath) match {
       case (EmptyTagTree, EmptyTagPath) => true
@@ -91,9 +130,7 @@ sealed trait TagTree extends TagPathLike {
       case (t: TagTreeAnyItem, p: TagPathSequence) => t.tag == p.tag
       case (t: TagTreeAnyItem, p: TagPathSequenceEnd) => t.tag == p.tag
       case (t: TagTreeItem, p: TagPath with ItemIndex) => t.tag == p.tag && t.item == p.item
-      case (t: TagTreeItem, p: TagPathSequence) => t.tag == p.tag
-      case (t: TagTreeItem, p: TagPathSequenceEnd) => t.tag == p.tag
-      case (t: TagPathTag, p: TagPathTag) => t.tag == p.tag
+      case (t: TagTreeTag, p: TagPathTag) => t.tag == p.tag
       case _ => false
     }) && ((this.previous, tagPath.previous) match {
       case (_, EmptyTagPath) => true
@@ -101,26 +138,20 @@ sealed trait TagTree extends TagPathLike {
       case (thisPrev, thatPrev) => thisPrev.hasTwig(thatPrev)
     })
 
-  /**
-    * Drop n steps of this path from the left
-    *
-    * @param n the number of steps to omit, counted from the lef-most root path
-    * @return a new TagPath
-    */
   def drop(n: Int): TagTree = {
-    def drop(path: TagTree, i: Int): TagTree =
+    def drop(tree: TagTree, i: Int): TagTree =
       if (i < 0)
         EmptyTagTree
       else if (i == 0)
-        path match {
+        tree match {
           case EmptyTagTree => EmptyTagTree
           case p: TagTreeItem => TagTree.fromItem(p.tag, p.item)
           case p: TagTreeAnyItem => TagTree.fromAnyItem(p.tag)
           case p => TagTree.fromTag(p.tag)
         }
       else
-        drop(path.previous, i - 1) match {
-          case p: TagTreeTrunk => path match {
+        drop(tree.previous, i - 1) match {
+          case p: TagTreeTrunk => tree match {
             case pi: TagTreeItem => p.thenItem(pi.tag, pi.item)
             case pi: TagTreeAnyItem => p.thenAnyItem(pi.tag)
             case pt: TagTreeTag => p.thenTag(pt.tag)
@@ -129,7 +160,7 @@ sealed trait TagTree extends TagPathLike {
           case _ => EmptyTagTree // cannot happen
         }
 
-    drop(path = this, i = depth - n - 1)
+    drop(tree = this, i = depth - n - 1)
   }
 
   def toString(lookup: Boolean): String = {
@@ -141,20 +172,20 @@ sealed trait TagTree extends TagPathLike {
       tagToString(tag)
 
     @tailrec
-    def toTagTreeString(path: TagTree, tail: String): String = {
-      val itemIndexSuffix = path match {
+    def toTagTreeString(tree: TagTree, tail: String): String = {
+      val itemIndexSuffix = tree match {
         case _: TagTreeAnyItem => "[*]"
         case s: TagTreeItem => s"[${
           s.item
         }]"
         case _ => ""
       }
-      val head = toTagString(path.tag) + itemIndexSuffix
+      val head = toTagString(tree.tag) + itemIndexSuffix
       val part = head + tail
-      if (path.isRoot) part else toTagTreeString(path.previous, "." + part)
+      if (tree.isRoot) part else toTagTreeString(tree.previous, "." + part)
     }
 
-    if (isEmpty) "<empty path>" else toTagTreeString(path = this, tail = "")
+    if (isEmpty) "<empty tree>" else toTagTreeString(tree = this, tail = "")
   }
 
   override def hashCode(): Int = this match {
@@ -167,103 +198,93 @@ sealed trait TagTree extends TagPathLike {
 object TagTree {
 
   /**
-    * A tag path that points to a non-sequence tag
-    *
-    * @param tag      the tag number
-    * @param previous a link to the part of this tag part to the left of this tag
+    * A tag tree that points to a non-sequence tag (terminal)
     */
   class TagTreeTag private[TagTree](val tag: Int, val previous: TagTreeTrunk) extends TagTree
 
   /**
-    * A tag path that points to a sequence (all items or specific item), or the empty tag path
+    * A tag tree that points to a node that may be non-terminal, i.e. an item or the empty tag tree. All other types end
+    * a tag tree; therefore builder functions reside in this trait.
     */
   trait TagTreeTrunk extends TagTree {
 
     /**
-      * Path to a specific tag
+      * Add a tag node
       *
-      * @param tag tag number
-      * @return the tag path
+      * @param tag tag number of new node (terminal)
+      * @return the tag tree
       */
     def thenTag(tag: Int) = new TagTreeTag(tag, this)
 
     /**
-      * Path to all items in a sequence
+      * Add a node pointing to all items of a sequence (non-terminal)
       *
-      * @param tag tag number
-      * @return the tag path
+      * @param tag tag number of sequence
+      * @return the tag tree
       */
     def thenAnyItem(tag: Int) = new TagTreeAnyItem(tag, this)
 
     /**
-      * Path to a specific item within a sequence
+      * Add a node pointing to specific item in a sequence (non-terminal)
       *
-      * @param tag  tag number
-      * @param item item index
-      * @return the tag path
+      * @param tag tag number of sequence
+      * @return the tag tree
       */
     def thenItem(tag: Int, item: Int) = new TagTreeItem(tag, item, this)
   }
 
   /**
-    * A tag path that points to all items of a sequence
-    *
-    * @param tag      the sequence tag number
-    * @param previous a link to the part of this tag part to the left of this tag
+    * A tag tree node that points to all items of a sequence (non-terminal)
     */
   class TagTreeAnyItem private[TagTree](val tag: Int, val previous: TagTreeTrunk) extends TagTreeTrunk
 
   /**
-    * A tag path that points to an item in a sequence
-    *
-    * @param tag      the sequence tag number
-    * @param item     defines the item index in the sequence
-    * @param previous a link to the part of this tag part to the left of this tag
+    * A tag tree that points to an item in a sequence (non-terminal)
     */
   class TagTreeItem private[TagTree](val tag: Int, val item: Int, val previous: TagTreeTrunk) extends TagTreeTrunk
 
   /**
-    * Empty tag path
+    * Empty tag tree
     */
   object EmptyTagTree extends TagTreeTrunk {
-    def tag: Int = throw new NoSuchElementException("Empty tag path")
+    def tag: Int = throw new NoSuchElementException("Empty tag tree")
     val previous: TagTreeTrunk = EmptyTagTree
   }
 
   /**
-    * Create a path to a specific tag
+    * Create a tree node representing a specific tag (terminal)
     *
     * @param tag tag number
-    * @return the tag path
+    * @return the tag tree
     */
   def fromTag(tag: Int): TagTreeTag = EmptyTagTree.thenTag(tag)
 
   /**
-    * Create a path to all items in a sequence
+    * Create a tree node representing all items in a sequence (non-terminal)
     *
     * @param tag tag number
-    * @return the tag path
+    * @return the tag tree
     */
   def fromAnyItem(tag: Int): TagTreeAnyItem = EmptyTagTree.thenAnyItem(tag)
 
   /**
-    * Create a path to a specific item within a sequence
+    * Create a tree node representing a specific item within a sequence (non-terminal)
     *
     * @param tag  tag number
     * @param item item index
-    * @return the tag path
+    * @return the tag tree
     */
   def fromItem(tag: Int, item: Int): TagTreeItem = EmptyTagTree.thenItem(tag, item)
 
   /**
-    * Parse the string representation of a tag path into a tag path object. Tag paths can either be specified using tag
+    * Parse the string representation of a tag tree into a tag tree object. Tag trees can either be specified using tag
     * numbers or their corresponding keywords.
     *
-    * Examples: (0008,9215)[1].(0010,0010) = DerivationCodeSequence[1].(0010,0010) = (0008,9215)[1].PatientName =
+    * Examples: (0008,9215)[*].(0010,0010) = DerivationCodeSequence[*].(0010,0010) = (0008,9215)[*].PatientName =
     * DerivationCodeSequence[1].PatientName
     *
     * @param s string to parse
-    * @return a tag path
+    * @return a tag tree
     * @throws IllegalArgumentException for malformed input
     */
   def parse(s: String): TagTree = {
@@ -282,27 +303,27 @@ object TagTree {
 
     def createTag(s: String): TagTreeTag = TagTree.fromTag(parseTag(s))
 
-    def addTag(s: String, path: TagTreeTrunk): TagTreeTag = path.thenTag(parseTag(s))
+    def addTag(s: String, tree: TagTreeTrunk): TagTreeTag = tree.thenTag(parseTag(s))
 
     def createSeq(s: String): TagTreeTrunk = parseIndex(indexPart(s))
       .map(index => TagTree.fromItem(parseTag(tagPart(s)), index))
       .getOrElse(TagTree.fromAnyItem(parseTag(tagPart(s))))
 
-    def addSeq(s: String, path: TagTreeTrunk): TagTreeTrunk = parseIndex(indexPart(s))
-      .map(index => path.thenItem(parseTag(tagPart(s)), index))
-      .getOrElse(path.thenAnyItem(parseTag(tagPart(s))))
+    def addSeq(s: String, tree: TagTreeTrunk): TagTreeTrunk = parseIndex(indexPart(s))
+      .map(index => tree.thenItem(parseTag(tagPart(s)), index))
+      .getOrElse(tree.thenAnyItem(parseTag(tagPart(s))))
 
 
     val tags = if (s.indexOf('.') > 0) s.split("\\.").toList else List(s)
     val seqTags = if (tags.length > 1) tags.init else Nil // list of sequence tags, if any
     val lastTag = tags.last // tag or sequence
     try {
-      seqTags.headOption.map(first => seqTags.tail.foldLeft(createSeq(first))((path, tag) => addSeq(tag, path))) match {
-        case Some(path) => if (isSeq(lastTag)) addSeq(lastTag, path) else addTag(lastTag, path)
+      seqTags.headOption.map(first => seqTags.tail.foldLeft(createSeq(first))((tree, tag) => addSeq(tag, tree))) match {
+        case Some(tree) => if (isSeq(lastTag)) addSeq(lastTag, tree) else addTag(lastTag, tree)
         case None => if (isSeq(lastTag)) createSeq(lastTag) else createTag(lastTag)
       }
     } catch {
-      case e: Exception => throw new IllegalArgumentException("Tag path could not be parsed", e)
+      case e: Exception => throw new IllegalArgumentException("Tag tree could not be parsed", e)
     }
   }
 

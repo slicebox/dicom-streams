@@ -2,6 +2,9 @@ package se.nimsa.dicom.data
 
 import scala.annotation.tailrec
 
+/**
+  * Common functionality in tag path-like constructs such as TagPath itself and TagTree
+  */
 trait TagPathLike {
 
   type P <: TagPathLike
@@ -10,16 +13,32 @@ trait TagPathLike {
 
   protected val empty: E
 
+  /**
+    * @return tag value at this position of the tag path
+    */
   def tag: Int
+
+  /**
+    * @return link to previous position along this tag path. If current position is at the root, the previous tag path
+    *         is the empty tag path.
+    */
   def previous: T
 
   /**
-    * `true` if this tag path points to the root dataset, at depth 0
+    * `true` if this tag path points to the root dataset, at depth 1
     */
   lazy val isRoot: Boolean = previous.isEmpty
 
+  /**
+    * `true` if this is the empty tag path
+    */
   lazy val isEmpty: Boolean = this eq empty
 
+  /**
+    * Decompose the linked-list tag path structure to a regular list of tag paths ordered from root to leaf
+    *
+    * @return a List of tag paths
+    */
   def toList: List[P] = {
     @tailrec
     def toList(path: P, tail: List[P]): List[P] =
@@ -41,7 +60,7 @@ trait TagPathLike {
     * Depth of this tag path. A tag path that points to a tag in a sequence in a sequence has depth 3. A tag path that
     * points to a tag in the root dataset has depth 1. Empty paths have depth 0.
     *
-    * @return the depth of this tag path, counting from 0
+    * @return the depth of this tag path, counting from 1
     */
   def depth: Int = {
     @tailrec
@@ -83,12 +102,14 @@ trait TagPathLike {
     */
   def drop(n: Int): P
 
+  /**
+    * Create a string representation of this tag path
+    *
+    * @param lookup if `true`, tag numbers will be replaced by keywords if found in the dictionary
+    * @return a string representation of this tag path
+    */
   def toString(lookup: Boolean): String
 
   override def toString: String = toString(lookup = true)
-
-}
-
-object TagPathLike {
 
 }
