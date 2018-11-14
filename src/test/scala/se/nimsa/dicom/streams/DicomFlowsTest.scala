@@ -236,7 +236,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectDicomComplete()
   }
 
-  it should "preserve sequences and items in nested structures" in {
+  it should "preserve sequences and items in nested structures when using wildcards" in {
     val bytes = patientNameJohnDoe() ++ sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
@@ -246,6 +246,23 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     source.runWith(TestSink.probe[DicomPart])
       .expectSequence(Tag.DerivationCodeSequence)
       .expectItem(1)
+      .expectHeader(Tag.StudyDate)
+      .expectValueChunk()
+      .expectItemDelimitation()
+      .expectSequenceDelimitation()
+      .expectDicomComplete()
+  }
+
+  it should "preserve sequences and items in nested structures when using item indices" in {
+    val bytes = patientNameJohnDoe() ++ sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemDelimitation() ++ item() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation()
+
+    val source = Source.single(bytes)
+      .via(new ParseFlow())
+      .via(whitelistFilter(Set(TagTree.fromItem(Tag.DerivationCodeSequence, 2).thenTag(Tag.StudyDate))))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectSequence(Tag.DerivationCodeSequence)
+      .expectItem(2)
       .expectHeader(Tag.StudyDate)
       .expectValueChunk()
       .expectItemDelimitation()
@@ -282,6 +299,30 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
     source.runWith(TestSink.probe[DicomPart])
       .expectSequence(Tag.DerivationCodeSequence)
+      .expectItem(2)
+      .expectHeader(Tag.StudyDate)
+      .expectValueChunk()
+      .expectItemDelimitation()
+      .expectSequenceDelimitation()
+      .expectDicomComplete()
+  }
+
+  it should "block an element in an item in a sequence" in {
+    val bytes = studyDate() ++
+      sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemDelimitation() ++ item() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation()
+
+    val source = Source.single(bytes)
+      .via(parseFlow)
+      .via(blacklistFilter(Set(TagTree.fromItem(Tag.DerivationCodeSequence, 1).thenTag(Tag.StudyDate))))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectHeader(Tag.StudyDate)
+      .expectValueChunk()
+      .expectSequence(Tag.DerivationCodeSequence)
+      .expectItem(1)
+      .expectHeader(Tag.PatientName)
+      .expectValueChunk()
+      .expectItemDelimitation()
       .expectItem(2)
       .expectHeader(Tag.StudyDate)
       .expectValueChunk()

@@ -132,11 +132,19 @@ class TagTreeTest extends FlatSpec with Matchers {
     tree.hasTrunk(path) shouldBe true
   }
 
-  it should "work with sequence and item end nodes" in {
+  it should "work with sequence start and end nodes" in {
+    val tree1 = TagTree.fromItem(1, 1).thenTag(2)
+    tree1.hasTrunk(TagPath.fromSequence(1)) shouldBe true
+    tree1.hasTrunk(TagPath.fromSequenceEnd(1)) shouldBe true
+
+    val tree2 = TagTree.fromAnyItem(1).thenTag(2)
+    tree2.hasTrunk(TagPath.fromSequence(1)) shouldBe true
+    tree2.hasTrunk(TagPath.fromSequenceEnd(1)) shouldBe true
+  }
+
+  it should "work with item start and end nodes" in {
     TagTree.fromAnyItem(1).thenTag(2).hasTrunk(TagPath.fromItemEnd(1, 1)) shouldBe true
     TagTree.fromItem(1, 1).thenTag(2).hasTrunk(TagPath.fromItemEnd(1, 1)) shouldBe true
-    TagTree.fromAnyItem(1).thenTag(2).hasTrunk(TagPath.fromSequence(1)) shouldBe true
-    TagTree.fromAnyItem(1).thenTag(2).hasTrunk(TagPath.fromSequenceEnd(1)) shouldBe true
   }
 
   it should "support documentation examples" in {
@@ -157,11 +165,18 @@ class TagTreeTest extends FlatSpec with Matchers {
     TagTree.fromAnyItem(1).thenItem(2, 2).isTrunkOf(TagPath.fromItem(1, 1)) shouldBe false
   }
 
-  it should "work with sequence and item end nodes" in {
-    TagTree.fromAnyItem(1).isTrunkOf(TagPath.fromItemEnd(1, 1)) shouldBe true
-    TagTree.fromItem(1, 1).isTrunkOf(TagPath.fromItemEnd(1, 1)) shouldBe true
+  it should "work with sequence start and end nodes" in {
     TagTree.fromAnyItem(1).isTrunkOf(TagPath.fromSequence(1)) shouldBe true
     TagTree.fromAnyItem(1).isTrunkOf(TagPath.fromSequenceEnd(1)) shouldBe true
+    TagTree.fromItem(1, 1).isTrunkOf(TagPath.fromSequence(1)) shouldBe false
+    TagTree.fromItem(1, 1).isTrunkOf(TagPath.fromSequenceEnd(1)) shouldBe false
+  }
+
+  it should "work with item start and end nodes" in {
+    TagTree.fromAnyItem(1).isTrunkOf(TagPath.fromItem(1, 1)) shouldBe true
+    TagTree.fromAnyItem(1).isTrunkOf(TagPath.fromItemEnd(1, 1)) shouldBe true
+    TagTree.fromItem(1, 1).isTrunkOf(TagPath.fromItem(1, 1)) shouldBe true
+    TagTree.fromItem(1, 1).isTrunkOf(TagPath.fromItemEnd(1, 1)) shouldBe true
   }
 
   it should "support documentation examples" in {
@@ -232,13 +247,13 @@ class TagTreeTest extends FlatSpec with Matchers {
   }
 
   it should "handle deep paths" in {
-    TagTree.fromPath(TagPath.fromItem(1,1).thenItem(2,2).thenTag(3)) shouldBe TagTree.fromItem(1,1).thenItem(2,2).thenTag(3)
+    TagTree.fromPath(TagPath.fromItem(1, 1).thenItem(2, 2).thenTag(3)) shouldBe TagTree.fromItem(1, 1).thenItem(2, 2).thenTag(3)
   }
 
   it should "handle sequence and item start and end nodes" in {
     TagTree.fromPath(TagPath.fromSequence(1)) shouldBe TagTree.fromAnyItem(1)
     TagTree.fromPath(TagPath.fromSequenceEnd(1)) shouldBe TagTree.fromAnyItem(1)
-    TagTree.fromPath(TagPath.fromItemEnd(1,1)) shouldBe TagTree.fromItem(1,1)
+    TagTree.fromPath(TagPath.fromItemEnd(1, 1)) shouldBe TagTree.fromItem(1, 1)
   }
 
   "Parsing a tag tree" should "work for well-formed depth 0 tag trees" in {

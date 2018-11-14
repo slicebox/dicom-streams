@@ -86,17 +86,6 @@ sealed trait TagTree extends TagPathLike {
     case _ => false
   }
 
-  private def matchTrunk(that: TagPath): Boolean =
-    this.toList.zip(that.toList).forall {
-      case (_, EmptyTagPath) => true
-      case (t: TagTreeItem, p: TagPath with ItemIndex) => t.tag == p.tag && t.item == p.item
-      case (t: TagTreeAnyItem, p: TagPath with ItemIndex) => t.tag == p.tag
-      case (t: TagTreeAnyItem, p: TagPathSequence) => t.tag == p.tag
-      case (t: TagTreeAnyItem, p: TagPathSequenceEnd) => t.tag == p.tag
-      case (t: TagTreeTag, p: TagPathTag) => t.tag == p.tag
-      case _ => false
-    }
-
   /**
     * @param tagPath tag path to test
     * @return `true` if the input tag path is a trunk of this tree
@@ -104,7 +93,21 @@ sealed trait TagTree extends TagPathLike {
     * @example (0008,9215)[1] is a trunk of (0008,9215)[*].(0010,0010)
     * @example (0010,0010) is not a trunk of (0008,9215)[*].(0010,0010)
     */
-  def hasTrunk(tagPath: TagPath): Boolean = if (this.depth >= tagPath.depth) matchTrunk(tagPath) else false
+  def hasTrunk(tagPath: TagPath): Boolean =
+    if (this.depth >= tagPath.depth)
+      this.toList.zip(tagPath.toList).forall {
+        case (_, EmptyTagPath) => true
+        case (t: TagTreeItem, p: TagPath with ItemIndex) => t.tag == p.tag && t.item == p.item
+        case (t: TagTreeItem, p: TagPathSequence) => t.tag == p.tag
+        case (t: TagTreeItem, p: TagPathSequenceEnd) => t.tag == p.tag
+        case (t: TagTreeAnyItem, p: TagPath with ItemIndex) => t.tag == p.tag
+        case (t: TagTreeAnyItem, p: TagPathSequence) => t.tag == p.tag
+        case (t: TagTreeAnyItem, p: TagPathSequenceEnd) => t.tag == p.tag
+        case (t: TagTreeTag, p: TagPathTag) => t.tag == p.tag
+        case _ => false
+      }
+    else
+      false
 
   /**
     * @param tagPath tag path to test
@@ -115,7 +118,19 @@ sealed trait TagTree extends TagPathLike {
     * @example (0008,9215)[1].(0010,0010) does not have trunk (0008,9215)[3]
     * @example (0008,9215)[1].(0010,0010) does not have trunk (0010,0010)
     */
-  def isTrunkOf(tagPath: TagPath): Boolean = if (this.depth <= tagPath.depth) matchTrunk(tagPath) else false
+  def isTrunkOf(tagPath: TagPath): Boolean =
+    if (this.depth <= tagPath.depth)
+      this.toList.zip(tagPath.toList).forall {
+        case (_, EmptyTagPath) => true
+        case (t: TagTreeItem, p: TagPath with ItemIndex) => t.tag == p.tag && t.item == p.item
+        case (t: TagTreeAnyItem, p: TagPath with ItemIndex) => t.tag == p.tag
+        case (t: TagTreeAnyItem, p: TagPathSequence) => t.tag == p.tag
+        case (t: TagTreeAnyItem, p: TagPathSequenceEnd) => t.tag == p.tag
+        case (t: TagTreeTag, p: TagPathTag) => t.tag == p.tag
+        case _ => false
+      }
+    else
+      false
 
   /**
     * @param tagPath tag path to test
