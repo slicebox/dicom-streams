@@ -25,8 +25,8 @@ import scala.annotation.tailrec
   * Representation of a tag path with support for pointing to all items in sequences, thus forming a tree of tag paths.
   *
   * The nomenclature of tag trees is as follows. The left-most node is called the <i>root</i>. The right-most node is a
-  * <i>leaf</i>. A path extending from a root to a leaf is called a <i>branch</i>. A path starting at the root and
-  * extends to some point in the tree, not necessarily a leaf, is called a <i>trunk</i>. A path starting from any point
+  * <i>leaf</i>. A branch extending from a root to a leaf is a <i>path</i>. A branch starting at the root and
+  * extends to some point in the tree, not necessarily a leaf, is called a <i>trunk</i>. A branch starting from any point
   * in the tree and extends to a leaf is called a <i>twig</i>.
   */
 sealed trait TagTree extends TagPathLike {
@@ -71,18 +71,18 @@ sealed trait TagTree extends TagPathLike {
 
   /**
     * @param tagPath tag path to test
-    * @return `true` if the input tag path is a branch (from root to leaf) of this tree
-    * @example (0008,9215)[1].(0010,0010) is a branch of (0008,9215)[*].(0010,0010)
-    * @example (0008,9215)[1] is not a branch of (0008,9215)[*].(0010,0010)
-    * @example the empty tag path is a branch of the empty tag tree
+    * @return `true` if the input tag path is a path from root to leaf in this tree
+    * @example (0008,9215)[1].(0010,0010) is a path in (0008,9215)[*].(0010,0010)
+    * @example (0008,9215)[1] is not a path in (0008,9215)[*].(0010,0010)
+    * @example the empty tag path is a path in the empty tag tree
     */
-  def hasBranch(tagPath: TagPath): Boolean = (this, tagPath) match {
+  def hasPath(tagPath: TagPath): Boolean = (this, tagPath) match {
     case (EmptyTagTree, EmptyTagPath) => true
-    case (t: TagTreeTag, p: TagPathTag) => t.tag == p.tag && t.previous.hasBranch(p.previous)
-    case (t: TagTreeItem, p: TagPath with ItemIndex) => t.item == p.item && t.tag == p.tag && t.previous.hasBranch(p.previous)
-    case (t: TagTreeAnyItem, p: TagPath with ItemIndex) => t.tag == p.tag && t.previous.hasBranch(p.previous)
-    case (t: TagTreeAnyItem, p: TagPathSequence) => t.tag == p.tag && t.previous.hasBranch(p.previous)
-    case (t: TagTreeAnyItem, p: TagPathSequenceEnd) => t.tag == p.tag && t.previous.hasBranch(p.previous)
+    case (t: TagTreeTag, p: TagPathTag) => t.tag == p.tag && t.previous.hasPath(p.previous)
+    case (t: TagTreeItem, p: TagPath with ItemIndex) => t.item == p.item && t.tag == p.tag && t.previous.hasPath(p.previous)
+    case (t: TagTreeAnyItem, p: TagPath with ItemIndex) => t.tag == p.tag && t.previous.hasPath(p.previous)
+    case (t: TagTreeAnyItem, p: TagPathSequence) => t.tag == p.tag && t.previous.hasPath(p.previous)
+    case (t: TagTreeAnyItem, p: TagPathSequenceEnd) => t.tag == p.tag && t.previous.hasPath(p.previous)
     case _ => false
   }
 
@@ -111,7 +111,7 @@ sealed trait TagTree extends TagPathLike {
 
   /**
     * @param tagPath tag path to test
-    * @return `true` if any branch of this tree is a trunk (the start of) the input tag path
+    * @return `true` if any path of this tree is equal to or the start of the input tag path
     * @example (0008,9215)[1].(0010,0010) has trunk (0008,9215)[1].(0010,0010)
     * @example (0008,9215)[1].(0010,0010) has trunk (0008,9215)[*].(0010,0010)
     * @example (0008,9215)[1].(0010,0010) has trunk (0008,9215)[*]
@@ -296,7 +296,7 @@ object TagTree {
     * Create a tag tree from a tag path
     *
     * @param tagPath input tag path
-    * @return the equivalent (branch-shaped) tag tree
+    * @return the equivalent (path-shaped) tag tree
     */
   def fromPath(tagPath: TagPath): TagTree = {
     val root = tagPath.head match {

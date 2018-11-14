@@ -317,7 +317,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("ModifyFlowSpec")) with FlatSpe
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(modifyFlow(modifications = Seq(TagModification(tagTree.hasBranch, _ => mikeBytes))))
+      .via(modifyFlow(modifications = Seq(TagModification(tagTree.hasPath, _ => mikeBytes))))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectSequence(Tag.DerivationCodeSequence)

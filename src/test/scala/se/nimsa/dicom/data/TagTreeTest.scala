@@ -74,30 +74,30 @@ class TagTreeTest extends FlatSpec with Matchers {
     EmptyTagTree.isPath shouldBe true
   }
 
-  "The hasBranch test" should "return true for a path extending from root to leaf" in {
-    TagTree.fromAnyItem(1).thenAnyItem(2).thenItem(3, 3).thenTag(4).hasBranch(
+  "The hasPath test" should "return true for a path extending from root to leaf" in {
+    TagTree.fromAnyItem(1).thenAnyItem(2).thenItem(3, 3).thenTag(4).hasPath(
       TagPath.fromItem(1, 1).thenItem(2, 2).thenItem(3, 3).thenTag(4)) shouldBe true
   }
 
   it should "return false for path not beginning at root" in {
-    TagTree.fromItem(1, 1).thenTag(2).hasBranch(TagPath.fromTag(2)) shouldBe false
+    TagTree.fromItem(1, 1).thenTag(2).hasPath(TagPath.fromTag(2)) shouldBe false
   }
 
   it should "return false for path not ending at leaf" in {
-    TagTree.fromItem(1, 1).thenTag(2).hasBranch(TagPath.fromItem(1, 1)) shouldBe false
+    TagTree.fromItem(1, 1).thenTag(2).hasPath(TagPath.fromItem(1, 1)) shouldBe false
   }
 
   it should "work with sequence and item end nodes" in {
-    TagTree.fromAnyItem(1).hasBranch(TagPath.fromItemEnd(1, 1)) shouldBe true
-    TagTree.fromItem(1, 1).hasBranch(TagPath.fromItemEnd(1, 1)) shouldBe true
-    TagTree.fromAnyItem(1).hasBranch(TagPath.fromSequence(1)) shouldBe true
-    TagTree.fromAnyItem(1).hasBranch(TagPath.fromSequenceEnd(1)) shouldBe true
+    TagTree.fromAnyItem(1).hasPath(TagPath.fromItemEnd(1, 1)) shouldBe true
+    TagTree.fromItem(1, 1).hasPath(TagPath.fromItemEnd(1, 1)) shouldBe true
+    TagTree.fromAnyItem(1).hasPath(TagPath.fromSequence(1)) shouldBe true
+    TagTree.fromAnyItem(1).hasPath(TagPath.fromSequenceEnd(1)) shouldBe true
   }
 
   it should "support documentation examples" in {
-    TagTree.fromAnyItem(0x00089215).thenTag(0x00100010).hasBranch(TagPath.fromItem(0x00089215, 1).thenTag(0x00100010)) shouldBe true
-    TagTree.fromAnyItem(0x00089215).thenTag(0x00100010).hasBranch(TagPath.fromItem(0x00089215, 1)) shouldBe false
-    EmptyTagTree.hasBranch(EmptyTagPath) shouldBe true
+    TagTree.fromAnyItem(0x00089215).thenTag(0x00100010).hasPath(TagPath.fromItem(0x00089215, 1).thenTag(0x00100010)) shouldBe true
+    TagTree.fromAnyItem(0x00089215).thenTag(0x00100010).hasPath(TagPath.fromItem(0x00089215, 1)) shouldBe false
+    EmptyTagTree.hasPath(EmptyTagPath) shouldBe true
   }
 
   "The hasTrunk test" should "return true for equally shaped tree and path" in {
