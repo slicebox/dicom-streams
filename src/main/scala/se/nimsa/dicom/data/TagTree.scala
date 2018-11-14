@@ -278,6 +278,31 @@ object TagTree {
   def fromItem(tag: Int, item: Int): TagTreeItem = EmptyTagTree.thenItem(tag, item)
 
   /**
+    * Create a tag tree from a tag path
+    *
+    * @param tagPath input tag path
+    * @return the equivalent (branch-shaped) tag tree
+    */
+  def fromPath(tagPath: TagPath): TagTree = {
+    val root = tagPath.head match {
+      case p: TagPathTag => TagTree.fromTag(p.tag)
+      case p: TagPathItem => TagTree.fromItem(p.tag, p.item)
+      case p: TagPathItemEnd => TagTree.fromItem(p.tag, p.item)
+      case p: TagPathSequence => TagTree.fromAnyItem(p.tag)
+      case p: TagPathSequenceEnd => TagTree.fromAnyItem(p.tag)
+      case _ => EmptyTagTree
+    }
+    tagPath.drop(1).toList.foldLeft(root) {
+      case (t: TagTreeTrunk, p: TagPathTag) => t.thenTag(p.tag)
+      case (t: TagTreeTrunk, p: TagPathItem) => t.thenItem(p.tag, p.item)
+      case (t: TagTreeTrunk, p: TagPathItemEnd) => t.thenItem(p.tag, p.item)
+      case (t: TagTreeTrunk, p: TagPathSequence) => t.thenAnyItem(p.tag)
+      case (t: TagTreeTrunk, p: TagPathSequenceEnd) => t.thenAnyItem(p.tag)
+      case (t, _) => t
+    }
+  }
+
+  /**
     * Parse the string representation of a tag tree into a tag tree object. Tag trees can either be specified using tag
     * numbers or their corresponding keywords.
     *

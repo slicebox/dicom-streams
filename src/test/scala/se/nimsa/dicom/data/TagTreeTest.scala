@@ -223,6 +223,24 @@ class TagTreeTest extends FlatSpec with Matchers {
     TagTree.fromAnyItem(0x00089215).thenTag(0x00100010).hasTwig(TagPath.fromItem(0x00089215, 1)) shouldBe false
   }
 
+  "Creating a tag path from a tag tree" should "handle empty tag paths" in {
+    TagTree.fromPath(EmptyTagPath) shouldBe EmptyTagTree
+  }
+
+  it should "handle simple paths" in {
+    TagTree.fromPath(TagPath.fromTag(1)) shouldBe TagTree.fromTag(1)
+  }
+
+  it should "handle deep paths" in {
+    TagTree.fromPath(TagPath.fromItem(1,1).thenItem(2,2).thenTag(3)) shouldBe TagTree.fromItem(1,1).thenItem(2,2).thenTag(3)
+  }
+
+  it should "handle sequence and item start and end nodes" in {
+    TagTree.fromPath(TagPath.fromSequence(1)) shouldBe TagTree.fromAnyItem(1)
+    TagTree.fromPath(TagPath.fromSequenceEnd(1)) shouldBe TagTree.fromAnyItem(1)
+    TagTree.fromPath(TagPath.fromItemEnd(1,1)) shouldBe TagTree.fromItem(1,1)
+  }
+
   "Parsing a tag tree" should "work for well-formed depth 0 tag trees" in {
     TagTree.parse("(0010,0010)") shouldBe TagTree.fromTag(Tag.PatientName)
   }
