@@ -370,19 +370,19 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
       TagPath.fromTag(Tag.StudyDate), // Patient name header
       TagPath.fromTag(Tag.StudyDate), // Patient name value
       TagPath.fromSequence(Tag.EnergyWindowInformationSequence), // sequence start
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1), // item start
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1).thenTag(Tag.StudyDate), // study date header
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1).thenTag(Tag.StudyDate), // study date value
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 1), // item end
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2), // item start
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence), // sequence start
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1), // item start
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1).thenTag(Tag.StudyDate), // Study date header
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1).thenTag(Tag.StudyDate), // Study date value
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence, 1), //  item end (inserted)
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence), // sequence end (inserted)
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence, 2), // item end
-      TagPath.fromSequence(Tag.EnergyWindowInformationSequence), // sequence end
+      TagPath.fromItem(Tag.EnergyWindowInformationSequence, 1), // item start
+      TagPath.fromItem(Tag.EnergyWindowInformationSequence, 1).thenTag(Tag.StudyDate), // study date header
+      TagPath.fromItem(Tag.EnergyWindowInformationSequence, 1).thenTag(Tag.StudyDate), // study date value
+      TagPath.fromItemEnd(Tag.EnergyWindowInformationSequence, 1), // item end
+      TagPath.fromItem(Tag.EnergyWindowInformationSequence, 2), // item start
+      TagPath.fromItem(Tag.EnergyWindowInformationSequence, 2).thenSequence(Tag.EnergyWindowRangeSequence), // sequence start
+      TagPath.fromItem(Tag.EnergyWindowInformationSequence, 2).thenItem(Tag.EnergyWindowRangeSequence, 1), // item start
+      TagPath.fromItem(Tag.EnergyWindowInformationSequence, 2).thenItem(Tag.EnergyWindowRangeSequence, 1).thenTag(Tag.StudyDate), // Study date header
+      TagPath.fromItem(Tag.EnergyWindowInformationSequence, 2).thenItem(Tag.EnergyWindowRangeSequence, 1).thenTag(Tag.StudyDate), // Study date value
+      TagPath.fromItem(Tag.EnergyWindowInformationSequence, 2).thenItemEnd(Tag.EnergyWindowRangeSequence, 1), //  item end (inserted)
+      TagPath.fromItem(Tag.EnergyWindowInformationSequence, 2).thenSequenceEnd(Tag.EnergyWindowRangeSequence), // sequence end (inserted)
+      TagPath.fromItemEnd(Tag.EnergyWindowInformationSequence, 2), // item end
+      TagPath.fromSequenceEnd(Tag.EnergyWindowInformationSequence), // sequence end
       TagPath.fromTag(Tag.PatientName), // Patient name header
       TagPath.fromTag(Tag.PatientName), // Patient name value
       TagPath.fromTag(Tag.PixelData), // fragments start
@@ -443,19 +443,19 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
       TagPath.fromTag(Tag.PatientName),
       TagPath.fromTag(Tag.PatientName),
       TagPath.fromSequence(Tag.DigitalSignaturesSequence), // sequence start
-      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1), // item start
-      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.MACIDNumber),
-      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.MACIDNumber),
-      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.DigitalSignatureUID),
-      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.DigitalSignatureUID),
-      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.CertificateType),
-      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.CertificateType),
-      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.CertificateOfSigner),
-      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.CertificateOfSigner),
-      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.Signature),
-      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.Signature),
-      TagPath.fromSequence(Tag.DigitalSignaturesSequence, 1), // item end (inserted)
-      TagPath.fromSequence(Tag.DigitalSignaturesSequence)) // sequence end (inserted)
+      TagPath.fromItem(Tag.DigitalSignaturesSequence, 1), // item start
+      TagPath.fromItem(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.MACIDNumber),
+      TagPath.fromItem(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.MACIDNumber),
+      TagPath.fromItem(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.DigitalSignatureUID),
+      TagPath.fromItem(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.DigitalSignatureUID),
+      TagPath.fromItem(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.CertificateType),
+      TagPath.fromItem(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.CertificateType),
+      TagPath.fromItem(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.CertificateOfSigner),
+      TagPath.fromItem(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.CertificateOfSigner),
+      TagPath.fromItem(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.Signature),
+      TagPath.fromItem(Tag.DigitalSignaturesSequence, 1).thenTag(Tag.Signature),
+      TagPath.fromItemEnd(Tag.DigitalSignaturesSequence, 1), // item end (inserted)
+      TagPath.fromSequenceEnd(Tag.DigitalSignaturesSequence)) // sequence end (inserted)
 
     def check(tagPath: TagPath): Unit = {
       tagPath shouldBe expectedPaths.head

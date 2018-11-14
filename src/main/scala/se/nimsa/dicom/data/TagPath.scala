@@ -16,45 +16,37 @@
 
 package se.nimsa.dicom.data
 
+import se.nimsa.dicom.data.TagPath._
+
 import scala.annotation.tailrec
 
-sealed trait TagPath {
+/**
+  * Representation of a single pointer into a DICOM dataset described by a (possibly empty) sequence of
+  * (sequence tag, item) pairs and (optionally) a leaf tag.
+  */
+sealed trait TagPath extends TagPathLike {
 
-  import TagPath._
+  override type P = TagPath
+  override type T = TagPathTrunk
+  override type E = EmptyTagPath.type
 
-  def tag: Int
-  def previous: TagPathTrunk
-
-  /**
-    * `true` if this tag path points to the root dataset, at depth 0
-    */
-  lazy val isRoot: Boolean = previous.isEmpty
-  lazy val isEmpty: Boolean = this eq EmptyTagPath
-
-  def toList: List[TagPath] = {
-    @tailrec
-    def toList(path: TagPath, tail: List[TagPath]): List[TagPath] =
-      if (path.isRoot) path :: tail else toList(path.previous, path :: tail)
-
-    if (isEmpty) Nil else toList(path = this, tail = Nil)
-  }
+  override protected val empty: E = EmptyTagPath
 
   /**
     * Test if this tag path is less than the input path, comparing their parts pairwise from root to leaf according to
-    * the following rules:
-    * (1) a is less than b if the a's tag number is less b's tag number
-    * (2) a is less than b if tag numbers are equal and a's item index is less than b's item index
-    * in all other cases a is not less than b. Note that this means that the ordering of sequence items and sequence
-    * wildcards with the same tag number is not defined, e.g. the path `(300A,00B0)[1]` is equal in terms of ordering to
-    * `(300A,00B0)[*]` in the sense that `(300A,00B0)[1] &lt; (300A,00B0)[*] = false` and
-    * `(300A,00B0)[*] &lt; (300A,00B0)[1] = false`.
+    * the following rules:<br>
+    * (1) a is less than b if the a's tag number is less b's tag number<br>
+    * (2) a is less than b if tag numbers are equal and a's item index is less than b's item index<br>
+    * (3) the start of a sequence is less than the body and end of that sequence<br>
+    * (4) the start and body of an item is less than the end of that item<br>
+    * (5) the empty tag path is less than all other tags<br>
     *
     * @param that the tag path to compare with
     * @return `true` if this tag path is less than the input path
     */
   def <(that: TagPath): Boolean = {
-    val thisList = this.toList
-    val thatList = that.toList
+    val thisList: List[TagPath] = this.toList
+    val thatList: List[TagPath] = that.toList
 
     thisList.zip(thatList).foreach {
       case (EmptyTagPath, thatPath) =>
@@ -63,9 +55,25 @@ sealed trait TagPath {
         return false
       case (thisPath, thatPath) if thisPath.tag != thatPath.tag =>
         return intToUnsignedLong(thisPath.tag) < intToUnsignedLong(thatPath.tag)
-      case (thisPath: TagPathSequenceItem, thatPath: TagPathSequenceItem) if thisPath.item != thatPath.item =>
+      case (_: TagPathSequence, _: TagPath with ItemIndex) => // tag numbers equal from here
+        return true
+      case (_: TagPathSequence, _: TagPathSequenceEnd) =>
+        return true
+      case (_: TagPathSequenceEnd, _: TagPath with ItemIndex) =>
+        return false
+      case (_: TagPathSequenceEnd, _: TagPathSequence) =>
+        return false
+      case (_: TagPath with ItemIndex, _: TagPathSequence) =>
+        return false
+      case (_: TagPath with ItemIndex, _: TagPathSequenceEnd) =>
+        return true
+      case (thisPath: TagPath with ItemIndex, thatPath: TagPath with ItemIndex) if thisPath.item != thatPath.item =>
         return thisPath.item < thatPath.item
-      case _ => // tags and item numbers are equal, check next
+      case (_: TagPathItem, _: TagPathItemEnd) => // tag and item numbers equal from here
+        return true
+      case (_: TagPathItemEnd, _: TagPathItem) => // tag and item numbers equal from here
+        return false
+      case _ => // tags and item numbers are equal, and same class -> check next
     }
     thisList.length < thatList.length
   }
@@ -78,173 +86,65 @@ sealed trait TagPath {
     * @example (0010,0010) == (0010,0010)
     * @example (0010,0010) != (0010,0020)
     * @example (0010,0010) != (0008,9215)[1].(0010,0010)
-    * @example (0008,9215)[*].(0010,0010) != (0008,9215)[1].(0010,0010)
     * @example (0008,9215)[3].(0010,0010) == (0008,9215)[3].(0010,0010)
     */
   override def equals(that: Any): Boolean = (this, that) match {
     case (p1: TagPath, p2: TagPath) if p1.isEmpty && p2.isEmpty => true
     case (p1: TagPathTag, p2: TagPathTag) => p1.tag == p2.tag && p1.previous == p2.previous
-    case (p1: TagPathSequenceItem, p2: TagPathSequenceItem) => p1.tag == p2.tag && p1.item == p2.item && p1.previous == p2.previous
-    case (p1: TagPathSequenceAny, p2: TagPathSequenceAny) => p1.tag == p2.tag && p1.previous == p2.previous
+    case (p1: TagPathSequence, p2: TagPathSequence) => p1.tag == p2.tag && p1.previous == p2.previous
+    case (p1: TagPathSequenceEnd, p2: TagPathSequenceEnd) => p1.tag == p2.tag && p1.previous == p2.previous
+    case (p1: TagPathItem, p2: TagPathItem) => p1.tag == p2.tag && p1.item == p2.item && p1.previous == p2.previous
+    case (p1: TagPathItemEnd, p2: TagPathItemEnd) => p1.tag == p2.tag && p1.item == p2.item && p1.previous == p2.previous
     case _ => false
   }
 
   /**
-    * @param tag tag number
-    * @return `true` if this tag path contains the input tag number
-    * @example (0008,9215)[*].(0010,0010) contains 0x00089215
-    * @example (0008,9215)[*].(0010,0010) contains 0x00100010
-    * @example (0008,9215)[*].(0010,0010) does not contain 0x00100020
-    */
-  def contains(tag: Int): Boolean = toList.map(_.tag).contains(tag)
-
-  /**
-    * A super-path of another path is a path of equal depth with the same sequence of tag numbers. Differences are in the
-    * specification of items. A path with a less restrictive specification of items (wildcard/all
-    * items instead of item index) is said to be a super-path of the more general path.
-    *
-    * The input path is a super-path of this path if and only if this path is a sub-path of the input path.
-    *
     * @param that tag path to test
-    * @return `true` if the input tag path is a super-path of this path
-    * @example (0008,9215)[1].(0010,0010) is a super-path of (0008,9215)[1].(0010,0010)
-    * @example (0008,9215)[*].(0010,0010) is a super-path of (0008,9215)[1].(0010,0010)
-    * @example (0008,9215)[1].(0010,0010) is not a super-path of (0008,9215)[*].(0010,0010) (it is a sub-path)
+    * @return `true` if this tag path begins with the input tag path.
+    * @example (0010,0010) starts with (0010,0010)
+    * @example (0008,9215)[2].(0010,0010) starts with (0008,9215)[2]
+    * @example (0008,9215)[2].(0010,0010) starts with the empty tag path
+    * @example (0008,9215)[2].(0010,0010) does not start with (0008,9215)[1]
+    * @example (0008,9215)[2] does not start with (0008,9215)[2].(0010,0010)
     */
-  def hasSuperPath(that: TagPath): Boolean = (this, that) match {
-    case (EmptyTagPath, EmptyTagPath) => true
-    case (p1: TagPathTag, p2: TagPathTag) => p1.tag == p2.tag && p1.previous.hasSuperPath(p2.previous)
-    case (p1: TagPathSequenceItem, p2: TagPathSequenceItem) => p1.item == p2.item && p1.tag == p2.tag && p1.previous.hasSuperPath(p2.previous)
-    case (p1: TagPathSequenceItem, p2: TagPathSequenceAny) => p1.tag == p2.tag && p1.previous.hasSuperPath(p2.previous)
-    case (p1: TagPathSequenceAny, p2: TagPathSequenceAny) => p1.tag == p2.tag && p1.previous.hasSuperPath(p2.previous)
-    case _ => false
-  }
-
-  /**
-    * A sub-path of another path is a path of equal length with the same sequence of tag numbers. Differences are in the
-    * specification of items. A path with a more restrictive specification of items (item index instead of wildcard/all
-    * items) is said to be a sub-path of the more general path.
-    *
-    * The input path is a sub-path of this path if and only if this path is a super-path of the input path.
-    *
-    * @param that tag path to test
-    * @return `true` if the input tag path is a sub-path of this path
-    * @example (0008,9215)[1].(0010,0010) is a sub-path of (0008,9215)[1].(0010,0010)
-    * @example (0008,9215)[1].(0010,0010) is a sub-path of (0008,9215)[*].(0010,0010)
-    * @example (0008,9215)[*].(0010,0010) is not a sub-path of (0008,9215)[1].(0010,0010) (it is a super-path)
-    */
-  def hasSubPath(that: TagPath): Boolean = that.hasSuperPath(this)
-
-  private[TagPath] def startsWith(that: TagPath,
-                                  f1: (TagPathSequenceItem, TagPathSequenceAny) => Boolean,
-                                  f2: (TagPathSequenceAny, TagPathSequenceItem) => Boolean): Boolean = {
+  def startsWith(that: TagPath): Boolean = {
     if (this.depth >= that.depth)
       this.toList.zip(that.toList).forall {
-        case (thisSeq: TagPathSequenceAny, thatSeq: TagPathSequenceAny) => thisSeq.tag == thatSeq.tag
-        case (thisSeq: TagPathSequenceItem, thatSeq: TagPathSequenceAny) => f1(thisSeq, thatSeq)
-        case (thisSeq: TagPathSequenceAny, thatSeq: TagPathSequenceItem) => f2(thisSeq, thatSeq)
-        case (thisSeq: TagPathSequenceItem, thatSeq: TagPathSequenceItem) => thisSeq.tag == thatSeq.tag && thisSeq.item == thatSeq.item
+        case (_, EmptyTagPath) => true
+        case (thisSeq: TagPathItem, thatSeq: TagPathItem) => thisSeq.tag == thatSeq.tag && thisSeq.item == thatSeq.item
+        case (thisSeq: TagPathItemEnd, thatSeq: TagPathItemEnd) => thisSeq.tag == thatSeq.tag && thisSeq.item == thatSeq.item
+        case (thisTag: TagPathSequence, thatTag: TagPathSequence) => thisTag.tag == thatTag.tag
+        case (thisTag: TagPathSequenceEnd, thatTag: TagPathSequenceEnd) => thisTag.tag == thatTag.tag
         case (thisTag: TagPathTag, thatTag: TagPathTag) => thisTag.tag == thatTag.tag
         case _ => false
       }
     else
       false
   }
-  /**
-    * Tests if the n first nodes of this path is equal (see definition of `equels`) to the input path of depth n
-    *
-    * @param that tag path to test
-    * @return `true` if the input tag path is equal to the the start of this tag path
-    */
-  def startsWith(that: TagPath): Boolean = startsWith(that, (_, _) => false, (_, _) => false)
 
   /**
-    * Tests if the input path of depth n is a sub-path (see definition of `hasSubPath`) of the n first nodes of this path
-    *
     * @param that tag path to test
-    * @return `true` if the input tag path is a sub-path of the start of this tag path
+    * @return `true` if this tag path ends with the input tag path
+    * @example (0010,0010) ends with (0010,0010)
+    * @example (0008,9215)[2].(0010,0010) ends with (0010,0010)
+    * @example (0008,9215)[2].(0010,0010) ends with the empty tag path
+    * @example (0010,0010) does not end with (0008,9215)[2].(0010,0010)
     */
-  def startsWithSubPath(that: TagPath): Boolean = startsWith(that, (_, _) => false, (s1, s2) => s1.tag == s2.tag)
-
-  /**
-    * Tests if the input path of depth n is a super-path (see definition of `hasSuperPath`) of the n first nodes of this path
-    *
-    * @param that tag path to test
-    * @return `true` if the input tag path is a super-path of the start of this tag path
-    */
-  def startsWithSuperPath(that: TagPath): Boolean = startsWith(that, (s1, s2) => s1.tag == s2.tag, (_, _) => false)
-
-  private[TagPath] def endsWith(that: TagPath,
-                                f1: (TagPathSequenceItem, TagPathSequenceAny) => Boolean,
-                                f2: (TagPathSequenceAny, TagPathSequenceItem) => Boolean): Boolean =
+  def endsWith(that: TagPath): Boolean =
     ((this, that) match {
-      case (EmptyTagPath, EmptyTagPath) => true
-      case (thisSeq: TagPathSequenceAny, thatSeq: TagPathSequenceAny) => thisSeq.tag == thatSeq.tag
-      case (thisSeq: TagPathSequenceItem, thatSeq: TagPathSequenceAny) => f1(thisSeq, thatSeq)
-      case (thisSeq: TagPathSequenceAny, thatSeq: TagPathSequenceItem) => f2(thisSeq, thatSeq)
-      case (thisSeq: TagPathSequenceItem, thatSeq: TagPathSequenceItem) => thisSeq.tag == thatSeq.tag && thisSeq.item == thatSeq.item
+      case (_, EmptyTagPath) => true
+      case (thisSeq: TagPathItem, thatSeq: TagPathItem) => thisSeq.tag == thatSeq.tag && thisSeq.item == thatSeq.item
+      case (thisSeq: TagPathItemEnd, thatSeq: TagPathItemEnd) => thisSeq.tag == thatSeq.tag && thisSeq.item == thatSeq.item
+      case (thisTag: TagPathSequence, thatTag: TagPathSequence) => thisTag.tag == thatTag.tag
+      case (thisTag: TagPathSequenceEnd, thatTag: TagPathSequenceEnd) => thisTag.tag == thatTag.tag
       case (thisTag: TagPathTag, thatTag: TagPathTag) => thisTag.tag == thatTag.tag
       case _ => false
     }) && ((this.previous, that.previous) match {
       case (_, EmptyTagPath) => true
       case (EmptyTagPath, _) => false
-      case (thisPrev, thatPrev) => thisPrev.endsWith(thatPrev, f1, f2)
+      case (thisPrev, thatPrev) => thisPrev.endsWith(thatPrev)
     })
 
-  /**
-    * Tests if the n last nodes of this path is equal (see definition of `equels`) to the input path of depth n
-    *
-    * @param that tag path to test
-    * @return `true` if the input tag path is equal to the end of this tag path
-    */
-  def endsWith(that: TagPath): Boolean = endsWith(that, (_, _) => false, (_, _) => false)
-
-  /**
-    * Tests if the input path of depth n is a sub-path (see definition of `hasSubPath`) of the n last nodes of this path
-    *
-    * @param that tag path to test
-    * @return `true` if the input tag path is a sub-path of the end of this tag path
-    */
-  def endsWithSubPath(that: TagPath): Boolean = endsWith(that, (_, _) => false, (s1, s2) => s1.tag == s2.tag)
-
-  /**
-    * Tests if the input path of depth n is a super-path (see definition of `hasSuperPath`) of the n last nodes of this path
-    *
-    * @param that tag path to test
-    * @return `true` if the input tag path is a super-path of the end of this tag path
-    */
-  def endsWithSuperPath(that: TagPath): Boolean = endsWith(that, (s1, s2) => s1.tag == s2.tag, (_, _) => false)
-
-  /**
-    * Depth of this tag path. A tag path that points to a tag in a sequence in a sequence has depth 3. A tag path that
-    * points to a tag in the root dataset has depth 1. Empty paths have depth 0.
-    *
-    * @return the depth of this tag path, counting from 0
-    */
-  def depth: Int = {
-    @tailrec
-    def depth(path: TagPath, d: Int): Int = if (path.isRoot) d else depth(path.previous, d + 1)
-
-    if (isEmpty) 0 else depth(this, 1)
-  }
-
-  /**
-    * @return the root (left-most) element of this tag path
-    */
-  def head: TagPath = take(1)
-
-  /**
-    * @return the tag path following the root element, that is, all elements to the right of the root element. Returns
-    *         empty path if there are no such elements.
-    */
-  def tail: TagPath = drop(1)
-
-  /**
-    * Drop n steps of this path from the left
-    *
-    * @param n the number of steps to omit, counted from the lef-most root path
-    * @return a new TagPath
-    */
   def drop(n: Int): TagPath = {
     def drop(path: TagPath, i: Int): TagPath =
       if (i < 0)
@@ -252,15 +152,19 @@ sealed trait TagPath {
       else if (i == 0)
         path match {
           case EmptyTagPath => EmptyTagPath
-          case p: TagPathSequenceAny => TagPath.fromSequence(p.tag)
-          case p: TagPathSequenceItem => TagPath.fromSequence(p.tag, p.item)
+          case p: TagPathItem => TagPath.fromItem(p.tag, p.item)
+          case p: TagPathItemEnd => TagPath.fromItemEnd(p.tag, p.item)
+          case p: TagPathSequence => TagPath.fromSequence(p.tag)
+          case p: TagPathSequenceEnd => TagPath.fromSequenceEnd(p.tag)
           case p => TagPath.fromTag(p.tag)
         }
       else
         drop(path.previous, i - 1) match {
           case p: TagPathTrunk => path match {
-            case ps: TagPathSequenceAny => p.thenSequence(ps.tag)
-            case pi: TagPathSequenceItem => p.thenSequence(pi.tag, pi.item)
+            case pi: TagPathItem => p.thenItem(pi.tag, pi.item)
+            case pi: TagPathItemEnd => p.thenItemEnd(pi.tag, pi.item)
+            case pi: TagPathSequence => p.thenSequence(pi.tag)
+            case pi: TagPathSequenceEnd => p.thenSequenceEnd(pi.tag)
             case pt: TagPathTag => p.thenTag(pt.tag)
             case _ => EmptyTagPath
           }
@@ -268,20 +172,6 @@ sealed trait TagPath {
         }
 
     drop(path = this, i = depth - n - 1)
-  }
-
-  /**
-    * The first n steps of this path, counted from the left
-    *
-    * @param n the number of steps to take, counted from the left-most root path
-    * @return a new TagPath
-    */
-  def take(n: Int): TagPath = {
-    @tailrec
-    def take(path: TagPath, i: Int): TagPath =
-      if (i <= 0) path else take(path.previous, i - 1)
-
-    take(path = this, i = depth - n)
   }
 
   def toString(lookup: Boolean): String = {
@@ -295,8 +185,8 @@ sealed trait TagPath {
     @tailrec
     def toTagPathString(path: TagPath, tail: String): String = {
       val itemIndexSuffix = path match {
-        case _: TagPathSequenceAny => "[*]"
-        case s: TagPathSequenceItem => s"[${s.item}]"
+        case s: TagPathItem => s"[${s.item}]"
+        case s: TagPathItemEnd => s"[${s.item}]"
         case _ => ""
       }
       val head = toTagString(path.tag) + itemIndexSuffix
@@ -307,72 +197,147 @@ sealed trait TagPath {
     if (isEmpty) "<empty path>" else toTagPathString(path = this, tail = "")
   }
 
-  override def toString: String = toString(lookup = true)
-
   override def hashCode(): Int = this match {
     case EmptyTagPath => 0
-    case s: TagPathSequenceItem => 31 * (31 * (31 * previous.hashCode() + tag.hashCode()) * s.item.hashCode())
+    case s: TagPathItem => 31 * (31 * (31 * previous.hashCode() + tag.hashCode()) * s.item.hashCode())
+    case s: TagPathItemEnd => 31 * (31 * (31 * previous.hashCode() + tag.hashCode()) * s.item.hashCode())
     case _ => 31 * (31 * previous.hashCode() + tag.hashCode())
   }
 }
 
 object TagPath {
 
+
+  /**
+    * Common trait for tag path nodes with an item index
+    */
+  trait ItemIndex {
+    val item: Int
+  }
+
   /**
     * A tag path that points to a non-sequence tag
     *
     * @param tag      the tag number
-    * @param previous a link to the part of this tag part to the left of this tag
+    * @param previous a link to the part of this tag path to the left of this tag
     */
   class TagPathTag private[TagPath](val tag: Int, val previous: TagPathTrunk) extends TagPath
 
+  object TagPathTag {
+
+    /**
+      * Parse the string representation of a tag path into a tag path object. Tag paths can either be specified using tag
+      * numbers or their corresponding keywords.
+      *
+      * Examples: (0008,9215)[1].(0010,0010) = DerivationCodeSequence[1].(0010,0010) = (0008,9215)[1].PatientName =
+      * DerivationCodeSequence[1].PatientName
+      *
+      * @param s string to parse
+      * @return a tag path
+      * @throws IllegalArgumentException for malformed input
+      */
+    def parse(s: String): TagPathTag = {
+      def indexPart(s: String): String = s.substring(s.lastIndexOf('[') + 1, s.length - 1)
+
+      def tagPart(s: String): String = s.substring(0, s.indexOf('['))
+
+      def parseTag(s: String): Int = try Integer.parseInt(s.substring(1, 5) + s.substring(6, 10), 16) catch {
+        case _: Throwable =>
+          Dictionary.tagOf(s)
+      }
+
+      def parseIndex(s: String): Int = Integer.parseInt(s)
+
+      def createTag(s: String): TagPathTag = TagPath.fromTag(parseTag(s))
+
+      def addTag(s: String, path: TagPathTrunk): TagPathTag = path.thenTag(parseTag(s))
+
+      def createSeq(s: String): TagPathTrunk = TagPath.fromItem(parseTag(tagPart(s)), parseIndex(indexPart(s)))
+
+      def addSeq(s: String, path: TagPathTrunk): TagPathTrunk = path.thenItem(parseTag(tagPart(s)), parseIndex(indexPart(s)))
+
+      val tags = if (s.indexOf('.') > 0) s.split("\\.").toList else List(s)
+      val seqTags = if (tags.length > 1) tags.init else Nil // list of sequence tags, if any
+      val lastTag = tags.last // tag or sequence
+      try
+        seqTags.headOption
+          .map(first => seqTags.tail.foldLeft(createSeq(first))((path, tag) => addSeq(tag, path)))
+          .map(path => addTag(lastTag, path))
+          .getOrElse(createTag(lastTag))
+      catch {
+        case e: Exception => throw new IllegalArgumentException("Tag path could not be parsed", e)
+      }
+    }
+  }
+
   /**
-    * A tag path that points to a sequence (all items or specific item), or the empty tag path
+    * Representation of the start of a sequence
+    */
+  class TagPathSequence private[TagPath](val tag: Int, val previous: TagPathTrunk) extends TagPath
+
+  /**
+    * Representation of the end of a sequence
+    */
+  class TagPathSequenceEnd private[TagPath](val tag: Int, val previous: TagPathTrunk) extends TagPath
+
+  /**
+    * Representation of the start or body of an item
+    */
+  class TagPathItem private[TagPath](val tag: Int, val item: Int, val previous: TagPathTrunk) extends TagPathTrunk with ItemIndex
+
+  /**
+    * Representation of the end of an item
+    */
+  class TagPathItemEnd private[TagPath](val tag: Int, val item: Int, val previous: TagPathTrunk) extends TagPath with ItemIndex
+
+  /**
+    * A tag path that points to a node that may be non-terminal, i.e. an item or the empty tag path. All other types end
+    * a tag path; therefore builder functions reside in this trait.
     */
   trait TagPathTrunk extends TagPath {
 
     /**
-      * Path to a specific tag
+      * Add a tag node
       *
-      * @param tag tag number
+      * @param tag tag number of new node (terminal)
       * @return the tag path
       */
     def thenTag(tag: Int) = new TagPathTag(tag, this)
 
     /**
-      * Path to all items in a sequence
+      * Add a node pointing to the start of a sequence (terminal)
       *
-      * @param tag tag number
+      * @param tag tag number of sequence
       * @return the tag path
       */
-    def thenSequence(tag: Int) = new TagPathSequenceAny(tag, this)
+    def thenSequence(tag: Int) = new TagPathSequence(tag, this)
 
     /**
-      * Path to a specific item within a sequence
+      * Add a node pointing to the end of a sequence (terminal)
       *
-      * @param tag  tag number
-      * @param item item index
+      * @param tag tag number of sequence to end
       * @return the tag path
       */
-    def thenSequence(tag: Int, item: Int) = new TagPathSequenceItem(tag, item, this)
+    def thenSequenceEnd(tag: Int) = new TagPathSequenceEnd(tag, this)
+
+    /**
+      * Add a node pointing to an item in a sequence (non-terminal)
+      *
+      * @param tag  tag number of sequence item
+      * @param item item number (1-based)
+      * @return the tag path
+      */
+    def thenItem(tag: Int, item: Int) = new TagPathItem(tag, item, this)
+
+    /**
+      * Add a node pointing to the end of an item (terminal)
+      *
+      * @param tag  tag number of sequence item to end
+      * @param item item number
+      * @return the tag path
+      */
+    def thenItemEnd(tag: Int, item: Int) = new TagPathItemEnd(tag, item, this)
   }
-
-  /**
-    * A tag path that points to all items of a sequence
-    *
-    * @param tag      the sequence tag number
-    * @param previous a link to the part of this tag part to the left of this tag
-    */
-  class TagPathSequenceAny private[TagPath](val tag: Int, val previous: TagPathTrunk) extends TagPathTrunk
-
-  /**
-    * A tag path that points to an item in a sequence
-    *
-    * @param tag      the sequence tag number
-    * @param item     defines the item index in the sequence
-    * @param previous a link to the part of this tag part to the left of this tag
-    */
-  class TagPathSequenceItem private[TagPath](val tag: Int, val item: Int, val previous: TagPathTrunk) extends TagPathTrunk
 
   /**
     * Empty tag path
@@ -383,7 +348,7 @@ object TagPath {
   }
 
   /**
-    * Create a path to a specific tag
+    * Create a path to a specific tag (terminal)
     *
     * @param tag tag number
     * @return the tag path
@@ -391,71 +356,35 @@ object TagPath {
   def fromTag(tag: Int): TagPathTag = EmptyTagPath.thenTag(tag)
 
   /**
-    * Create a path to all items in a sequence
+    * Create a path to the start of a sequence (terminal)
     *
     * @param tag tag number
     * @return the tag path
     */
-  def fromSequence(tag: Int): TagPathSequenceAny = EmptyTagPath.thenSequence(tag)
+  def fromSequence(tag: Int): TagPathSequence = EmptyTagPath.thenSequence(tag)
 
   /**
-    * Create a path to a specific item within a sequence
+    * Create a path to the end of a sequence (terminal)
     *
-    * @param tag  tag number
-    * @param item item index
+    * @param tag tag number
     * @return the tag path
     */
-  def fromSequence(tag: Int, item: Int): TagPathSequenceItem = EmptyTagPath.thenSequence(tag, item)
+  def fromSequenceEnd(tag: Int): TagPathSequenceEnd = EmptyTagPath.thenSequenceEnd(tag)
 
   /**
-    * Parse the string representation of a tag path into a tag path object. Tag paths can either be specified using tag
-    * numbers or their corresponding keywords.
+    * Create a path to a specific item within a sequence (non-terminal)
     *
-    * Examples: (0008,9215)[1].(0010,0010) = DerivationCodeSequence[1].(0010,0010) = (0008,9215)[1].PatientName =
-    * DerivationCodeSequence[1].PatientName
-    *
-    * @param s string to parse
-    * @return a tag path
-    * @throws IllegalArgumentException for malformed input
+    * @param tag tag number
+    * @return the tag path
     */
-  def parse(s: String): TagPath = {
-    def isSeq(s: String): Boolean = s.last == ']'
+  def fromItem(tag: Int, item: Int): TagPathItem = EmptyTagPath.thenItem(tag, item)
 
-    def indexPart(s: String): String = s.substring(s.lastIndexOf('[') + 1, s.length - 1)
-
-    def tagPart(s: String): String = s.substring(0, s.indexOf('['))
-
-    def parseTag(s: String): Int = try Integer.parseInt(s.substring(1, 5) + s.substring(6, 10), 16) catch {
-      case _: Throwable =>
-        Dictionary.tagOf(s)
-    }
-
-    def parseIndex(s: String): Option[Int] = if (s == "*") None else Some(Integer.parseInt(s))
-
-    def createTag(s: String): TagPathTag = TagPath.fromTag(parseTag(s))
-
-    def addTag(s: String, path: TagPathTrunk): TagPathTag = path.thenTag(parseTag(s))
-
-    def createSeq(s: String): TagPathTrunk = parseIndex(indexPart(s))
-      .map(index => TagPath.fromSequence(parseTag(tagPart(s)), index))
-      .getOrElse(TagPath.fromSequence(parseTag(tagPart(s))))
-
-    def addSeq(s: String, path: TagPathTrunk): TagPathTrunk = parseIndex(indexPart(s))
-      .map(index => path.thenSequence(parseTag(tagPart(s)), index))
-      .getOrElse(path.thenSequence(parseTag(tagPart(s))))
-
-
-    val tags = if (s.indexOf('.') > 0) s.split("\\.").toList else List(s)
-    val seqTags = if (tags.length > 1) tags.init else Nil // list of sequence tags, if any
-    val lastTag = tags.last // tag or sequence
-    try {
-      seqTags.headOption.map(first => seqTags.tail.foldLeft(createSeq(first))((path, tag) => addSeq(tag, path))) match {
-        case Some(path) => if (isSeq(lastTag)) addSeq(lastTag, path) else addTag(lastTag, path)
-        case None => if (isSeq(lastTag)) createSeq(lastTag) else createTag(lastTag)
-      }
-    } catch {
-      case e: Exception => throw new IllegalArgumentException("Tag path could not be parsed", e)
-    }
-  }
+  /**
+    * Create a path to the end of a sequence item (terminal)
+    *
+    * @param tag tag number
+    * @return the tag path
+    */
+  def fromItemEnd(tag: Int, item: Int): TagPathItemEnd = EmptyTagPath.thenItemEnd(tag, item)
 
 }

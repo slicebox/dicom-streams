@@ -45,54 +45,6 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectDicomComplete()
   }
 
-  "The DICOM parts filter" should "block all elements not on the white list" in {
-    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe() ++ studyDate()
-
-    val source = Source.single(bytes)
-      .via(new ParseFlow())
-      .via(whitelistFilter(Set(TagPath.fromTag(Tag.StudyDate))))
-
-    source.runWith(TestSink.probe[DicomPart])
-      .expectHeader(Tag.StudyDate)
-      .expectValueChunk()
-      .expectDicomComplete()
-  }
-
-  it should "also apply to FMI is instructed" in {
-    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe() ++ studyDate()
-
-    val source = Source.single(bytes)
-      .via(new ParseFlow())
-      .via(whitelistFilter(Set(TagPath.fromTag(Tag.StudyDate))))
-
-    source.runWith(TestSink.probe[DicomPart])
-      .expectHeader(Tag.StudyDate)
-      .expectValueChunk()
-      .expectDicomComplete()
-  }
-
-  it should "only apply to elements in the root dataset" in {
-    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation()
-
-    val source = Source.single(bytes)
-      .via(new ParseFlow())
-      .via(whitelistFilter(Set(TagPath.fromTag(Tag.StudyDate))))
-
-    source.runWith(TestSink.probe[DicomPart])
-      .expectDicomComplete()
-  }
-
-  it should "also work on fragments" in {
-    val bytes = pixeDataFragments() ++ item(4) ++ ByteString(1, 2, 3, 4) ++ item(4) ++ ByteString(5, 6, 7, 8) ++ sequenceDelimitation()
-
-    val source = Source.single(bytes)
-      .via(new ParseFlow())
-      .via(whitelistFilter(Set.empty))
-
-    source.runWith(TestSink.probe[DicomPart])
-      .expectDicomComplete()
-  }
-
   "The DICOM group length discard filter" should "discard group length elements except 0002,0000" in {
     val groupLength = ByteString(8, 0, 0, 0, 85, 76, 4, 0) ++ intToBytesLE(studyDate().size)
     val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ groupLength ++ studyDate()
@@ -153,7 +105,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectHeader(Tag.ImageType)
   }
 
-  "The DICOM tag filter" should "filter elements in sequences" in {
+  "The tag filter" should "filter elements in sequences" in {
     val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ studyDate() ++ patientNameJohnDoe() ++ itemDelimitation() ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
@@ -170,7 +122,34 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectDicomComplete()
   }
 
-  "The DICOM blacklist filter" should "filter elements matching the blacklist condition" in {
+  it should "filter elements not matching the condition" in {
+    val bytes = preamble ++ fmiGroupLength(fmiVersion(), transferSyntaxUID()) ++ fmiVersion() ++ transferSyntaxUID() ++ patientNameJohnDoe() ++ studyDate()
+
+    val source = Source.single(bytes)
+      .via(new ParseFlow())
+      .via(tagFilter(_ => false)(tagPath => groupNumber(tagPath.tag) >= 8))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectHeader(Tag.PatientName)
+      .expectValueChunk()
+      .expectHeader(Tag.StudyDate)
+      .expectValueChunk()
+      .expectDicomComplete()
+  }
+
+  it should "filter elements not matching the condition when testing with sample dicom files" in {
+    val file = new File(getClass.getResource("../data/test001.dcm").toURI)
+    val source = FileIO.fromPath(file.toPath)
+      .via(parseFlow)
+      .via(tagFilter(_ => false)(tagPath => tagPath.tag == Tag.PatientName))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectHeader(Tag.PatientName)
+      .expectValueChunk()
+      .expectDicomComplete()
+  }
+
+  it should "filter elements matching the condition" in {
     val bytes = preamble ++ fmiGroupLength(fmiVersion(), transferSyntaxUID()) ++ fmiVersion() ++ transferSyntaxUID() ++ studyDate()
 
     val source = Source.single(bytes)
@@ -195,7 +174,103 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectHeader(Tag.ImageType)
   }
 
-  it should "block the entire sequence when a sequence tag is on the black list" in {
+  it should "filter leave the dicom file unchanged when blacklist condition does not match any elements" in {
+    val file = new File(getClass.getResource("../data/test001.dcm").toURI)
+    val source = FileIO.fromPath(file.toPath)
+      .via(new ParseFlow())
+      .via(tagFilter(_ => true)(tagPath => !DicomParsing.isPrivate(tagPath.tag)))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectPreamble()
+      .expectHeader(Tag.FileMetaInformationGroupLength)
+      .expectValueChunk()
+      .expectHeader(Tag.FileMetaInformationVersion)
+      .expectValueChunk()
+  }
+
+  "The whitelist filter" should "block all elements not on the white list" in {
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe() ++ studyDate()
+
+    val source = Source.single(bytes)
+      .via(new ParseFlow())
+      .via(whitelistFilter(Set(TagTree.fromTag(Tag.StudyDate))))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectHeader(Tag.StudyDate)
+      .expectValueChunk()
+      .expectDicomComplete()
+  }
+
+  it should "also apply to FMI is instructed" in {
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe() ++ studyDate()
+
+    val source = Source.single(bytes)
+      .via(new ParseFlow())
+      .via(whitelistFilter(Set(TagTree.fromTag(Tag.StudyDate))))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectHeader(Tag.StudyDate)
+      .expectValueChunk()
+      .expectDicomComplete()
+  }
+
+  it should "only apply to elements in the root dataset when filter points to root dataset" in {
+    val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation()
+
+    val source = Source.single(bytes)
+      .via(new ParseFlow())
+      .via(whitelistFilter(Set(TagTree.fromTag(Tag.StudyDate))))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectDicomComplete()
+  }
+
+  it should "also work on fragments" in {
+    val bytes = pixeDataFragments() ++ item(4) ++ ByteString(1, 2, 3, 4) ++ item(4) ++ ByteString(5, 6, 7, 8) ++ sequenceDelimitation()
+
+    val source = Source.single(bytes)
+      .via(new ParseFlow())
+      .via(whitelistFilter(Set.empty))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectDicomComplete()
+  }
+
+  it should "preserve sequences and items in nested structures when using wildcards" in {
+    val bytes = patientNameJohnDoe() ++ sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation()
+
+    val source = Source.single(bytes)
+      .via(new ParseFlow())
+      .via(whitelistFilter(Set(TagTree.fromAnyItem(Tag.DerivationCodeSequence).thenTag(Tag.StudyDate))))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectSequence(Tag.DerivationCodeSequence)
+      .expectItem(1)
+      .expectHeader(Tag.StudyDate)
+      .expectValueChunk()
+      .expectItemDelimitation()
+      .expectSequenceDelimitation()
+      .expectDicomComplete()
+  }
+
+  it should "preserve sequences and items in nested structures when using item indices" in {
+    val bytes = patientNameJohnDoe() ++ sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemDelimitation() ++ item() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation()
+
+    val source = Source.single(bytes)
+      .via(new ParseFlow())
+      .via(whitelistFilter(Set(TagTree.fromItem(Tag.DerivationCodeSequence, 2).thenTag(Tag.StudyDate))))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectSequence(Tag.DerivationCodeSequence)
+      .expectItem(2)
+      .expectHeader(Tag.StudyDate)
+      .expectValueChunk()
+      .expectItemDelimitation()
+      .expectSequenceDelimitation()
+      .expectDicomComplete()
+  }
+
+  "The blacklist filter" should "block the entire sequence when a sequence tag is on the black list" in {
     val bytes = studyDate() ++
       (sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++
         (sequence(Tag.AbstractPriorCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemDelimitation() ++ sequenceDelimitation()) ++
@@ -204,7 +279,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(blacklistFilter(Set(TagPath.fromSequence(Tag.DerivationCodeSequence))))
+      .via(blacklistFilter(Set(TagTree.fromAnyItem(Tag.DerivationCodeSequence))))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.StudyDate)
@@ -220,7 +295,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(blacklistFilter(Set(TagPath.fromTag(Tag.StudyDate), TagPath.fromSequence(Tag.DerivationCodeSequence, 1))))
+      .via(blacklistFilter(Set(TagTree.fromTag(Tag.StudyDate), TagTree.fromItem(Tag.DerivationCodeSequence, 1))))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectSequence(Tag.DerivationCodeSequence)
@@ -232,45 +307,27 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectDicomComplete()
   }
 
-  it should "filter leave the dicom file unchanged when blacklist condition does not match any elements" in {
-    val file = new File(getClass.getResource("../data/test001.dcm").toURI)
-    val source = FileIO.fromPath(file.toPath)
-      .via(new ParseFlow())
-      .via(tagFilter(_ => true)(tagPath => !DicomParsing.isPrivate(tagPath.tag)))
-
-    source.runWith(TestSink.probe[DicomPart])
-      .expectPreamble()
-      .expectHeader(Tag.FileMetaInformationGroupLength)
-      .expectValueChunk()
-      .expectHeader(Tag.FileMetaInformationVersion)
-      .expectValueChunk()
-  }
-
-
-  "The DICOM whitelist filter" should "filter elements not matching the whitelist condition" in {
-    val bytes = preamble ++ fmiGroupLength(fmiVersion(), transferSyntaxUID()) ++ fmiVersion() ++ transferSyntaxUID() ++ patientNameJohnDoe() ++ studyDate()
+  it should "block an element in an item in a sequence" in {
+    val bytes = studyDate() ++
+      sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemDelimitation() ++ item() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
-      .via(tagFilter(_ => false)(tagPath => groupNumber(tagPath.tag) >= 8))
+      .via(parseFlow)
+      .via(blacklistFilter(Set(TagTree.fromItem(Tag.DerivationCodeSequence, 1).thenTag(Tag.StudyDate))))
 
     source.runWith(TestSink.probe[DicomPart])
-      .expectHeader(Tag.PatientName)
-      .expectValueChunk()
       .expectHeader(Tag.StudyDate)
       .expectValueChunk()
-      .expectDicomComplete()
-  }
-
-  it should "filter elements not matching the whitelist condition when testing with sample dicom files" in {
-    val file = new File(getClass.getResource("../data/test001.dcm").toURI)
-    val source = FileIO.fromPath(file.toPath)
-      .via(parseFlow)
-      .via(tagFilter(_ => false)(tagPath => tagPath.tag == Tag.PatientName))
-
-    source.runWith(TestSink.probe[DicomPart])
+      .expectSequence(Tag.DerivationCodeSequence)
+      .expectItem(1)
       .expectHeader(Tag.PatientName)
       .expectValueChunk()
+      .expectItemDelimitation()
+      .expectItem(2)
+      .expectHeader(Tag.StudyDate)
+      .expectValueChunk()
+      .expectItemDelimitation()
+      .expectSequenceDelimitation()
       .expectDicomComplete()
   }
 
@@ -280,9 +337,9 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val source = Source.single(bytes)
       .via(new ParseFlow())
       .via(deflateDatasetFlow)
-      .via(modifyFlow(
-        TagModification.contains(TagPath.fromTag(Tag.FileMetaInformationGroupLength), _ => fmiGroupLength(transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian)), insert = false),
-        TagModification.contains(TagPath.fromTag(Tag.TransferSyntaxUID), _ => transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian).drop(8), insert = false)))
+      .via(modifyFlow(modifications = Seq(
+        TagModification.equals(TagPath.fromTag(Tag.FileMetaInformationGroupLength), _ => fmiGroupLength(transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian))),
+        TagModification.equals(TagPath.fromTag(Tag.TransferSyntaxUID), _ => transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian).drop(8)))))
       .map(_.bytes)
       .via(new ParseFlow())
 

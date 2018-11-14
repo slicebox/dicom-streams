@@ -42,7 +42,7 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
     * @return element set, if present
     */
   def apply(tagPath: TagPathTag): Option[ElementSet] = tagPath.previous match {
-    case tp: TagPathSequenceItem => getNested(tp).flatMap(_.apply(tagPath.tag))
+    case tp: TagPathItem => getNested(tp).flatMap(_.apply(tagPath.tag))
     case EmptyTagPath => apply(tagPath.tag)
     case _ => throw new IllegalArgumentException("Unsupported tag path type")
   }
@@ -119,7 +119,7 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
       elems
     else
       trunk match {
-        case tp: TagPathSequenceItem => traverseTrunk(elems, trunk.previous).flatMap(_.getNested(tp.tag, tp.item))
+        case tp: TagPathItem => traverseTrunk(elems, trunk.previous).flatMap(_.getNested(tp.tag, tp.item))
         case _ => throw new IllegalArgumentException("Unsupported tag path type")
       }
   }
@@ -127,12 +127,12 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
     case e: Sequence => Some(e)
     case _ => None
   }
-  def getSequence(tagPath: TagPathSequenceAny): Option[Sequence] =
+  def getSequence(tagPath: TagPathSequence): Option[Sequence] =
     traverseTrunk(Some(this), tagPath.previous).flatMap(_.getSequence(tagPath.tag))
 
   def getItem(tag: Int, item: Int): Option[Item] = getSequence(tag).flatMap(_.item(item))
   def getNested(tag: Int, item: Int): Option[Elements] = getItem(tag, item).map(_.elements)
-  def getNested(tagPath: TagPathSequenceItem): Option[Elements] =
+  def getNested(tagPath: TagPathItem): Option[Elements] =
     traverseTrunk(Some(this), tagPath.previous).flatMap(_.getNested(tagPath.tag, tagPath.item))
 
   def getFragments(tag: Int): Option[Fragments] = apply(tag).flatMap {
@@ -197,7 +197,7 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
       f(elems)
     else
       tagPath.head match {
-        case tp: TagPathSequenceItem => elems.updateSequence(tp.tag, tp.item, e => updatePath(e, tagPath.tail, f)).getOrElse(elems)
+        case tp: TagPathItem => elems.updateSequence(tp.tag, tp.item, e => updatePath(e, tagPath.tail, f)).getOrElse(elems)
         case _ => throw new IllegalArgumentException("Unsupported tag path type")
       }
   }
@@ -209,7 +209,7 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
     * @param elements elements of new item
     * @return the updated (root) elements
     */
-  def setNested(tagPath: TagPathSequenceItem, elements: Elements): Elements =
+  def setNested(tagPath: TagPathItem, elements: Elements): Elements =
     updatePath(this, tagPath.toList, _ => elements)
   /**
     * Set (insert or update) an element in the item that the tag path points to
@@ -218,7 +218,7 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
     * @param element new element to insert or update
     * @return the updated (root) elements
     */
-  def set(tagPath: TagPathSequenceItem, element: ElementSet): Elements =
+  def set(tagPath: TagPathItem, element: ElementSet): Elements =
     updatePath(this, tagPath.toList, _.set(element))
 
   /**
@@ -228,7 +228,7 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
     * @param sequence new sequence to insert or update
     * @return the updated (root) elements
     */
-  def setSequence(tagPath: TagPathSequenceItem, sequence: Sequence): Elements =
+  def setSequence(tagPath: TagPathItem, sequence: Sequence): Elements =
     set(tagPath, sequence)
 
   /**
@@ -238,7 +238,7 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
     * @param elements elements of new item
     * @return the updated (root) elements
     */
-  def addItem(tagPath: TagPathSequenceAny, elements: Elements): Elements = {
+  def addItem(tagPath: TagPathSequence, elements: Elements): Elements = {
     getSequence(tagPath).map { sequence =>
       val bigEndian = sequence.bigEndian
       val indeterminate = sequence.indeterminate
@@ -249,7 +249,7 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
       val updatedSequence = sequence + item
       tagPath.previous match {
         case EmptyTagPath => setSequence(updatedSequence)
-        case tp: TagPathSequenceItem => setSequence(tp, updatedSequence)
+        case tp: TagPathItem => setSequence(tp, updatedSequence)
         case _ => throw new IllegalArgumentException("Unsupported tag path type")
       }
     }.getOrElse(this)
@@ -352,14 +352,14 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
   def remove(tag: Int): Elements = filter(_.tag != tag)
   def remove(tagPath: TagPath): Elements = tagPath match {
     case EmptyTagPath => this
-    case tp: TagPathSequenceItem => tp.previous match {
+    case tp: TagPathItem => tp.previous match {
       case EmptyTagPath => getSequence(tp.tag).map(s => set(s.removeItem(tp.item))).getOrElse(this)
-      case tpsi: TagPathSequenceItem => getNested(tpsi).map(_.remove(TagPath.fromSequence(tp.tag, tp.item))).map(setNested(tpsi, _)).getOrElse(this)
+      case tpsi: TagPathItem => getNested(tpsi).map(_.remove(TagPath.fromItem(tp.tag, tp.item))).map(setNested(tpsi, _)).getOrElse(this)
       case _ => throw new IllegalArgumentException("Unsupported tag path type")
     }
     case tp: TagPathTag => tp.previous match {
       case EmptyTagPath => remove(tp.tag)
-      case tpsi: TagPathSequenceItem => getNested(tpsi).map(_.remove(tp.tag)).map(setNested(tpsi, _)).getOrElse(this)
+      case tpsi: TagPathItem => getNested(tpsi).map(_.remove(tp.tag)).map(setNested(tpsi, _)).getOrElse(this)
       case _ => throw new IllegalArgumentException("Unsupported tag path type")
     }
     case _ => throw new IllegalArgumentException("Unsupported tag path type")
@@ -371,12 +371,8 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
   def isEmpty: Boolean = data.isEmpty
   def nonEmpty: Boolean = !isEmpty
   def contains(tag: Int): Boolean = data.map(_.tag).contains(tag)
-  def contains(tagPath: TagPath): Boolean = tagPath match {
-    case EmptyTagPath => true
-    case t: TagPathTag => apply(t).isDefined
-    case i: TagPathSequenceItem => getNested(i).isDefined
-    case a => getNested(a.previous.thenSequence(a.tag, 1)).isDefined
-  }
+  def contains(tagPath: TagPathTag): Boolean = apply(tagPath).isDefined
+  def contains(tagPath: TagPathItem): Boolean = getNested(tagPath).isDefined
 
   /**
     * @return a new Elements sorted by tag number. If already sorted, this function returns a copy

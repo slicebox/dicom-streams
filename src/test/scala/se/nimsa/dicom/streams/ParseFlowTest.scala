@@ -468,7 +468,6 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
 
     val source = Source.single(bytes)
       .via(new ParseFlow())
-      .via(DicomFlows.printFlow)
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.PatientName)
