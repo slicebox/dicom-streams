@@ -44,7 +44,7 @@ trait TagPathLike {
     def toList(path: P, tail: List[P]): List[P] =
       if (path.isRoot) path :: tail else toList(path.previous.asInstanceOf[P], path :: tail)
 
-    if (isEmpty) Nil else toList(this.asInstanceOf[P], Nil)
+    toList(this.asInstanceOf[P], Nil)
   }
 
   /**

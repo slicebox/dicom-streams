@@ -34,9 +34,12 @@ sealed trait TagPath extends TagPathLike {
 
   /**
     * Test if this tag path is less than the input path, comparing their parts pairwise from root to leaf according to
-    * the following rules:
-    * (1) a is less than b if the a's tag number is less b's tag number
-    * (2) a is less than b if tag numbers are equal and a's item index is less than b's item index
+    * the following rules:<br>
+    * (1) a is less than b if the a's tag number is less b's tag number<br>
+    * (2) a is less than b if tag numbers are equal and a's item index is less than b's item index<br>
+    * (3) the start of a sequence is less than the body and end of that sequence<br>
+    * (4) the start and body of an item is less than the end of that item<br>
+    * (5) the empty tag path is less than all other tags<br>
     *
     * @param that the tag path to compare with
     * @return `true` if this tag path is less than the input path
@@ -52,9 +55,25 @@ sealed trait TagPath extends TagPathLike {
         return false
       case (thisPath, thatPath) if thisPath.tag != thatPath.tag =>
         return intToUnsignedLong(thisPath.tag) < intToUnsignedLong(thatPath.tag)
+      case (_: TagPathSequence, _: TagPath with ItemIndex) => // tag numbers equal from here
+        return true
+      case (_: TagPathSequence, _: TagPathSequenceEnd) =>
+        return true
+      case (_: TagPathSequenceEnd, _: TagPath with ItemIndex) =>
+        return false
+      case (_: TagPathSequenceEnd, _: TagPathSequence) =>
+        return false
+      case (_: TagPath with ItemIndex, _: TagPathSequence) =>
+        return false
+      case (_: TagPath with ItemIndex, _: TagPathSequenceEnd) =>
+        return true
       case (thisPath: TagPath with ItemIndex, thatPath: TagPath with ItemIndex) if thisPath.item != thatPath.item =>
         return thisPath.item < thatPath.item
-      case _ => // tags and item numbers are equal, check next
+      case (_: TagPathItem, _: TagPathItemEnd) => // tag and item numbers equal from here
+        return true
+      case (_: TagPathItemEnd, _: TagPathItem) => // tag and item numbers equal from here
+        return false
+      case _ => // tags and item numbers are equal, and same class -> check next
     }
     thisList.length < thatList.length
   }
@@ -91,7 +110,11 @@ sealed trait TagPath extends TagPathLike {
   def startsWith(that: TagPath): Boolean = {
     if (this.depth >= that.depth)
       this.toList.zip(that.toList).forall {
+        case (_, EmptyTagPath) => true
         case (thisSeq: TagPathItem, thatSeq: TagPathItem) => thisSeq.tag == thatSeq.tag && thisSeq.item == thatSeq.item
+        case (thisSeq: TagPathItemEnd, thatSeq: TagPathItemEnd) => thisSeq.tag == thatSeq.tag && thisSeq.item == thatSeq.item
+        case (thisTag: TagPathSequence, thatTag: TagPathSequence) => thisTag.tag == thatTag.tag
+        case (thisTag: TagPathSequenceEnd, thatTag: TagPathSequenceEnd) => thisTag.tag == thatTag.tag
         case (thisTag: TagPathTag, thatTag: TagPathTag) => thisTag.tag == thatTag.tag
         case _ => false
       }
@@ -109,8 +132,11 @@ sealed trait TagPath extends TagPathLike {
     */
   def endsWith(that: TagPath): Boolean =
     ((this, that) match {
-      case (EmptyTagPath, EmptyTagPath) => true
+      case (_, EmptyTagPath) => true
       case (thisSeq: TagPathItem, thatSeq: TagPathItem) => thisSeq.tag == thatSeq.tag && thisSeq.item == thatSeq.item
+      case (thisSeq: TagPathItemEnd, thatSeq: TagPathItemEnd) => thisSeq.tag == thatSeq.tag && thisSeq.item == thatSeq.item
+      case (thisTag: TagPathSequence, thatTag: TagPathSequence) => thisTag.tag == thatTag.tag
+      case (thisTag: TagPathSequenceEnd, thatTag: TagPathSequenceEnd) => thisTag.tag == thatTag.tag
       case (thisTag: TagPathTag, thatTag: TagPathTag) => thisTag.tag == thatTag.tag
       case _ => false
     }) && ((this.previous, that.previous) match {

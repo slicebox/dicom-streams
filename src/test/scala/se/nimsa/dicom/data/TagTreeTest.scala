@@ -60,6 +60,46 @@ class TagTreeTest extends FlatSpec with Matchers {
     EmptyTagTree == EmptyTagTree shouldBe true
   }
 
+  it should "support equals documentation examples" in {
+    TagTree.fromTag(0x00100010) shouldEqual TagTree.fromTag(0x00100010)
+    TagTree.fromTag(0x00100010) should not equal TagTree.fromTag(0x00100020)
+    TagTree.fromTag(0x00100010) should not equal TagTree.fromItem(0x00089215, 1).thenTag(0x00100010)
+    TagTree.fromAnyItem(0x00089215).thenTag(0x00100010) should not equal TagTree.fromItem(0x00089215, 1).thenTag(0x00100010)
+    TagTree.fromItem(0x00089215, 3).thenTag(0x00100010) shouldEqual TagTree.fromItem(0x00089215, 3).thenTag(0x00100010)
+  }
+
+  "The isPath test" should "support documentation examples" in {
+    TagTree.fromItem(0x00089215, 3).thenTag(0x00100010).isPath shouldBe true
+    TagTree.fromAnyItem(0x00089215).thenTag(0x00100010).isPath shouldBe false
+    EmptyTagTree.isPath shouldBe true
+  }
+
+  "The hasBranch test" should "return true for a path extending from root to leaf" in {
+    TagTree.fromAnyItem(1).thenAnyItem(2).thenItem(3, 3).thenTag(4).hasBranch(
+      TagPath.fromItem(1, 1).thenItem(2, 2).thenItem(3, 3).thenTag(4)) shouldBe true
+  }
+
+  it should "return false for path not beginning at root" in {
+    TagTree.fromItem(1, 1).thenTag(2).hasBranch(TagPath.fromTag(2)) shouldBe false
+  }
+
+  it should "return false for path not ending at leaf" in {
+    TagTree.fromItem(1, 1).thenTag(2).hasBranch(TagPath.fromItem(1, 1)) shouldBe false
+  }
+
+  it should "work with sequence and item end nodes" in {
+    TagTree.fromAnyItem(1).hasBranch(TagPath.fromItemEnd(1, 1)) shouldBe true
+    TagTree.fromItem(1, 1).hasBranch(TagPath.fromItemEnd(1, 1)) shouldBe true
+    TagTree.fromAnyItem(1).hasBranch(TagPath.fromSequence(1)) shouldBe true
+    TagTree.fromAnyItem(1).hasBranch(TagPath.fromSequenceEnd(1)) shouldBe true
+  }
+
+  it should "support documentation examples" in {
+    TagTree.fromAnyItem(0x00089215).thenTag(0x00100010).hasBranch(TagPath.fromItem(0x00089215, 1).thenTag(0x00100010)) shouldBe true
+    TagTree.fromAnyItem(0x00089215).thenTag(0x00100010).hasBranch(TagPath.fromItem(0x00089215, 1)) shouldBe false
+    EmptyTagTree.hasBranch(EmptyTagPath) shouldBe true
+  }
+
   "The hasTrunk test" should "return true for equally shaped tree and path" in {
     val tree = TagTree.fromItem(1, 1).thenItem(2, 2).thenItem(3, 3).thenTag(4)
     val path = TagPath.fromItem(1, 1).thenItem(2, 2).thenItem(3, 3).thenTag(4)
@@ -90,6 +130,46 @@ class TagTreeTest extends FlatSpec with Matchers {
     val tree = TagTree.fromAnyItem(2).thenAnyItem(3).thenTag(4)
     val path = TagPath.fromItem(2, 4).thenItem(3, 66).thenTag(4)
     tree.hasTrunk(path) shouldBe true
+  }
+
+  it should "work with sequence and item end nodes" in {
+    TagTree.fromAnyItem(1).thenTag(2).hasTrunk(TagPath.fromItemEnd(1, 1)) shouldBe true
+    TagTree.fromItem(1, 1).thenTag(2).hasTrunk(TagPath.fromItemEnd(1, 1)) shouldBe true
+    TagTree.fromAnyItem(1).thenTag(2).hasTrunk(TagPath.fromSequence(1)) shouldBe true
+    TagTree.fromAnyItem(1).thenTag(2).hasTrunk(TagPath.fromSequenceEnd(1)) shouldBe true
+  }
+
+  it should "support documentation examples" in {
+    TagTree.fromAnyItem(0x00089215).thenTag(0x00100010).hasTrunk(TagPath.fromItem(0x00089215, 1).thenTag(0x00100010)) shouldBe true
+    TagTree.fromAnyItem(0x00089215).thenTag(0x00100010).hasTrunk(TagPath.fromItem(0x00089215, 1)) shouldBe true
+    TagTree.fromAnyItem(0x00089215).thenTag(0x00100010).hasTrunk(TagPath.fromTag(0x00100010)) shouldBe false
+  }
+
+  "The isTrunkOf test" should "return true for a tag path extending out of a tag tree" in {
+    TagTree.fromAnyItem(1).thenItem(2, 2).isTrunkOf(TagPath.fromItem(1, 1).thenItem(2, 2).thenTag(3)) shouldBe true
+  }
+
+  it should "return true for tree and path of equals length" in {
+    TagTree.fromAnyItem(1).thenItem(2, 2).isTrunkOf(TagPath.fromItem(1, 1).thenItem(2, 2)) shouldBe true
+  }
+
+  it should "return false for a trunk of a tree" in {
+    TagTree.fromAnyItem(1).thenItem(2, 2).isTrunkOf(TagPath.fromItem(1, 1)) shouldBe false
+  }
+
+  it should "work with sequence and item end nodes" in {
+    TagTree.fromAnyItem(1).isTrunkOf(TagPath.fromItemEnd(1, 1)) shouldBe true
+    TagTree.fromItem(1, 1).isTrunkOf(TagPath.fromItemEnd(1, 1)) shouldBe true
+    TagTree.fromAnyItem(1).isTrunkOf(TagPath.fromSequence(1)) shouldBe true
+    TagTree.fromAnyItem(1).isTrunkOf(TagPath.fromSequenceEnd(1)) shouldBe true
+  }
+
+  it should "support documentation examples" in {
+    TagTree.fromItem(0x00089215, 1).thenTag(0x00100010).isTrunkOf(TagPath.fromItem(0x00089215, 1).thenTag(0x00100010)) shouldBe true
+    TagTree.fromAnyItem(0x00089215).thenTag(0x00100010).isTrunkOf(TagPath.fromItem(0x00089215, 1).thenTag(0x00100010)) shouldBe true
+    TagTree.fromAnyItem(0x00089215).isTrunkOf(TagPath.fromItem(0x00089215, 1).thenTag(0x00100010)) shouldBe true
+    TagTree.fromItem(0x00089215, 3).isTrunkOf(TagPath.fromItem(0x00089215, 1).thenTag(0x00100010)) shouldBe false
+    TagTree.fromTag(0x00100010).isTrunkOf(TagPath.fromItem(0x00089215, 1).thenTag(0x00100010)) shouldBe false
   }
 
   "The hasTwig test" should "return true when a longer tree ends with a shorter path" in {
@@ -130,6 +210,19 @@ class TagTreeTest extends FlatSpec with Matchers {
     tree.hasTwig(path) shouldBe true
   }
 
+  it should "work with sequence and item end nodes" in {
+    TagTree.fromAnyItem(1).hasTwig(TagPath.fromItemEnd(1, 1)) shouldBe true
+    TagTree.fromItem(1, 1).hasTwig(TagPath.fromItemEnd(1, 1)) shouldBe true
+    TagTree.fromAnyItem(1).hasTwig(TagPath.fromSequence(1)) shouldBe true
+    TagTree.fromAnyItem(1).hasTwig(TagPath.fromSequenceEnd(1)) shouldBe true
+  }
+
+  it should "support documentation examples" in {
+    TagTree.fromAnyItem(0x00089215).thenTag(0x00100010).hasTwig(TagPath.fromItem(0x00089215, 1).thenTag(0x00100010)) shouldBe true
+    TagTree.fromAnyItem(0x00089215).thenTag(0x00100010).hasTwig(TagPath.fromTag(0x00100010)) shouldBe true
+    TagTree.fromAnyItem(0x00089215).thenTag(0x00100010).hasTwig(TagPath.fromItem(0x00089215, 1)) shouldBe false
+  }
+
   "Parsing a tag tree" should "work for well-formed depth 0 tag trees" in {
     TagTree.parse("(0010,0010)") shouldBe TagTree.fromTag(Tag.PatientName)
   }
@@ -159,13 +252,14 @@ class TagTreeTest extends FlatSpec with Matchers {
   }
 
   "The drop operation" should "remove elements from the left" in {
-    val tree = TagTree.fromAnyItem(1).thenItem(2, 1).thenAnyItem(3).thenTag(4)
-    tree.drop(-100) shouldBe tree
-    tree.drop(0) shouldBe tree
-    tree.drop(1) shouldBe TagTree.fromItem(2, 1).thenAnyItem(3).thenTag(4)
-    tree.drop(2) shouldBe TagTree.fromAnyItem(3).thenTag(4)
-    tree.drop(3) shouldBe TagTree.fromTag(4)
-    tree.drop(4) shouldBe EmptyTagTree
-    tree.drop(100) shouldBe EmptyTagTree
+    val path = TagTree.fromItem(1, 1).thenItem(2, 1).thenItem(3, 3).thenTag(4)
+    path.drop(-100) shouldBe path
+    path.drop(0) shouldBe path
+    path.drop(1) shouldBe TagTree.fromItem(2, 1).thenItem(3, 3).thenTag(4)
+    path.drop(2) shouldBe TagTree.fromItem(3, 3).thenTag(4)
+    path.drop(3) shouldBe TagTree.fromTag(4)
+    path.drop(4) shouldBe EmptyTagTree
+    path.drop(100) shouldBe EmptyTagTree
   }
+
 }

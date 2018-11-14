@@ -88,6 +88,7 @@ sealed trait TagTree extends TagPathLike {
 
   private def matchTrunk(that: TagPath): Boolean =
     this.toList.zip(that.toList).forall {
+      case (_, EmptyTagPath) => true
       case (t: TagTreeItem, p: TagPath with ItemIndex) => t.tag == p.tag && t.item == p.item
       case (t: TagTreeAnyItem, p: TagPath with ItemIndex) => t.tag == p.tag
       case (t: TagTreeAnyItem, p: TagPathSequence) => t.tag == p.tag
