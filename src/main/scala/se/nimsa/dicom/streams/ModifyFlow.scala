@@ -66,7 +66,7 @@ object ModifyFlow {
     * @param insertions    additional element insertions
     * @param replace       `true` if these modifications/insertions should replace the current ones
     */
-  case class TagModificationsPart(modifications: Seq[TagModification], insertions: Seq[TagInsertion], replace: Boolean = false) extends MetaPart
+  case class TagModificationsPart(modifications: Seq[TagModification] = Seq.empty, insertions: Seq[TagInsertion] = Seq.empty, replace: Boolean = false) extends MetaPart
 
   /**
     * Modification flow for inserting or overwriting the values of specified elements. When inserting a new element,

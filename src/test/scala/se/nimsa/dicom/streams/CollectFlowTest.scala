@@ -25,7 +25,7 @@ class CollectFlowTest extends TestKit(ActorSystem("CollectFlowSpec")) with FlatS
 
   "A collect elements flow" should "first produce an elements part followed by the input dicom parts" in {
     val bytes = studyDate() ++ patientNameJohnDoe()
-    val tags: Set[TagPath] = Set(Tag.StudyDate, Tag.PatientName).map(TagPath.fromTag)
+    val tags = Set(Tag.StudyDate, Tag.PatientName).map(TagPath.fromTag)
     val source = Source.single(bytes)
       .via(parseFlow)
       .via(collectFlow(tags, "tag"))

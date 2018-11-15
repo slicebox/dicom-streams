@@ -58,7 +58,7 @@ object DicomFlows {
     * @param whitelist list of tag paths to keep.
     * @return the associated filter Flow
     */
-  def whitelistFilter(whitelist: Set[TagTree]): Flow[DicomPart, DicomPart, NotUsed] =
+  def whitelistFilter(whitelist: Set[_ <: TagTree]): Flow[DicomPart, DicomPart, NotUsed] =
     tagFilter(_ => false)(currentPath => whitelist.exists(t => t.hasTrunk(currentPath) || t.isTrunkOf(currentPath)))
 
   /**
@@ -71,7 +71,7 @@ object DicomFlows {
     * @param blacklist list of tag paths to discard.
     * @return the associated filter Flow
     */
-  def blacklistFilter(blacklist: Set[TagTree]): Flow[DicomPart, DicomPart, NotUsed] =
+  def blacklistFilter(blacklist: Set[_ <: TagTree]): Flow[DicomPart, DicomPart, NotUsed] =
     tagFilter(_ => true)(currentPath => !blacklist.exists(_.isTrunkOf(currentPath)))
 
   /**

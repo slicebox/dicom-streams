@@ -176,7 +176,7 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
     case e => copy(data = insertOrdered(e))
   }
 
-  def set(elementSets: Seq[ElementSet]): Elements = elementSets.foldLeft(this)(_.set(_))
+  def set(elementSets: Seq[_ <: ElementSet]): Elements = elementSets.foldLeft(this)(_.set(_))
 
   def setSequence(sequence: Sequence): Elements = set(sequence)
 
@@ -192,7 +192,7 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
       set(s2)
     }
 
-  private def updatePath(elems: Elements, tagPath: List[TagPath], f: Elements => Elements): Elements = {
+  private def updatePath(elems: Elements, tagPath: List[_ <: TagPath], f: Elements => Elements): Elements = {
     if (tagPath.isEmpty)
       f(elems)
     else

@@ -26,7 +26,7 @@ object CollectFlow {
     *                      if this limit is exceed. Set to 0 for an unlimited buffer size
     * @return A DicomPart Flow which will begin with a ElementsPart part followed by other parts in the flow
     */
-  def collectFlow(tags: Set[TagPath], label: String, maxBufferSize: Int = 1000000): Flow[DicomPart, DicomPart, NotUsed] = {
+  def collectFlow(tags: Set[_ <: TagPath], label: String, maxBufferSize: Int = 1000000): Flow[DicomPart, DicomPart, NotUsed] = {
     val maxTag = if (tags.isEmpty) 0 else tags.map(_.toList.head.tag).max
     val tagCondition = (tagPath: TagPath) => tags.exists(tagPath.startsWith)
     val stopCondition = if (tags.isEmpty)
