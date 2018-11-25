@@ -15,6 +15,19 @@ DICOM data chunk size and network utilization using back-pressure as specified i
 The logic of parsing and handling DICOM data is inspired by [dcm4che](https://github.com/dcm4che/dcm4che)
 which provides a far more complete (albeit blocking and synchronous) implementation of the DICOM standard.
 
+### Setup
+
+The dicom-streams library is deployed to Sonatype. You need to include the Sonatype resolvers to find the package.
+
+```scala
+resolvers ++= Seq(Resolver.sonatypeRepo("releases"), Resolver.sonatypeRepo("snapshots"))
+```
+
+The library is included by
+```scala
+libraryDependencies += "se.nimsa" %% "dicom-streams" % "0.5"
+```
+
 ### Data Model
 
 Streaming binary DICOM data may originate from many different sources such as files, a HTTP POST request, or a read from
