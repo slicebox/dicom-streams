@@ -1,7 +1,7 @@
 package se.nimsa.dicom.data
 
 import java.net.URI
-import java.time.{LocalDate, ZoneOffset}
+import java.time.{LocalDate, LocalTime, ZoneOffset}
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
@@ -162,6 +162,15 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
     elements.getDate(Tag.StudyDate) shouldBe dates.headOption
     elements.getDates(TagPath.fromTag(Tag.StudyDate)) shouldBe dates
     elements.getDate(TagPath.fromTag(Tag.StudyDate)) shouldBe dates.headOption
+  }
+
+  it should "return times" in {
+    val times = Seq(LocalTime.parse("22:30:10"), LocalTime.parse("12:00:00"))
+    val elements = create(ValueElement(Tag.AcquisitionTime, Value.fromTimes(VR.TM, times)))
+    elements.getTimes(Tag.AcquisitionTime) shouldBe times
+    elements.getTime(Tag.AcquisitionTime) shouldBe times.headOption
+    elements.getTimes(TagPath.fromTag(Tag.AcquisitionTime)) shouldBe times
+    elements.getTime(TagPath.fromTag(Tag.AcquisitionTime)) shouldBe times.headOption
   }
 
   it should "return date times" in {
@@ -383,6 +392,14 @@ class ElementsTest extends TestKit(ActorSystem("ElementsSpec")) with FlatSpecLik
       .getDates(Tag.StudyDate) shouldBe dates
     elements.setDate(Tag.StudyDate, dates.head)
       .getDates(Tag.StudyDate) shouldBe Seq(dates.head)
+  }
+
+  it should "set times" in {
+    val times = Seq(LocalTime.parse("23:30:10"), LocalTime.parse("12:00:00"))
+    elements.setTimes(Tag.AcquisitionTime, times)
+      .getTimes(Tag.AcquisitionTime) shouldBe times
+    elements.setTime(Tag.AcquisitionTime, times.head)
+      .getTimes(Tag.AcquisitionTime) shouldBe Seq(times.head)
   }
 
   it should "set date times" in {
