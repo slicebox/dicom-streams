@@ -1,7 +1,7 @@
 package se.nimsa.dicom.data
 
 import java.net.URI
-import java.time.{LocalDate, ZoneOffset, ZonedDateTime}
+import java.time.{LocalDate, LocalTime, ZoneOffset, ZonedDateTime}
 
 import akka.util.ByteString
 import se.nimsa.dicom.data.DicomParsing._
@@ -132,6 +132,16 @@ case class Value private[data](bytes: ByteString) {
   }
 
   /**
+    * @return this value as a sequence of `LocalTime`s. Casting is performed if necessary. If the value has no
+    *         `LocalTime` representation, an empty sequence is returned.
+    */
+  def toTimes(vr: VR = VR.TM): Seq[LocalTime] = vr match {
+    case DT => parseDT(bytes, systemZone).map(_.toLocalTime)
+    case TM => parseTM(bytes)
+    case _ => Seq.empty
+  }
+
+  /**
     * @return this value as a sequence of `ZonedDateTime`s. Casting is performed if necessary. If the value has no
     *         `ZonedDateTime` representation, an empty sequence is returned.
     */
@@ -210,6 +220,11 @@ case class Value private[data](bytes: ByteString) {
     * @return the first `LocalDate` representation of this value, if any
     */
   def toDate(vr: VR = VR.DA): Option[LocalDate] = toDates(vr).headOption
+
+  /**
+    * @return the first `LocalTime` representation of this value, if any
+    */
+  def toTime(vr: VR = VR.TM): Option[LocalTime] = toTimes(vr).headOption
 
   /**
     * @return the first `ZonedDateTime` representation of this value, if any
@@ -345,6 +360,13 @@ object Value {
   }
   def fromDate(vr: VR, value: LocalDate): Value = apply(vr, dateBytes(vr, value))
   def fromDates(vr: VR, values: Seq[LocalDate]): Value = apply(vr, combine(vr, values.map(dateBytes(vr, _))))
+
+  private def timeBytes(vr: VR, value: LocalTime): ByteString = vr match {
+    case AT | FL | FD | SL | SS | UL | US | OB | OW | OL | OF | OD => throw new IllegalArgumentException(s"Cannot create value of VR $vr from time")
+    case _ => ByteString(formatTime(value))
+  }
+  def fromTime(vr: VR, value: LocalTime): Value = apply(vr, timeBytes(vr, value))
+  def fromTimes(vr: VR, values: Seq[LocalTime]): Value = apply(vr, combine(vr, values.map(timeBytes(vr, _))))
 
   private def dateTimeBytes(vr: VR, value: ZonedDateTime): ByteString = vr match {
     case AT | FL | FD | SL | SS | UL | US | OB | OW | OL | OF | OD => throw new IllegalArgumentException(s"Cannot create value of VR $vr from date-time")

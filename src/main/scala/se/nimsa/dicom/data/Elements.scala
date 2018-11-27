@@ -1,7 +1,7 @@
 package se.nimsa.dicom.data
 
 import java.net.URI
-import java.time.{LocalDate, ZoneOffset, ZonedDateTime}
+import java.time.{LocalDate, LocalTime, ZoneOffset, ZonedDateTime}
 import java.util
 
 import akka.stream.Materializer
@@ -103,6 +103,10 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
   def getDates(tagPath: TagPathTag): Seq[LocalDate] = getAllPath(tagPath, v => v.value.toDates(v.vr))
   def getDate(tag: Int): Option[LocalDate] = get(tag, v => v.value.toDate(v.vr))
   def getDate(tagPath: TagPathTag): Option[LocalDate] = getPath(tagPath, v => v.value.toDate(v.vr))
+  def getTimes(tag: Int): Seq[LocalTime] = getAll(tag, v => v.value.toTimes(v.vr))
+  def getTimes(tagPath: TagPathTag): Seq[LocalTime] = getAllPath(tagPath, v => v.value.toTimes(v.vr))
+  def getTime(tag: Int): Option[LocalTime] = get(tag, v => v.value.toTime(v.vr))
+  def getTime(tagPath: TagPathTag): Option[LocalTime] = getPath(tagPath, v => v.value.toTime(v.vr))
   def getDateTimes(tag: Int): Seq[ZonedDateTime] = getAll(tag, v => v.value.toDateTimes(v.vr, zoneOffset))
   def getDateTimes(tagPath: TagPathTag): Seq[ZonedDateTime] = getAllPath(tagPath, v => v.value.toDateTimes(v.vr, zoneOffset))
   def getDateTime(tag: Int): Option[ZonedDateTime] = get(tag, v => v.value.toDateTime(v.vr, zoneOffset))
@@ -325,6 +329,15 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
     setValue(tag, vr, Value.fromDate(vr, value), bigEndian, explicitVR)
   def setDate(tag: Int, value: LocalDate, bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
     setDate(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
+
+  def setTimes(tag: Int, vr: VR, values: Seq[LocalTime], bigEndian: Boolean, explicitVR: Boolean): Elements =
+    setValue(tag, vr, Value.fromTimes(vr, values), bigEndian, explicitVR)
+  def setTimes(tag: Int, values: Seq[LocalTime], bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
+    setTimes(tag, Dictionary.vrOf(tag), values, bigEndian, explicitVR)
+  def setTime(tag: Int, vr: VR, value: LocalTime, bigEndian: Boolean, explicitVR: Boolean): Elements =
+    setValue(tag, vr, Value.fromTime(vr, value), bigEndian, explicitVR)
+  def setTime(tag: Int, value: LocalTime, bigEndian: Boolean = false, explicitVR: Boolean = true): Elements =
+    setTime(tag, Dictionary.vrOf(tag), value, bigEndian, explicitVR)
 
   def setDateTimes(tag: Int, vr: VR, values: Seq[ZonedDateTime], bigEndian: Boolean, explicitVR: Boolean): Elements =
     setValue(tag, vr, Value.fromDateTimes(vr, values), bigEndian, explicitVR)

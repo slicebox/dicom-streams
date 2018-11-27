@@ -19,7 +19,7 @@ package se.nimsa.dicom.data
 import java.net.URI
 import java.time.format.{DateTimeFormatterBuilder, SignStyle}
 import java.time.temporal.ChronoField._
-import java.time.{LocalDate, LocalDateTime, ZoneOffset, ZonedDateTime}
+import java.time._
 
 import akka.util.ByteString
 import se.nimsa.dicom.data.VR.VR
@@ -217,6 +217,7 @@ trait DicomParsing {
     case _: Throwable => None
   })
   def parseDA(value: ByteString): Seq[LocalDate] = split(value.utf8String).flatMap(parseDate)
+  def parseTM(value: ByteString): Seq[LocalTime] = split(value.utf8String).flatMap(parseTime)
   def parseDT(value: ByteString, zoneOffset: ZoneOffset): Seq[ZonedDateTime] = split(value.utf8String).flatMap(parseDateTime(_, zoneOffset))
   def parsePN(string: String): Seq[PatientName] = split(string).map(trimPadding(_, VR.PN.paddingByte)).flatMap(parsePatientName)
   def parsePN(value: ByteString, characterSets: CharacterSets): Seq[PatientName] = parsePN(characterSets.decode(VR.PN, value))
@@ -228,6 +229,16 @@ trait DicomParsing {
   final val dateFormat = new DateTimeFormatterBuilder()
     .appendValue(YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
     .appendPattern("['.']MM['.']dd")
+    .toFormatter
+
+  final val timeFormat = new DateTimeFormatterBuilder()
+    .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.EXCEEDS_PAD)
+    .appendPattern("[[':']mm[[':']ss[")
+    .appendFraction(MICRO_OF_SECOND, 1, 6, true)
+    .appendPattern("]]]")
+    .parseDefaulting(MINUTE_OF_HOUR, 0)
+    .parseDefaulting(SECOND_OF_MINUTE, 0)
+    .parseDefaulting(MICRO_OF_SECOND, 0)
     .toFormatter
 
   final val dateTimeFormat = new DateTimeFormatterBuilder()
@@ -253,14 +264,26 @@ trait DicomParsing {
     .appendPattern("MMdd")
     .toFormatter
 
+  final val timeFormatForEncoding = new DateTimeFormatterBuilder()
+    .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.EXCEEDS_PAD)
+    .appendPattern("mmss")
+    .toFormatter
+
   val defaultCharacterSet: CharacterSets = CharacterSets.defaultOnly
 
   def formatDate(date: LocalDate): String = date.format(dateFormatForEncoding)
+
+  def formatTime(time: LocalTime): String = time.format(timeFormatForEncoding)
 
   def formatDateTime(dateTime: ZonedDateTime): String = dateTime.format(dateTimeZoneFormat)
 
   def parseDate(s: String): Option[LocalDate] =
     try Option(LocalDate.parse(s.trim, dateFormat)) catch {
+      case _: Throwable => None
+    }
+
+  def parseTime(s: String): Option[LocalTime] =
+    try Option(LocalTime.parse(s.trim, timeFormat)) catch {
       case _: Throwable => None
     }
 

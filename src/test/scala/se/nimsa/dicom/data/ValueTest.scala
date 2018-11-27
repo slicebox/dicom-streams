@@ -1,6 +1,6 @@
 package se.nimsa.dicom.data
 
-import java.time.{LocalDate, ZoneOffset, ZonedDateTime}
+import java.time.{LocalDate, LocalTime, ZoneOffset, ZonedDateTime}
 
 import akka.util.ByteString
 import org.scalatest.{FlatSpec, Matchers}
@@ -209,6 +209,41 @@ class ValueTest extends FlatSpec with Matchers {
   "Parsing a single date string" should "return the first valid entry among multiple values" in {
     val date = LocalDate.of(2004, 3, 29)
     Value(ByteString("one\\20040329\\20050401")).toDate(VR.DA) shouldBe Some(date)
+  }
+
+  "Parsing time strings" should "return empty sequence for empty byte string" in {
+    Value(ByteString.empty).toTimes(VR.TM) shouldBe Seq.empty
+  }
+
+  it should "parse partial time strings" in {
+    val hh = LocalTime.of(1, 0)
+    val hhmm = LocalTime.of(1, 2)
+    val hhmmss = LocalTime.of(1, 2, 3)
+    val hhmmssS = LocalTime.of(1, 2, 3, 400000000)
+    Value(ByteString(
+      "01\\0102\\010203\\010203.400000"
+    )).toTimes(VR.TM) shouldBe Seq(hh, hhmm, hhmmss, hhmmssS)
+  }
+
+  it should "parse properly formatted time strings" in {
+    val time = LocalTime.of(10, 9, 8, 765432000)
+    Value(ByteString("100908.765432\\10:09:08.765432")).toTimes(VR.TM) shouldBe Seq(time, time)
+  }
+
+  it should "ignore improperly formatted entries" in {
+    val time = LocalTime.of(10, 9, 8, 765432000)
+    Value(ByteString("100908.765432\\one\\10:09:08.765432")).toTimes(VR.TM) shouldBe Seq(time, time)
+    Value(ByteString("one")).toTimes(VR.TM) shouldBe Seq.empty
+  }
+
+  it should "trim whitespace" in {
+    val time = LocalTime.of(10, 9, 8, 765432000)
+    Value(ByteString(" 100908.765432 \\100908.765432 \\one\\10:09:08.765432  ")).toTimes(VR.TM) shouldBe Seq(time, time, time)
+  }
+
+  "Parsing a single time string" should "return the first valid entry among multiple values" in {
+    val time = LocalTime.of(10, 9, 8, 765432000)
+    Value(ByteString("one\\100908.765432\\100908.765432")).toTime(VR.TM) shouldBe Some(time)
   }
 
   "Parsing date time strings" should "return empty sequence for empty byte string" in {
