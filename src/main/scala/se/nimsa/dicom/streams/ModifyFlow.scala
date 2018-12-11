@@ -53,10 +53,10 @@ object ModifyFlow {
   /**
     * Class used to specify insertions (or replacements) of elements into a dataset
     *
-    * @param tagPath tag path pointing to position to insert or replace data
-    * @param value   insertion data
+    * @param tagPath   tag path pointing to position to insert or replace data
+    * @param insertion insertion data as a function of existing data, if present
     */
-  case class TagInsertion(tagPath: TagPathTag, value: ByteString)
+  case class TagInsertion(tagPath: TagPathTag, insertion: Option[ByteString] => ByteString)
 
   /**
     * Meta-part carrying tag modifications and element insertions that when received by modify flow are picked up and
@@ -135,9 +135,9 @@ object ModifyFlow {
         tagToTest.previous == tagPath.previous
 
       def findInsertParts: List[DicomPart] = currentInsertions
-        .filter(m => isBetween(latestTagPath, m.tagPath, tagPath))
-        .filter(m => isInDataset(m.tagPath, tagPath))
-        .flatMap(m => headerAndValueParts(m.tagPath, _ => m.value))
+        .filter(i => isBetween(latestTagPath, i.tagPath, tagPath))
+        .filter(i => isInDataset(i.tagPath, tagPath))
+        .flatMap(i => headerAndValueParts(i.tagPath, _ => i.insertion(None)))
 
       def findModifyPart(header: HeaderPart): List[DicomPart] = currentModifications
         .find(m => m.matches(tagPath))
@@ -152,7 +152,7 @@ object ModifyFlow {
             .find(_.tagPath == tagPath)
             .map { insertion =>
               currentHeader = Some(header)
-              currentModification = Some(TagModification(_ == insertion.tagPath, _ => insertion.value))
+              currentModification = Some(TagModification(_ == insertion.tagPath, v => insertion.insertion(Some(v))))
               value = ByteString.empty
               Nil
             }
@@ -203,7 +203,7 @@ object ModifyFlow {
         currentInsertions
           .filter(_.tagPath.isRoot)
           .filter(m => latestTagPath < m.tagPath)
-          .flatMap(m => headerAndValueParts(m.tagPath, _ => m.value))
+          .flatMap(m => headerAndValueParts(m.tagPath, _ => m.insertion(None)))
     })
 
 }

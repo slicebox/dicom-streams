@@ -373,7 +373,7 @@ object DicomFlows {
     */
   def toUtf8Flow: Flow[DicomPart, DicomPart, NotUsed] = Flow[DicomPart]
     .via(collectFlow(Set(TagPath.fromTag(Tag.SpecificCharacterSet)), "toutf8"))
-    .via(modifyFlow(insertions = Seq(TagInsertion(TagPath.fromTag(Tag.SpecificCharacterSet), ByteString("ISO_IR 192")))))
+    .via(modifyFlow(insertions = Seq(TagInsertion(TagPath.fromTag(Tag.SpecificCharacterSet), _ => ByteString("ISO_IR 192")))))
     .statefulMapConcat {
 
       () =>
