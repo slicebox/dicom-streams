@@ -336,13 +336,25 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   }
 
   it should "stop reading data when a stop tag is reached" in {
-    val bytes = patientNameJohnDoe() ++ studyDate()
+    val bytes = studyDate() ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow(stopTag = Some(Tag.StudyDate)))
+      .via(new ParseFlow(stopTag = Some(Tag.PatientName)))
 
     source.runWith(TestSink.probe[DicomPart])
-      .expectHeader(Tag.PatientName)
+      .expectHeader(Tag.StudyDate)
+      .expectValueChunk()
+      .expectDicomComplete()
+  }
+
+  it should "stop reading data when a tag number is higher than the stop tag" in {
+    val bytes = studyDate() ++ patientNameJohnDoe()
+
+    val source = Source.single(bytes)
+      .via(new ParseFlow(stopTag = Some(Tag.StudyDate + 1)))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectHeader(Tag.StudyDate)
       .expectValueChunk()
       .expectDicomComplete()
   }

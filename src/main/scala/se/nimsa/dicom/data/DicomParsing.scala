@@ -102,6 +102,7 @@ trait DicomParsing {
 
   def lengthToLong(length: Int): Long = if (length == indeterminateLength) -1L else intToUnsignedLong(length)
 
+  // TODO remove once validation flow has been rewritten.
   def readHeader(buffer: ByteString, assumeBigEndian: Boolean, explicitVR: Boolean): Option[(Int, VR, Int, Long)] = {
     if (explicitVR) {
       readHeaderExplicitVR(buffer, assumeBigEndian)
@@ -119,7 +120,7 @@ trait DicomParsing {
     */
   def readHeaderExplicitVR(buffer: ByteString, assumeBigEndian: Boolean): Option[(Int, VR, Int, Long)] = {
     if (buffer.size >= 8) {
-      val (tag, vr) = DicomParsing.tagVr(buffer, assumeBigEndian, explicitVr = true)
+      val (tag, vr) = tagVr(buffer, assumeBigEndian, explicitVr = true)
       if (vr == null) {
         // special case: sequences, length might be indeterminate '0xFFFFFFFF'
         val valueLength = bytesToInt(buffer.drop(4), assumeBigEndian)

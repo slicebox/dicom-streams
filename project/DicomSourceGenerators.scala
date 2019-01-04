@@ -228,7 +228,7 @@ object DicomSourceGenerators {
        |    case t if (t & 0xFFFFFF00) == Tag.SourceImageIDs => VR.CS
        |    case t =>
        |      val t2 = adjustTag(t)
-       |      if (adjustTag(t2) < $splitValue) vrOfLow(t2) else vrOfHigh(t2)
+       |      if (t2 < $splitValue) vrOfLow(t2) else vrOfHigh(t2)
        |  }
        |
        |  private def vrOfLow(tag: Int) = (tag: @switch) match {

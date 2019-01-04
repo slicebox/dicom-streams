@@ -201,7 +201,7 @@ class ParseFlow(chunkSize: Int = 8192, stopTag: Option[Int] = None, inflate: Boo
     }
 
     case class InDeflatedData(bigEndian: Boolean) extends DicomParseStep {
-      def parse(reader: ByteReader) = ParseResult(Some(DeflatedChunk(bigEndian, reader.take(chunkSize))), this)
+      def parse(reader: ByteReader) = ParseResult(Some(DeflatedChunk(bigEndian, reader.take(math.min(chunkSize, reader.remainingSize)))), this)
 
       override def onTruncation(reader: ByteReader): Unit = {
         emit(objOut, DeflatedChunk(bigEndian, reader.takeAll()))
@@ -239,27 +239,27 @@ class ParseFlow(chunkSize: Int = 8192, stopTag: Option[Int] = None, inflate: Boo
       bytesToUShortBE(firstTwoBytes) == 0x789C
     }
 
-    private def readHeader(reader: ByteReader, dicomState: HeaderState): (Int, VR, Int, Long) = {
+    private def readHeader(reader: ByteReader, state: HeaderState): (Int, VR, Int, Long) = {
       reader.ensure(8)
       val tagVrBytes = reader.remainingData.take(8)
-      val (tag, vr) = tagVr(tagVrBytes, dicomState.bigEndian, dicomState.explicitVR)
+      val (tag, vr) = tagVr(tagVrBytes, state.bigEndian, state.explicitVR)
       if (vr == null)
-        (tag, vr, 8, lengthToLong(bytesToInt(tagVrBytes.drop(4), dicomState.bigEndian)))
-      else if (dicomState.explicitVR)
+        (tag, vr, 8, lengthToLong(bytesToInt(tagVrBytes.drop(4), state.bigEndian)))
+      else if (state.explicitVR)
         if (vr.headerLength == 8)
-          (tag, vr, 8, lengthToLong(bytesToUShort(tagVrBytes.drop(6), dicomState.bigEndian)))
+          (tag, vr, 8, lengthToLong(bytesToUShort(tagVrBytes.drop(6), state.bigEndian)))
         else {
           reader.ensure(12)
-          (tag, vr, 12, lengthToLong(bytesToInt(reader.remainingData.drop(8), dicomState.bigEndian)))
+          (tag, vr, 12, lengthToLong(bytesToInt(reader.remainingData.drop(8), state.bigEndian)))
         }
       else
-        (tag, vr, 8, lengthToLong(bytesToInt(tagVrBytes.drop(4), dicomState.bigEndian)))
+        (tag, vr, 8, lengthToLong(bytesToInt(tagVrBytes.drop(4), state.bigEndian)))
     }
 
     private def readDatasetHeader(reader: ByteReader, state: DatasetHeaderState): Option[DicomPart] = {
       val (tag, vr, headerLength, valueLength) = readHeader(reader, state)
       // println(s"$tag $vr $headerLength $valueLength")
-      if (stopTag.isDefined && tag == stopTag.get)
+      if (stopTag.isDefined && tag >= stopTag.get)
         None
       else if (vr != null) {
         val bytes = reader.take(headerLength)
