@@ -84,7 +84,7 @@ class CollectFlowTest extends TestKit(ActorSystem("CollectFlowSpec")) with FlatS
     val bytes = studyDate() ++ patientNameJohnDoe() ++ pixelData(2000)
 
     val source = Source.single(bytes)
-      .via(new ParseFlow(chunkSize = 500))
+      .via(ParseFlow(chunkSize = 500))
       .via(collectFlow(Set(Tag.StudyDate, Tag.PatientName).map(TagPath.fromTag), "tag", maxBufferSize = 1000))
 
     source.runWith(TestSink.probe[DicomPart])
@@ -112,7 +112,7 @@ class CollectFlowTest extends TestKit(ActorSystem("CollectFlowSpec")) with FlatS
     val bytes = studyDate() ++ patientNameJohnDoe() ++ pixelData(2000)
 
     val source = Source.single(bytes)
-      .via(new ParseFlow(chunkSize = 500))
+      .via(ParseFlow(chunkSize = 500))
       .via(collectFlow(_.tag == Tag.PatientName, _.tag > Tag.PixelData, "tag", maxBufferSize = 1000))
 
     source.runWith(TestSink.probe[DicomPart])

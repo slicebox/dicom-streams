@@ -16,8 +16,6 @@
 
 package se.nimsa.dicom.streams
 
-import java.util.zip.Inflater
-
 import akka.stream._
 import akka.stream.stage._
 import akka.util.ByteString
@@ -28,9 +26,8 @@ import scala.util.control.{NoStackTrace, NonFatal}
 /**
   * This class is borrowed (with minor modifications) from the
   * <a href="https://github.com/akka/akka/blob/master/akka-stream/src/main/scala/akka/stream/impl/io/ByteStringParser.scala">AKKA internal API</a>.
-  * It provides a stateful parser from a stream of byte chunks to a stream of objects of type <code>T</code>. The main
-  * addition made to this class is the possiblity to handle deflated byte data which may be inflated on the fly before
-  * parsing.
+  * It provides a stateful parser from a stream of byte chunks to a stream of objects of type <code>T</code>.
+  *
   * @tparam T the type created by this parser
   */
 abstract class ByteStringParser[T] extends GraphStage[FlowShape[ByteString, T]] {
@@ -46,22 +43,11 @@ abstract class ByteStringParser[T] extends GraphStage[FlowShape[ByteString, T]] 
 
   class ParsingLogic extends GraphStageLogic(shape) with InHandler with OutHandler {
     private var buffer = ByteString.empty
-    private var deflatedBuffer = ByteString.empty
-    private var inflateData: Option[InflateData] = None
     private var current: ParseStep[T] = FinishedParser
     private var acceptUpstreamFinish: Boolean = true
     private var untilCompact = CompactionThreshold
 
     final protected def startWith(step: ParseStep[T]): Unit = current = step
-
-    final protected def startInflating(inflateData: InflateData, reader: ByteReader): Unit = {
-      if (this.inflateData.isDefined)
-        throw new IllegalStateException("Inflating can only be started once")
-      this.inflateData = Some(inflateData)
-      deflatedBuffer = reader.takeAll()
-    }
-
-    final protected def isInflating: Boolean = inflateData.isDefined
 
     protected def recursionLimit: Int = 100000
 
@@ -81,7 +67,7 @@ abstract class ByteStringParser[T] extends GraphStage[FlowShape[ByteString, T]] 
       * If the return value is true the method must be called another time to continue processing.
       */
     private def doParseInner(): Boolean = {
-      if (buffer.nonEmpty || deflatedBuffer.nonEmpty) {
+      if (buffer.nonEmpty) {
         val reader = new ByteReader(buffer)
         try {
           val parseResult = current.parse(reader)
@@ -104,27 +90,13 @@ abstract class ByteStringParser[T] extends GraphStage[FlowShape[ByteString, T]] 
         } catch {
 
           case NeedMoreData =>
-            inflateData match {
-              case Some(inf) if inf.inflater.finished() =>
-                completeStage()
-                DontRecurse
-              case Some(inf) if !inf.inflater.needsInput() || deflatedBuffer.nonEmpty =>
-                if (inf.inflater.needsInput()) {
-                  inf.inflater.setInput(deflatedBuffer.toArray)
-                  deflatedBuffer = ByteString.empty
-                }
-                val n = inf.inflater.inflate(inf.buffer)
-                buffer ++= inf.buffer.take(n)
-                Recurse
-              case _ =>
-                acceptUpstreamFinish = false
-                if (current.canWorkWithPartialData) buffer = reader.remainingData
+            acceptUpstreamFinish = false
+            if (current.canWorkWithPartialData) buffer = reader.remainingData
 
-                // Not enough data in buffer and upstream is closed
-                if (isUpstreamClosed) current.onTruncation(reader)
-                else pull(bytesIn)
-                DontRecurse
-            }
+            // Not enough data in buffer and upstream is closed
+            if (isUpstreamClosed) current.onTruncation(reader)
+            else pull(bytesIn)
+            DontRecurse
 
           case NonFatal(ex) =>
             failStage(new ParsingException(s"Parsing failed in step $current", ex))
@@ -163,10 +135,7 @@ abstract class ByteStringParser[T] extends GraphStage[FlowShape[ByteString, T]] 
       //  - append new bytes
       //  - compact buffer if necessary
       val chunk = grab(bytesIn)
-      if (inflateData.isDefined)
-        deflatedBuffer ++= chunk
-      else
-        buffer ++= chunk
+      buffer ++= chunk
       untilCompact -= 1
       if (untilCompact == 0) {
         // Compaction prevents of ever growing tree (list) of ByteString if buffer contents overlap most of the
@@ -268,7 +237,5 @@ object ByteStringParser {
       if (off + numBytes <= input.length) off += numBytes
       else throw NeedMoreData
   }
-
-  case class InflateData(inflater: Inflater, buffer: Array[Byte])
 
 }

@@ -70,7 +70,7 @@ object DicomParts {
     override def toString = s"${getClass.getSimpleName} ${if (last) "(last) " else ""}length = ${bytes.length} ${if (bigEndian) "(big endian) " else ""}${if (bytes.length <= 64) "ASCII = " + bytes.utf8String else ""}"
   }
 
-  case class DeflatedChunk(bigEndian: Boolean, bytes: ByteString) extends DicomPart
+  case class DeflatedChunk(bigEndian: Boolean, bytes: ByteString, nowrap: Boolean) extends DicomPart
 
   case class ItemPart(index: Int, length: Long, bigEndian: Boolean, bytes: ByteString) extends LengthPart {
     override def toString = s"${getClass.getSimpleName} index = $index length = $length ${if (bigEndian) "(big endian) " else ""}$bytes"

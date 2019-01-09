@@ -26,7 +26,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectPreamble()
@@ -43,7 +43,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.FileMetaInformationGroupLength)
@@ -59,7 +59,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = patientNameJohnDoe()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.PatientName)
@@ -70,7 +70,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   it should "not output value chunks when value length is zero" in {
     val bytes = ByteString(8, 0, 32, 0, 68, 65, 0, 0) ++ ByteString(16, 0, 16, 0, 80, 78, 0, 0)
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.StudyDate)
@@ -82,7 +82,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = fmiGroupLength(transferSyntaxUID(), studyDate()) ++ transferSyntaxUID() ++ studyDate()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.FileMetaInformationGroupLength)
@@ -98,7 +98,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = preamble
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectPreamble()
@@ -110,7 +110,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = fmiGroupLength(malformedTsuid) ++ malformedTsuid ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.FileMetaInformationGroupLength)
@@ -126,7 +126,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = patientNameJohnDoe().dropRight(2)
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow(inflate = false))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.PatientName)
@@ -137,7 +137,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = fmiGroupLength(transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian)) ++ transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian) ++ deflate(patientNameJohnDoe() ++ studyDate())
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.FileMetaInformationGroupLength)
@@ -155,7 +155,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = fmiGroupLength(transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian)) ++ transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian) ++ deflate(patientNameJohnDoe() ++ studyDate(), gzip = true)
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.FileMetaInformationGroupLength)
@@ -173,7 +173,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = fmiGroupLength(transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian)) ++ transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian) ++ deflate(patientNameJohnDoe() ++ studyDate())
 
     val source = Source.single(bytes)
-      .via(new ParseFlow(inflate = false))
+      .via(ParseFlow(inflate = false))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.FileMetaInformationGroupLength)
@@ -188,7 +188,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = pixeDataFragments() ++ item(4) ++ ByteString(1, 2, 3, 4) ++ item(4) ++ ByteString(5, 6, 7, 8) ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectFragments()
@@ -204,7 +204,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = pixeDataFragments() ++ item(4) ++ ByteString(1, 2, 3, 4) ++ item(4) ++ ByteString(5, 6, 7, 8) ++ sequenceEndNonZeroLength()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectFragments()
@@ -220,7 +220,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = pixeDataFragments() ++ item(4) ++ ByteString(1, 2, 3, 4) ++ studyDate() ++ item(4) ++ ByteString(5, 6, 7, 8) ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectFragments()
@@ -237,7 +237,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectSequence(Tag.DerivationCodeSequence)
@@ -255,7 +255,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemDelimitation() ++ sequenceDelimitation() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectSequence(Tag.DerivationCodeSequence)
@@ -278,7 +278,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
 
     val source = Source.single(bytes)
       .via(new Chunker(chunkSize = 1))
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectPreamble()
@@ -295,7 +295,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = ByteString(1, 2, 3, 4, 5, 6, 7, 8, 9)
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectDicomError()
@@ -305,7 +305,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = preamble ++ fmiGroupLength(transferSyntaxUID(UID.ExplicitVRBigEndianRetired)) ++ transferSyntaxUID(UID.ExplicitVRBigEndianRetired) ++ patientNameJohnDoe(bigEndian = true)
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectPreamble()
@@ -322,7 +322,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = preamble ++ fmiGroupLength(transferSyntaxUID(UID.ImplicitVRLittleEndian)) ++ transferSyntaxUID(UID.ImplicitVRLittleEndian) ++ patientNameJohnDoe(explicitVR = false)
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectPreamble()
@@ -339,7 +339,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = studyDate() ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow(stopTag = Some(Tag.PatientName)))
+      .via(ParseFlow(stopTag = Some(Tag.PatientName)))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.StudyDate)
@@ -351,7 +351,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = studyDate() ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow(stopTag = Some(Tag.StudyDate + 1)))
+      .via(ParseFlow(stopTag = Some(Tag.StudyDate + 1)))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.StudyDate)
@@ -363,7 +363,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow(chunkSize = 5))
+      .via(ParseFlow(chunkSize = 5))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectPreamble()
@@ -384,7 +384,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = fmiGroupLength(transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian)) ++ transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian) ++ deflate(patientNameJohnDoe() ++ studyDate())
 
     val source = Source.single(bytes)
-      .via(new ParseFlow(chunkSize = 25, inflate = false))
+      .via(ParseFlow(chunkSize = 25, inflate = false))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.FileMetaInformationGroupLength)
@@ -400,7 +400,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = preamble ++ transferSyntaxUID(explicitVR = false) ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectPreamble()
@@ -416,7 +416,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = ByteString(0xe0, 0x7f, 0x10, 0x00, 0x4f, 0x57, 0, 0) ++ intToBytes(length.toInt)
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.PixelData, VR.OW, length)
@@ -428,7 +428,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = studyDate() ++ (sequence(Tag.DerivationCodeSequence, 8 + 18 + 16) ++ item(18 + 16) ++ studyDate() ++ patientNameJohnDoe()) ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.StudyDate)
@@ -448,7 +448,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = pixeDataFragments() ++ item(0) ++ item(4) ++ ByteString(1, 2, 3, 4) ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectFragments()
@@ -464,7 +464,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = patientNameJohnDoe() ++ unSequence ++ item(16) ++ studyDate()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.PatientName)
@@ -479,7 +479,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
     val bytes = patientNameJohnDoe() ++ unSequence ++ item(16) ++ studyDate(explicitVR = false)
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.PatientName)

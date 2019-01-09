@@ -19,7 +19,9 @@ package se.nimsa.dicom.streams
 import java.util.zip.Deflater
 
 import akka.NotUsed
-import akka.stream.scaladsl.{Flow, Source}
+import akka.stream.FlowShape
+import akka.stream.javadsl.MergePreferred
+import akka.stream.scaladsl.{Compression, Flow, GraphDSL, Partition, Source}
 import akka.util.ByteString
 import se.nimsa.dicom.data.CharacterSets.utf8Charset
 import se.nimsa.dicom.data.DicomParsing.defaultCharacterSet
@@ -148,65 +150,38 @@ object DicomFlows {
     * elements. At that stage, in order to maintain valid DICOM information, one can either change the transfer syntax to
     * an appropriate value for non-deflated data, or deflate the data again. This flow helps with the latter.
     *
+    * This flow may produce deflated data also when the dataset or the entire stream is empty as the deflate stage may
+    * output data on finalization.
+    *
     * @return the associated `DicomPart` `Flow`
     */
   val deflateDatasetFlow: Flow[DicomPart, DicomPart, NotUsed] =
-    Flow[DicomPart]
-      .concat(Source.single(DicomEndMarker))
-      .statefulMapConcat {
-        () =>
-          var inFmi = false
-          val buffer = new Array[Byte](2048)
-          val deflater = new Deflater(-1, true)
+    Flow.fromGraph(GraphDSL.create() { implicit builder =>
+      import GraphDSL.Implicits._
 
-          def deflate(dicomPart: DicomPart) = {
-            val input = dicomPart.bytes
-            deflater.setInput(input.toArray)
-            var output = ByteString.empty
-            while (!deflater.needsInput) {
-              val bytesDeflated = deflater.deflate(buffer)
-              output = output ++ ByteString(buffer.take(bytesDeflated))
-            }
-            if (output.isEmpty) Nil else DeflatedChunk(dicomPart.bigEndian, output) :: Nil
+      val decider = builder.add(Flow[DicomPart]
+        .statefulMapConcat(() => {
+          var route = 0
+
+          {
+            case part: HeaderPart if !part.isFmi =>
+              route = 1
+              (part, route) :: Nil
+            case part => (part, route) :: Nil
           }
+        }))
+      val partition = builder.add(Partition[(DicomPart, Int)](2, _._2))
+      val toBytes = Flow.fromFunction[(DicomPart, Int), ByteString](_._1.bytes)
+      val toPart = Flow.fromFunction[(DicomPart, Int), DicomPart](_._1)
+      val deflater = Compression.deflate(Deflater.BEST_COMPRESSION, nowrap = true)
+      val toDeflatedPart = Flow.fromFunction[ByteString, DicomPart](bytes => DeflatedChunk(bigEndian = false, bytes, nowrap = true))
+      val merge = builder.add(MergePreferred.create[DicomPart](1))
 
-          def finishDeflating() = {
-            deflater.finish()
-            var output = ByteString.empty
-            var done = false
-            while (!done) {
-              val bytesDeflated = deflater.deflate(buffer)
-              if (bytesDeflated == 0)
-                done = true
-              else
-                output = output ++ ByteString(buffer.take(bytesDeflated))
-            }
-            deflater.end()
-            if (output.isEmpty) Nil else DeflatedChunk(bigEndian = false, output) :: Nil
-          }
-
-        {
-          case preamble: PreamblePart => // preamble, do not deflate
-            preamble :: Nil
-          case DicomEndMarker => // end of stream, make sure deflater writes final bytes if deflating has occurred
-            if (deflater.getBytesRead > 0)
-              finishDeflating()
-            else
-              Nil
-          case deflatedChunk: DeflatedChunk => // already deflated, pass as-is
-            deflatedChunk :: Nil
-          case header: HeaderPart if header.isFmi => // FMI, do not deflate and remember we are in FMI
-            inFmi = true
-            header :: Nil
-          case header: HeaderPart => // Dataset header, remember we are no longer in FMI, deflate
-            inFmi = false
-            deflate(header)
-          case dicomPart if inFmi => // For any dicom part within FMI, do not deflate
-            dicomPart :: Nil
-          case dicomPart => // For all other cases, deflate
-            deflate(dicomPart)
-        }
-      }
+      decider ~> partition
+                 partition.out(0) ~> toPart                                ~> merge.preferred
+                 partition.out(1) ~> toBytes ~> deflater ~> toDeflatedPart ~> merge.in(0)
+      FlowShape(decider.in, merge.out)
+    })
 
   /**
     * Remove elements from stream that may contain large quantities of data (bulk data)
