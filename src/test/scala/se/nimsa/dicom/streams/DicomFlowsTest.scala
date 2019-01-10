@@ -31,8 +31,8 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
-      .via(printFlow)
+      .via(ParseFlow())
+      //.via(printFlow)
 
     source.runWith(TestSink.probe[DicomPart])
       .expectPreamble()
@@ -50,7 +50,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ groupLength ++ studyDate()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
       .via(groupLengthDiscardFilter)
 
     source.runWith(TestSink.probe[DicomPart])
@@ -82,7 +82,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
       .via(fmiDiscardFilter)
 
     source.runWith(TestSink.probe[DicomPart])
@@ -126,7 +126,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = preamble ++ fmiGroupLength(fmiVersion(), transferSyntaxUID()) ++ fmiVersion() ++ transferSyntaxUID() ++ patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
       .via(tagFilter(_ => false)(tagPath => groupNumber(tagPath.tag) >= 8))
 
     source.runWith(TestSink.probe[DicomPart])
@@ -153,7 +153,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = preamble ++ fmiGroupLength(fmiVersion(), transferSyntaxUID()) ++ fmiVersion() ++ transferSyntaxUID() ++ studyDate()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
       .via(tagFilter(_ => false)(tagPath => !DicomParsing.isFileMetaInformation(tagPath.tag)))
 
     source.runWith(TestSink.probe[DicomPart])
@@ -165,7 +165,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   it should "filter elements matching the blacklist condition when testing with sample dicom files" in {
     val file = new File(getClass.getResource("../data/test001.dcm").toURI)
     val source = FileIO.fromPath(file.toPath)
-      .via(new ParseFlow())
+      .via(ParseFlow())
       .via(tagFilter(_ => false)(tagPath => !DicomParsing.isFileMetaInformation(tagPath.tag)))
 
     source.runWith(TestSink.probe[DicomPart])
@@ -177,7 +177,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   it should "filter leave the dicom file unchanged when blacklist condition does not match any elements" in {
     val file = new File(getClass.getResource("../data/test001.dcm").toURI)
     val source = FileIO.fromPath(file.toPath)
-      .via(new ParseFlow())
+      .via(ParseFlow())
       .via(tagFilter(_ => true)(tagPath => !DicomParsing.isPrivate(tagPath.tag)))
 
     source.runWith(TestSink.probe[DicomPart])
@@ -192,7 +192,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
       .via(whitelistFilter(Set(TagTree.fromTag(Tag.StudyDate))))
 
     source.runWith(TestSink.probe[DicomPart])
@@ -205,7 +205,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
       .via(whitelistFilter(Set(TagTree.fromTag(Tag.StudyDate))))
 
     source.runWith(TestSink.probe[DicomPart])
@@ -218,7 +218,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
       .via(whitelistFilter(Set(TagTree.fromTag(Tag.StudyDate))))
 
     source.runWith(TestSink.probe[DicomPart])
@@ -229,7 +229,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = pixeDataFragments() ++ item(4) ++ ByteString(1, 2, 3, 4) ++ item(4) ++ ByteString(5, 6, 7, 8) ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
       .via(whitelistFilter(Set.empty))
 
     source.runWith(TestSink.probe[DicomPart])
@@ -240,7 +240,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = patientNameJohnDoe() ++ sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
       .via(whitelistFilter(Set(TagTree.fromAnyItem(Tag.DerivationCodeSequence).thenTag(Tag.StudyDate))))
 
     source.runWith(TestSink.probe[DicomPart])
@@ -257,7 +257,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = patientNameJohnDoe() ++ sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemDelimitation() ++ item() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
       .via(whitelistFilter(Set(TagTree.fromItem(Tag.DerivationCodeSequence, 2).thenTag(Tag.StudyDate))))
 
     source.runWith(TestSink.probe[DicomPart])
@@ -335,13 +335,13 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
       .via(deflateDatasetFlow)
       .via(modifyFlow(modifications = Seq(
         TagModification.equals(TagPath.fromTag(Tag.FileMetaInformationGroupLength), _ => fmiGroupLength(transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian))),
         TagModification.equals(TagPath.fromTag(Tag.TransferSyntaxUID), _ => transferSyntaxUID(UID.DeflatedExplicitVRLittleEndian).drop(8)))))
       .map(_.bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.FileMetaInformationGroupLength)
@@ -359,7 +359,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val bytes = fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
       .via(deflateDatasetFlow)
 
     source.runWith(TestSink.probe[DicomPart])
@@ -370,14 +370,15 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectDeflatedChunk()
   }
 
-  it should "not ouput anything when the stream is empty" in {
+  it should "ouput extra deflated bytes when the stream is empty (reminder)" in {
     val bytes = ByteString.empty
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
       .via(deflateDatasetFlow)
 
     source.runWith(TestSink.probe[DicomPart])
+      .expectDeflatedChunk()
       .expectDicomComplete()
   }
 

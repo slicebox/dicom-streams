@@ -27,7 +27,7 @@ class ElementFlowsTest extends TestKit(ActorSystem("ElementFlowsSpec")) with Fla
     val bytes = patientNameJohnDoe() ++ studyDate()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
       .via(elementFlow)
 
     source.runWith(TestSink.probe[Element])
@@ -40,7 +40,7 @@ class ElementFlowsTest extends TestKit(ActorSystem("ElementFlowsSpec")) with Fla
     val bytes = pixeDataFragments() ++ item(4) ++ ByteString(1, 2, 3, 4) ++ item(4) ++ ByteString(5, 6, 7, 8) ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
       .via(elementFlow)
 
     source.runWith(TestSink.probe[Element])
@@ -56,7 +56,7 @@ class ElementFlowsTest extends TestKit(ActorSystem("ElementFlowsSpec")) with Fla
       pixeDataFragments() ++ item(0) ++ item(4) ++ ByteString(5, 6, 7, 8) ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
       .via(elementFlow)
 
     source.runWith(TestSink.probe[Element])
@@ -76,7 +76,7 @@ class ElementFlowsTest extends TestKit(ActorSystem("ElementFlowsSpec")) with Fla
       pixeDataFragments() ++ item(4) ++ ByteString(1, 2, 3, 4) ++ sequenceDelimitation()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
       .via(elementFlow)
       .via(tagPathFlow)
 
@@ -138,7 +138,7 @@ class ElementFlowsTest extends TestKit(ActorSystem("ElementFlowsSpec")) with Fla
       sequence(Tag.DerivationCodeSequence, 24) ++ item(16) ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
-      .via(new ParseFlow())
+      .via(ParseFlow())
       .via(elementFlow)
       .via(tagPathFlow)
 
