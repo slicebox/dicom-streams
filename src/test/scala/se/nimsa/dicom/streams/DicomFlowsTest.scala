@@ -201,19 +201,6 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectDicomComplete()
   }
 
-  it should "also apply to FMI is instructed" in {
-    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe() ++ studyDate()
-
-    val source = Source.single(bytes)
-      .via(ParseFlow())
-      .via(whitelistFilter(Set(TagTree.fromTag(Tag.StudyDate))))
-
-    source.runWith(TestSink.probe[DicomPart])
-      .expectHeader(Tag.StudyDate)
-      .expectValueChunk()
-      .expectDicomComplete()
-  }
-
   it should "only apply to elements in the root dataset when filter points to root dataset" in {
     val bytes = sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation()
 

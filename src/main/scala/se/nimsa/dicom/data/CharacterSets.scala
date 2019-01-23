@@ -18,15 +18,15 @@ class CharacterSets(val charsetNames: Seq[String]) {
 
   private val charsetExtensionsEnabled = charsetNames.length > 1
 
-  private val specifiedCharsets =
+  private val charsetObjs =
     (if (charsetNames.nonEmpty && charsetNames.head.isEmpty) // first item may be empty -> default charset
       Seq(defaultCharsetObj)
     else
-      Seq.empty) ++ charsetNames.flatMap(s => charsetsMap.get(s))
+      Seq.empty) ++ charsetNames.flatMap(s => charsetObjsMap.get(s))
 
-  private val getInitialCharset =
-    if (specifiedCharsets.nonEmpty)
-      specifiedCharsets.head
+  private val initialCharsetObj =
+    if (charsetObjs.nonEmpty)
+      charsetObjs.head
     else
       defaultCharsetObj
 
@@ -40,10 +40,10 @@ class CharacterSets(val charsetNames: Seq[String]) {
     if (charsetExtensionsEnabled)
       decodeWithExtensions(b)
     else
-      new String(b.toArray, getInitialCharset.charset)
+      new String(b.toArray, initialCharsetObj.charset)
 
   private def decodeWithExtensions(b: ByteString) = {
-    var charset = getInitialCharset
+    var charsetObj = initialCharsetObj
     var off = 0
     var cur = 0
     val sb = new StringBuilder(b.length)
@@ -51,28 +51,28 @@ class CharacterSets(val charsetNames: Seq[String]) {
     while (cur < b.length)
       if (b(cur) == 0x1b) {
         // ESC
-        if (off < cur) sb.append(new String(b.toArray, off, cur - off, charset.charset))
+        if (off < cur) sb.append(new String(b.toArray, off, cur - off, charsetObj.charset))
         cur += 3
         var key = ((b(cur - 2) & 0xff) << 8) + (b(cur - 1) & 0xff)
         if (key == 0x2428 || key == 0x2429) {
           key = (key << 8) + (b(cur) & 0xff)
           cur += 1
         }
-        charset = Option(escToCharset(key)).getOrElse {
+        charsetObj = Option(escToCharset(key)).getOrElse {
           // decode invalid ESC sequence as chars
           val byteCount = if ((key & 0xff0000) != 0) 4 else 3 // if second msb of key is set then 4 otherwise 3
-          sb.append(new String(b.toArray, cur - byteCount, byteCount, charset.charset))
-          charset
+          sb.append(new String(b.toArray, cur - byteCount, byteCount, charsetObj.charset))
+          charsetObj
         }
         off = cur
       } else // Step -1 -> chars in G0 one byte, chars in G1 two bytes.
-        cur += (if (charset.charlength > 0) charset.charlength else if (b(cur) < 0) 2 else 1)
+        cur += (if (charsetObj.charlength > 0) charsetObj.charlength else if (b(cur) < 0) 2 else 1)
     if (off < cur)
-      sb.append(new String(b.toArray, off, cur - off, charset.charset))
+      sb.append(new String(b.toArray, off, cur - off, charsetObj.charset))
     sb.toString
   }
 
-  override def toString: String = s"${getClass.getSimpleName} [${specifiedCharsets.map(_.charset.toString).mkString(",")}]"
+  override def toString: String = s"${getClass.getSimpleName} [${charsetObjs.map(_.charset.toString).mkString(",")}]"
 
   override def equals(that: Any): Boolean = that match {
     case thatCharSets: CharacterSets => charsetNames == thatCharSets.charsetNames
@@ -84,7 +84,7 @@ class CharacterSets(val charsetNames: Seq[String]) {
 
 object CharacterSets {
 
-  private val charsetsMap = Map(
+  private val charsetObjsMap = Map(
     // Single-Byte Character Sets Without Code Extensions
     "ISO_IR 100" -> CharsetObj("ISO-8859-1"),
     "ISO_IR 101" -> CharsetObj("ISO-8859-2"),
@@ -122,7 +122,7 @@ object CharacterSets {
   )
 
   private val escToCharset: Map[Int, CharsetObj] = {
-    val map = charsetsMap.values
+    val map = charsetObjsMap.values
       .filter(_.hasEscapeSeq)
       .map(co => co.escapeSequence.get.foldLeft(0)((i, b) => (i << 8) + (b & 0xff)) -> co)
       .toMap

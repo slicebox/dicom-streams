@@ -41,7 +41,7 @@ object TestData {
   def apexPosition(bigEndian: Boolean = false, explicitVR: Boolean = true): ByteString = element(Tag.ApexPosition, doubleToBytes(math.Pi, bigEndian), bigEndian, explicitVR)
 
   def sequenceEndNonZeroLength(bigEndian: Boolean = false): ByteString = tagToBytes(Tag.SequenceDelimitationItem, bigEndian) ++ intToBytes(0x00000010, bigEndian)
-  def pixeDataFragments(bigEndian: Boolean = false): ByteString = tagToBytes(Tag.PixelData, bigEndian) ++ ByteString('O', 'W', 0, 0) ++ intToBytes(indeterminateLength, bigEndian)
+  def pixeDataFragments(bigEndian: Boolean = false): ByteString = tagToBytes(Tag.PixelData, bigEndian) ++ ByteString('O', 'W', 0, 0) ++ ByteString(0xFF, 0xFF, 0xFF, 0xFF)
 
   def sequence(tag: Int, bigEndian: Boolean = false): ByteString = sequence(tag, indeterminateLength, bigEndian)
   def sequence(tag: Int, length: Int): ByteString = sequence(tag, length, bigEndian = false)

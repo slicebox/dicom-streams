@@ -102,7 +102,7 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
       .expectNextN(18 - 2)
   }
 
-  "The guaranteed delimitation flow" should "insert delimitation parts at the end of sequences and items with determinate length" in {
+  "The guaranteed delimitation flow" should "call delimitation events at the end of sequences and items with determinate length" in {
     val bytes =
       sequence(Tag.DerivationCodeSequence, 56) ++ item(16) ++ studyDate() ++ item() ++ studyDate() ++ itemDelimitation() ++
         sequence(Tag.AbstractPriorCodeSequence) ++ item() ++ studyDate() ++ itemDelimitation() ++ item(16) ++ studyDate() ++ sequenceDelimitation()
@@ -308,13 +308,13 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
     nEvents shouldBe 1
   }
 
-  val startEventTestFlow: Flow[DicomPart, DicomPart, NotUsed] =
-    DicomFlowFactory.create(new IdentityFlow with StartEvent[DicomPart] {
-      override def onStart(): List[DicomPart] = DicomStartMarker :: Nil
-    })
-
   "The start event flow" should "notify when dicom stream starts" in {
     val bytes = patientNameJohnDoe()
+
+    val startEventTestFlow: Flow[DicomPart, DicomPart, NotUsed] =
+      DicomFlowFactory.create(new IdentityFlow with StartEvent[DicomPart] {
+        override def onStart(): List[DicomPart] = DicomStartMarker :: Nil
+      })
 
     val source = Source.single(bytes)
       .via(parseFlow)
@@ -330,13 +330,59 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
       .expectDicomComplete()
   }
 
-  val endEventTestFlow: Flow[DicomPart, DicomPart, NotUsed] =
-    DicomFlowFactory.create(new IdentityFlow with EndEvent[DicomPart] {
-      override def onEnd(): List[DicomPart] = DicomEndMarker :: Nil
+  it should "call onStart for all combined flow stages" in {
+    def flow() = DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with StartEvent[DicomPart] {
+      var state = 1
+      override def onStart(): List[DicomPart] = {
+        state = 0
+        super.onStart()
+      }
+      override def onPart(part: DicomPart): List[DicomPart] = {
+        state shouldBe 0
+        part :: Nil
+      }
     })
+
+    val source = Source.single(DicomEndMarker).via(flow()).via(flow()).via(flow())
+
+    source.runWith(TestSink.probe[DicomPart])
+      .request(1)
+      .expectNextChainingPF {
+        case DicomEndMarker => true
+      }
+      .expectDicomComplete()
+  }
+
+  it should "call onStart once for flows with more than one capability using the onStart event" in {
+    val flow = DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with GuaranteedDelimitationEvents[DicomPart] with StartEvent[DicomPart] {
+      var nCalls = 0
+      override def onStart(): List[DicomPart] = {
+        nCalls += 1
+        super.onStart()
+      }
+      override def onPart(part: DicomPart): List[DicomPart] = {
+        nCalls shouldBe 1
+        part :: Nil
+      }
+    })
+
+    val source = Source.single(DicomEndMarker).via(flow)
+
+    source.runWith(TestSink.probe[DicomPart])
+      .request(1)
+      .expectNextChainingPF {
+        case DicomEndMarker => true
+      }
+      .expectDicomComplete()
+  }
 
   "The end event flow" should "notify when dicom stream ends" in {
     val bytes = patientNameJohnDoe()
+
+    val endEventTestFlow: Flow[DicomPart, DicomPart, NotUsed] =
+      DicomFlowFactory.create(new IdentityFlow with EndEvent[DicomPart] {
+        override def onEnd(): List[DicomPart] = DicomEndMarker :: Nil
+      })
 
     val source = Source.single(bytes)
       .via(parseFlow)
@@ -410,7 +456,7 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
       .expectNextN(27 - 2)
   }
 
-  it should "support using the same tracking more than once within a flow" in {
+  it should "support using tracking more than once within a flow" in {
     val bytes = sequence(Tag.DerivationCodeSequence, 24) ++ item(16) ++ patientNameJohnDoe()
 
     // must be def, not val
@@ -480,58 +526,10 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
     val file = new File(getClass.getResource("../data/test001.dcm").toURI)
     val source = FileIO.fromPath(file.toPath)
       .via(parseFlow)
-      .via(DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with TagPathTracking[DicomPart] {
-        override def onPart(part: DicomPart): List[DicomPart] = part :: Nil
-      }))
+      .via(DicomFlowFactory.create(new IdentityFlow with TagPathTracking[DicomPart]))
 
     Await.result(source.runWith(Sink.ignore), 5.seconds)
     succeed
-  }
-
-  "The onStart event" should "be called for all combined flow stages" in {
-    def flow() = DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with StartEvent[DicomPart] {
-      var state = 1
-      override def onStart(): List[DicomPart] = {
-        state = 0
-        super.onStart()
-      }
-      override def onPart(part: DicomPart): List[DicomPart] = {
-        state shouldBe 0
-        part :: Nil
-      }
-    })
-
-    val source = Source.single(DicomEndMarker).via(flow()).via(flow()).via(flow())
-
-    source.runWith(TestSink.probe[DicomPart])
-      .request(1)
-      .expectNextChainingPF {
-        case DicomEndMarker => true
-      }
-      .expectDicomComplete()
-  }
-
-  it should "be called once for flows with more than one capability using the onStart event" in {
-    val flow = DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with GuaranteedDelimitationEvents[DicomPart] with StartEvent[DicomPart] {
-      var nCalls = 0
-      override def onStart(): List[DicomPart] = {
-        nCalls += 1
-        super.onStart()
-      }
-      override def onPart(part: DicomPart): List[DicomPart] = {
-        nCalls shouldBe 1
-        part :: Nil
-      }
-    })
-
-    val source = Source.single(DicomEndMarker).via(flow)
-
-    source.runWith(TestSink.probe[DicomPart])
-      .request(1)
-      .expectNextChainingPF {
-        case DicomEndMarker => true
-      }
-      .expectDicomComplete()
   }
 
   "Prepending elements in combined flows" should "not insert everything at the beginning" in {

@@ -102,7 +102,6 @@ abstract class DeferToPartFlow[Out] extends DicomFlow[Out] {
   def onUnknown(part: UnknownPart): List[Out] = onPart(part)
   def onItem(part: ItemPart): List[Out] = onPart(part)
   def onItemDelimitation(part: ItemDelimitationPart): List[Out] = onPart(part)
-  def onPart(part: DicomPart): List[Out]
 }
 
 case object DicomStartMarker extends MetaPart
@@ -206,11 +205,7 @@ class ItemDelimitationPartMarker(item: Int) extends ItemDelimitationPart(item, b
 trait GuaranteedDelimitationEvents[Out] extends InFragments[Out] {
   var partStack: List[(LengthPart, Long)] = Nil
 
-  def subtractLength(part: DicomPart): List[(LengthPart, Long)] =
-    partStack.map {
-      case (item: ItemPart, bytesLeft) => (item, bytesLeft - part.bytes.length)
-      case (sequence, bytesLeft) => (sequence, bytesLeft - part.bytes.length)
-    }
+  def subtractLength(part: DicomPart): List[(LengthPart, Long)] = partStack.map { case (p, bytesLeft) => (p, bytesLeft - part.bytes.length) }
 
   def maybeDelimit(): List[Out] = {
     val delimits: List[DicomPart] = partStack

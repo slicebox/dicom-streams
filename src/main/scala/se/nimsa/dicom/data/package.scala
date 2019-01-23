@@ -97,12 +97,13 @@ package object data {
   def item(length: Int): ByteString = tagToBytesLE(Tag.Item) ++ intToBytesLE(length)
   def item(length: Int, bigEndian: Boolean): ByteString = tagToBytes(Tag.Item, bigEndian) ++ intToBytes(length, bigEndian)
 
-  val itemDelimitationLE: ByteString = tagToBytesLE(Tag.ItemDelimitationItem) ++ intToBytesLE(0x00000000)
-  val itemDelimitationBE: ByteString = tagToBytesBE(Tag.ItemDelimitationItem) ++ intToBytesBE(0x00000000)
+  val zero4Bytes = ByteString(0, 0, 0, 0)
+  val itemDelimitationLE: ByteString = tagToBytesLE(Tag.ItemDelimitationItem) ++ zero4Bytes
+  val itemDelimitationBE: ByteString = tagToBytesBE(Tag.ItemDelimitationItem) ++ zero4Bytes
   def itemDelimitation(bigEndian: Boolean = false): ByteString = if (bigEndian) itemDelimitationBE else itemDelimitationLE
 
-  val sequenceDelimitationLE: ByteString = tagToBytesLE(Tag.SequenceDelimitationItem) ++ intToBytesLE(0x00000000)
-  val sequenceDelimitationBE: ByteString = tagToBytesBE(Tag.SequenceDelimitationItem) ++ intToBytesBE(0x00000000)
+  val sequenceDelimitationLE: ByteString = tagToBytesLE(Tag.SequenceDelimitationItem) ++ zero4Bytes
+  val sequenceDelimitationBE: ByteString = tagToBytesBE(Tag.SequenceDelimitationItem) ++ zero4Bytes
   def sequenceDelimitation(bigEndian: Boolean = false): ByteString = if (bigEndian) sequenceDelimitationBE else sequenceDelimitationLE
 
   // System time zone

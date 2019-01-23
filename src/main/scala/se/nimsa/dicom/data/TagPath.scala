@@ -108,17 +108,12 @@ sealed trait TagPath extends TagPathLike {
     * @example (0008,9215)[2] does not start with (0008,9215)[2].(0010,0010)
     */
   def startsWith(that: TagPath): Boolean = {
-    if (this.depth >= that.depth)
-      this.toList.zip(that.toList).forall {
-        case (_, EmptyTagPath) => true
-        case (thisSeq: TagPathItem, thatSeq: TagPathItem) => thisSeq.tag == thatSeq.tag && thisSeq.item == thatSeq.item
-        case (thisSeq: TagPathItemEnd, thatSeq: TagPathItemEnd) => thisSeq.tag == thatSeq.tag && thisSeq.item == thatSeq.item
-        case (thisTag: TagPathSequence, thatTag: TagPathSequence) => thisTag.tag == thatTag.tag
-        case (thisTag: TagPathSequenceEnd, thatTag: TagPathSequenceEnd) => thisTag.tag == thatTag.tag
-        case (thisTag: TagPathTag, thatTag: TagPathTag) => thisTag.tag == thatTag.tag
-        case _ => false
-      }
-    else
+    val thisDepth = this.depth
+    val thatDepth = that.depth
+    if (thisDepth >= thatDepth) {
+      val n = Math.min(thisDepth, thatDepth)
+      this.take(n) == that.take(n)
+    } else
       false
   }
 
@@ -130,20 +125,13 @@ sealed trait TagPath extends TagPathLike {
     * @example (0008,9215)[2].(0010,0010) ends with the empty tag path
     * @example (0010,0010) does not end with (0008,9215)[2].(0010,0010)
     */
-  def endsWith(that: TagPath): Boolean =
-    ((this, that) match {
-      case (_, EmptyTagPath) => true
-      case (thisSeq: TagPathItem, thatSeq: TagPathItem) => thisSeq.tag == thatSeq.tag && thisSeq.item == thatSeq.item
-      case (thisSeq: TagPathItemEnd, thatSeq: TagPathItemEnd) => thisSeq.tag == thatSeq.tag && thisSeq.item == thatSeq.item
-      case (thisTag: TagPathSequence, thatTag: TagPathSequence) => thisTag.tag == thatTag.tag
-      case (thisTag: TagPathSequenceEnd, thatTag: TagPathSequenceEnd) => thisTag.tag == thatTag.tag
-      case (thisTag: TagPathTag, thatTag: TagPathTag) => thisTag.tag == thatTag.tag
-      case _ => false
-    }) && ((this.previous, that.previous) match {
-      case (_, EmptyTagPath) => true
-      case (EmptyTagPath, _) => false
-      case (thisPrev, thatPrev) => thisPrev.endsWith(thatPrev)
-    })
+  def endsWith(that: TagPath): Boolean = {
+    val n = this.depth - that.depth
+    if (n >= 0)
+      drop(n) == that
+    else
+      false
+  }
 
   def drop(n: Int): TagPath = {
     def drop(path: TagPath, i: Int): TagPath =

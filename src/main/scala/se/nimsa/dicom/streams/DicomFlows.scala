@@ -298,7 +298,7 @@ object DicomFlows {
   /**
     * Remove all DICOM parts that do not contribute to file bytes
     */
-  val syntheticPartsFilter: Flow[DicomPart, DicomPart, NotUsed] = Flow[DicomPart].filter(_.bytes.nonEmpty)
+  val emptyPartsFilter: Flow[DicomPart, DicomPart, NotUsed] = Flow[DicomPart].filter(_.bytes.nonEmpty)
 
   /**
     * Sets any sequences and/or items with known length to indeterminate length and inserts delimiters.
@@ -306,7 +306,6 @@ object DicomFlows {
   def toIndeterminateLengthSequences: Flow[DicomPart, DicomPart, NotUsed] =
     DicomFlowFactory.create(new IdentityFlow with GuaranteedDelimitationEvents[DicomPart] { // map to indeterminate length
       val indeterminateBytes = ByteString(0xFF, 0xFF, 0xFF, 0xFF)
-      val zeroBytes = ByteString(0x00, 0x00, 0x00, 0x00)
 
       override def onSequence(part: SequencePart): List[DicomPart] =
         super.onSequence(part).map {
@@ -317,7 +316,7 @@ object DicomFlows {
       override def onSequenceDelimitation(part: SequenceDelimitationPart): List[DicomPart] =
         super.onSequenceDelimitation(part) ::: (
           if (part.bytes.isEmpty)
-            SequenceDelimitationPart(part.bigEndian, tagToBytes(Tag.SequenceDelimitationItem, part.bigEndian) ++ zeroBytes) :: Nil
+            SequenceDelimitationPart(part.bigEndian, itemDelimitation(part.bigEndian)) :: Nil
           else
             Nil)
 
@@ -330,7 +329,7 @@ object DicomFlows {
       override def onItemDelimitation(part: ItemDelimitationPart): List[DicomPart] =
         super.onItemDelimitation(part) ::: (
           if (part.bytes.isEmpty)
-            ItemDelimitationPart(part.index, part.bigEndian, tagToBytes(Tag.ItemDelimitationItem, part.bigEndian) ++ zeroBytes) :: Nil
+            ItemDelimitationPart(part.index, part.bigEndian, itemDelimitation(part.bigEndian)) :: Nil
           else
             Nil)
     })
