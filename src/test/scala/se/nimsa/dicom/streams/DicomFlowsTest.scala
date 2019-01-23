@@ -331,6 +331,28 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectDicomComplete()
   }
 
+  "The header part filter" should "discard elements based on the most recent header part" in {
+    val bytes = studyDate() ++ sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemDelimitation() ++
+      item() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation() ++ patientNameJohnDoe()
+
+    val source = Source.single(bytes)
+      .via(parseFlow)
+      .via(headerFilter(header => header.vr == VR.PN))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectSequence(Tag.DerivationCodeSequence)
+      .expectItem(1)
+      .expectHeader(Tag.PatientName)
+      .expectValueChunk()
+      .expectItemDelimitation()
+      .expectItem(2)
+      .expectItemDelimitation()
+      .expectSequenceDelimitation()
+      .expectHeader(Tag.PatientName)
+      .expectValueChunk()
+      .expectDicomComplete()
+  }
+
   "The deflate flow" should "recreate the dicom parts of a dataset which has been deflated and inflated again" in {
     val bytes = fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe() ++ studyDate()
 

@@ -97,37 +97,54 @@ object DicomFlows {
     tagFilter(_ => false)(tagPath => !DicomParsing.isFileMetaInformation(tagPath.tag))
 
   /**
-    * Filter a stream of dicom parts leaving only those for which the supplied tag condition is `true`. As the stream of
+    * Filter a stream of DICOM parts leaving only those for which the supplied tag condition is `true`. As the stream of
     * dicom parts is flowing, a `TagPath` state is updated. For each such update, the tag condition is evaluated. If it
     * renders `false`, parts are discarded until it renders `true` again.
     *
     * Note that it is up to the user of this function to make sure the modified DICOM data is valid. When filtering
     * items from a sequence, item indices are preserved (i.e. not updated).
     *
-    * @param tagCondition     function that determines if dicom parts should be discarded based on the current tag path
+    * @param keepCondition    function that determines if DICOM parts should be discarded (condition false) based on the
+    *                         current tag path
     * @param defaultCondition determines whether to keep or discard elements with no tag path such as the preamble and
-    *                         synthetic dicom parts inserted to hold state.
+    *                         synthetic DICOM parts inserted to hold state.
     * @return the filtered flow
     */
-  def tagFilter(defaultCondition: DicomPart => Boolean)(tagCondition: TagPath => Boolean): Flow[DicomPart, DicomPart, NotUsed] =
+  def tagFilter(defaultCondition: DicomPart => Boolean)(keepCondition: TagPath => Boolean): Flow[DicomPart, DicomPart, NotUsed] =
     DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with TagPathTracking[DicomPart] {
-
       var keeping = false
 
-      def update(part: DicomPart): Unit =
+      override def onPart(part: DicomPart): List[DicomPart] = {
         keeping = tagPath match {
           case EmptyTagPath => defaultCondition(part)
-          case path => tagCondition(path)
+          case path => keepCondition(path)
         }
-
-      def emit(part: DicomPart): List[DicomPart] = if (keeping) part :: Nil else Nil
-
-      def updateThenEmit(part: DicomPart): List[DicomPart] = {
-        update(part)
-        emit(part)
+        if (keeping) part :: Nil else Nil
       }
+    })
 
-      override def onPart(part: DicomPart): List[DicomPart] = updateThenEmit(part)
+  /**
+    * Filter a stream of DICOM parts based on the last seen element header and the associated keep condition. All other
+    * parts are not filtered out (preamble, sequences, items, delimitations etc).
+    *
+    * @param keepCondition function that determines if DICOM parts should be discarded (condition false) based on the
+    *                      most recently encountered element header
+    * @return the filtered flow
+    */
+  def headerFilter(keepCondition: HeaderPart => Boolean): Flow[DicomPart, DicomPart, NotUsed] = Flow[DicomPart]
+    .statefulMapConcat(() => {
+      var keeping = true
+
+      {
+        case part: HeaderPart =>
+          keeping = keepCondition(part)
+          if (keeping) part :: Nil else Nil
+        case part: ValueChunk =>
+          if (keeping) part :: Nil else Nil
+        case part =>
+          keeping = true
+          part :: Nil
+      }
     })
 
   /**
@@ -178,8 +195,8 @@ object DicomFlows {
       val merge = builder.add(MergePreferred.create[DicomPart](1))
 
       decider ~> partition
-                 partition.out(0) ~> toPart                                ~> merge.preferred
-                 partition.out(1) ~> toBytes ~> deflater ~> toDeflatedPart ~> merge.in(0)
+      partition.out(0) ~> toPart ~> merge.preferred
+      partition.out(1) ~> toBytes ~> deflater ~> toDeflatedPart ~> merge.in(0)
       FlowShape(decider.in, merge.out)
     })
 
