@@ -7,7 +7,7 @@ import java.util
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Source, StreamConverters}
 import akka.util.ByteString
-import se.nimsa.dicom.data.DicomParsing.{Element => _, _}
+import se.nimsa.dicom.data.DicomParsing._
 import se.nimsa.dicom.data.DicomParts._
 import se.nimsa.dicom.data.Elements.{ValueElement, _}
 import se.nimsa.dicom.data.TagPath._

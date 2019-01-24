@@ -318,7 +318,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectDicomComplete()
   }
 
-  "The header part filter" should "discard elements based on the most recent header part" in {
+  "The header part filter" should "discard elements based on its header part" in {
     val bytes = studyDate() ++ sequence(Tag.DerivationCodeSequence) ++ item() ++ patientNameJohnDoe() ++ itemDelimitation() ++
       item() ++ studyDate() ++ itemDelimitation() ++ sequenceDelimitation() ++ patientNameJohnDoe()
 
@@ -338,6 +338,101 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
       .expectHeader(Tag.PatientName)
       .expectValueChunk()
       .expectDicomComplete()
+  }
+
+  "The context validation flow" should "accept DICOM data that corresponds to the given contexts" in {
+    val contexts = Seq(ValidationContext(UID.CTImageStorage, UID.ExplicitVRLittleEndian))
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ fmiVersion() ++ mediaStorageSOPClassUID() ++ mediaStorageSOPInstanceUID() ++ transferSyntaxUID()
+
+    val source = Source.single(bytes)
+      .via(parseFlow)
+      .via(validateContextFlow(contexts))
+
+    source.runWith(TestSink.probe[DicomPart])
+        .expectPreamble()
+        .expectHeader(Tag.FileMetaInformationGroupLength)
+        .expectValueChunk()
+        .expectHeader(Tag.FileMetaInformationVersion)
+        .expectValueChunk()
+        .expectHeader(Tag.MediaStorageSOPClassUID)
+        .expectValueChunk()
+        .expectHeader(Tag.MediaStorageSOPInstanceUID)
+        .expectValueChunk()
+        .expectHeader(Tag.TransferSyntaxUID)
+        .expectValueChunk()
+        .expectDicomComplete()
+  }
+
+  it should "accept SOP Class UID specified in either file meta information or in the dataset" in {
+    val contexts = Seq(ValidationContext(UID.CTImageStorage, UID.ExplicitVRLittleEndian))
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ fmiVersion() ++ mediaStorageSOPInstanceUID() ++ transferSyntaxUID() ++ sopClassUID()
+
+    val source = Source.single(bytes)
+      .via(parseFlow)
+      .via(validateContextFlow(contexts))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectPreamble()
+      .expectHeader(Tag.FileMetaInformationGroupLength)
+      .expectValueChunk()
+      .expectHeader(Tag.FileMetaInformationVersion)
+      .expectValueChunk()
+      .expectHeader(Tag.MediaStorageSOPInstanceUID)
+      .expectValueChunk()
+      .expectHeader(Tag.TransferSyntaxUID)
+      .expectValueChunk()
+      .expectHeader(Tag.SOPClassUID)
+      .expectValueChunk()
+      .expectDicomComplete()
+  }
+
+  it should "not accept DICOM data that does not correspond to the given contexts" in {
+    val contexts = Seq(ValidationContext(UID.CTImageStorage, "1.2.840.10008.1.2.2"))
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ fmiVersion() ++ mediaStorageSOPClassUID() ++ mediaStorageSOPInstanceUID() ++ transferSyntaxUID()
+
+    val source = Source.single(bytes)
+      .via(parseFlow)
+      .via(validateContextFlow(contexts))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectDicomError()
+  }
+
+
+  it should "not accept a file with no SOPCLassUID if a context is given" in {
+    val contexts = Seq(ValidationContext(UID.CTImageStorage, UID.ExplicitVRLittleEndian))
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ fmiVersion() ++ mediaStorageSOPInstanceUID() ++ transferSyntaxUID()
+
+    val source = Source.single(bytes)
+      .via(parseFlow)
+      .via(validateContextFlow(contexts))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectDicomError()
+  }
+
+  it should "not accept a file with no TransferSyntaxUID if a context is given" in {
+    val contexts = Seq(ValidationContext(UID.CTImageStorage, UID.ExplicitVRLittleEndian))
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ fmiVersion() ++ mediaStorageSOPClassUID() ++ mediaStorageSOPInstanceUID()
+
+    val source = Source.single(bytes)
+      .via(parseFlow)
+      .via(validateContextFlow(contexts))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectDicomError()
+  }
+
+  it should "not accept DICOM data if no valid contexts are given" in {
+    val contexts = Seq()
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ fmiVersion() ++ mediaStorageSOPClassUID() ++ mediaStorageSOPInstanceUID() ++ transferSyntaxUID()
+
+    val source = Source.single(bytes)
+      .via(parseFlow)
+      .via(validateContextFlow(contexts))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectDicomError()
   }
 
   "The deflate flow" should "recreate the dicom parts of a dataset which has been deflated and inflated again" in {

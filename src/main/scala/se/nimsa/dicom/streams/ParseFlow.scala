@@ -70,7 +70,7 @@ class ParseFlow private(chunkSize: Int, stopTag: Option[Int]) extends ByteString
           ParseResult(maybePreamble, FinishedParser)
         else {
           reader.ensure(8)
-          dicomInfo(reader.remainingData.take(8)).map { info =>
+          headerInfo(reader.remainingData.take(8)).map { info =>
             val nextState = if (info.hasFmi)
               InFmiHeader(FmiHeaderState(None, info.bigEndian, info.explicitVR, info.hasFmi, 0, None))
             else

@@ -124,10 +124,10 @@ object DicomFlows {
     })
 
   /**
-    * Filter a stream of DICOM parts based on the last seen element header and the associated keep condition. All other
+    * Filter a stream of DICOM elements based on its element header and the associated keep condition. All other
     * parts are not filtered out (preamble, sequences, items, delimitations etc).
     *
-    * @param keepCondition function that determines if DICOM parts should be discarded (condition false) based on the
+    * @param keepCondition function that determines if an element should be discarded (condition false) based on the
     *                      most recently encountered element header
     * @return the filtered flow
     */
@@ -151,15 +151,30 @@ object DicomFlows {
     * A flow which passes on the input bytes unchanged, but fails for non-DICOM files, determined by the first
     * element found
     */
-  val validateFlow: Flow[ByteString, ByteString, NotUsed] =
-    Flow[ByteString].via(new ValidateFlow(None, drainIncoming = false))
+  def validateFlow(drainIncoming: Boolean = false): Flow[ByteString, ByteString, NotUsed] =
+    Flow[ByteString].via(new ValidateFlow(drainIncoming))
 
   /**
-    * A flow which passes on the input bytes unchanged, fails for non-DICOM files, validates for DICOM files with supported
-    * Media Storage SOP Class UID, Transfer Syntax UID combination passed as context
+    * A flow which passes on the input parts unchanged, but fails for DICOM files which has a presentation context
+    * (combination of Media Storage SOP Class UID and Transfer Syntax UID) that is not present in the input sequence of
+    * allowed contexts.
+    *
+    * @param contexts valid contexts
+    * @return the flow unchanged unless interrupted by failing the context check
     */
-  def validateFlowWithContext(contexts: Seq[ValidationContext], drainIncoming: Boolean): Flow[ByteString, ByteString, NotUsed] =
-    Flow[ByteString].via(new ValidateFlow(Some(contexts), drainIncoming))
+  def validateContextFlow(contexts: Seq[ValidationContext]): Flow[DicomPart, DicomPart, NotUsed] =
+    collectFlow(Set(TagPath.fromTag(Tag.MediaStorageSOPClassUID), TagPath.fromTag(Tag.TransferSyntaxUID), TagPath.fromTag(Tag.SOPClassUID)), "validatecontext")
+      .mapConcat {
+        case e: ElementsPart if e.label == "validatecontext" =>
+          val scuid = e.elements.getString(Tag.MediaStorageSOPClassUID).orElse(e.elements.getString(Tag.SOPClassUID)).getOrElse("<empty>")
+          val tsuid = e.elements.getString(Tag.TransferSyntaxUID).getOrElse("<empty>")
+          if (contexts.contains(ValidationContext(scuid, tsuid)))
+            Nil
+          else
+            throw new DicomStreamException(s"The presentation context [SOPClassUID = $scuid, TransferSyntaxUID = $tsuid] is not supported")
+        case p =>
+          p :: Nil
+      }
 
   /**
     * A flow which deflates the dataset but leaves the meta information intact. Useful when the dicom parsing in `DicomParseFlow`

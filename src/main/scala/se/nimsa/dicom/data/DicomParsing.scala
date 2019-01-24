@@ -26,145 +26,47 @@ import se.nimsa.dicom.data.VR.VR
 import se.nimsa.dicom.streams.DicomStreamException
 
 /**
-  * Helper methods for parsing binary DICOM data to dicom parts and other types.
+  * Helper methods for parsing binary DICOM data to DICOM parts and other types.
   */
 trait DicomParsing {
 
   val dicomPreambleLength = 132
 
-  case class Info(bigEndian: Boolean, explicitVR: Boolean, hasFmi: Boolean) {
-    /**
-      * Best guess for transfer syntax.
-      *
-      * @return transfer syntax uid value
-      */
-    def assumedTransferSyntax: String = if (explicitVR) {
-      if (bigEndian) {
-        UID.ExplicitVRBigEndianRetired
-      } else {
-        UID.ExplicitVRLittleEndian
-      }
-    } else {
-      UID.ImplicitVRLittleEndian
-    }
-  }
+  case class Info(tag: Int, vr: VR, bigEndian: Boolean, explicitVR: Boolean, hasFmi: Boolean)
 
-  case class Element(tag: Int, vr: VR, length: Long, value: ByteString)
+  def headerInfo(data: ByteString): Option[Info] =
+    headerInfo(data, assumeBigEndian = false)
+      .orElse(headerInfo(data, assumeBigEndian = true))
 
-  def dicomInfo(data: ByteString): Option[Info] =
-    dicomInfo(data, assumeBigEndian = false)
-      .orElse(dicomInfo(data, assumeBigEndian = true))
-
-  private def dicomInfo(data: ByteString, assumeBigEndian: Boolean): Option[Info] = {
-    val tag1 = bytesToTag(data, assumeBigEndian)
-    val vr = Dictionary.vrOf(tag1)
+  private def headerInfo(data: ByteString, assumeBigEndian: Boolean): Option[Info] = {
+    val tag = bytesToTag(data, assumeBigEndian)
+    val vr = Dictionary.vrOf(tag)
     if (vr == VR.UN)
       None
     else {
       if (bytesToVR(data.drop(4)) == vr.code)
         Some(Info(
+          tag,
+          vr,
           bigEndian = assumeBigEndian,
           explicitVR = true,
-          hasFmi = isFileMetaInformation(tag1)))
+          hasFmi = isFileMetaInformation(tag)))
       else if (intToUnsignedLong(bytesToInt(data.drop(4), assumeBigEndian)) >= 0)
         if (assumeBigEndian)
           throw new DicomStreamException("Implicit VR Big Endian encoded DICOM Stream")
         else
           Some(Info(
+            tag,
+            vr,
             bigEndian = false,
             explicitVR = false,
-            hasFmi = isFileMetaInformation(tag1)))
+            hasFmi = isFileMetaInformation(tag)))
       else
         None
     }
   }
 
-  // parse dicom UID element from buffer
-  def parseUIDElement(data: ByteString, explicitVR: Boolean, assumeBigEndian: Boolean): Element = {
-    def valueWithoutPadding(value: ByteString) =
-      if (value.takeRight(1).contains(0.toByte)) {
-        value.dropRight(1)
-      } else {
-        value
-      }
-
-    val maybeHeader = if (explicitVR) {
-      readHeaderExplicitVR(data, assumeBigEndian)
-    } else {
-      readHeaderImplicitVR(data)
-    }
-
-    val (tag, vr, headerLength, length) = maybeHeader
-      .getOrElse(throw new DicomStreamException("Could not parse DICOM data element from stream."))
-    val value = data.drop(headerLength).take(length.toInt)
-    Element(tag, vr, length, valueWithoutPadding(value))
-  }
-
   def lengthToLong(length: Int): Long = if (length == indeterminateLength) -1L else intToUnsignedLong(length)
-
-  // TODO remove once validation flow has been rewritten.
-  def readHeader(buffer: ByteString, assumeBigEndian: Boolean, explicitVR: Boolean): Option[(Int, VR, Int, Long)] = {
-    if (explicitVR) {
-      readHeaderExplicitVR(buffer, assumeBigEndian)
-    } else {
-      readHeaderImplicitVR(buffer)
-    }
-  }
-
-  /**
-    * Read header of data element for explicit VR
-    *
-    * @param buffer          current buffer
-    * @param assumeBigEndian true if big endian, false otherwise
-    * @return
-    */
-  def readHeaderExplicitVR(buffer: ByteString, assumeBigEndian: Boolean): Option[(Int, VR, Int, Long)] = {
-    if (buffer.size >= 8) {
-      val (tag, vr) = tagVr(buffer, assumeBigEndian, explicitVr = true)
-      if (vr == null) {
-        // special case: sequences, length might be indeterminate '0xFFFFFFFF'
-        val valueLength = bytesToInt(buffer.drop(4), assumeBigEndian)
-        if (valueLength == indeterminateLength) {
-          // length of sequence indeterminate, not supported
-          None
-        } else {
-          Some((tag, vr, 8, lengthToLong(bytesToInt(buffer.drop(4), assumeBigEndian))))
-        }
-      } else if (vr.headerLength == 8) {
-        Some((tag, vr, 8, lengthToLong(bytesToUShort(buffer.drop(6), assumeBigEndian))))
-      } else {
-        if (buffer.size >= 12) {
-          Some((tag, vr, 12, lengthToLong(bytesToInt(buffer.drop(8), assumeBigEndian))))
-        } else {
-          None
-        }
-      }
-    } else {
-      None
-    }
-  }
-
-  /**
-    * Read header of data element for implicit VR.
-    *
-    * @param buffer current buffer
-    * @return
-    */
-  def readHeaderImplicitVR(buffer: ByteString): Option[(Int, VR, Int, Long)] =
-    if (buffer.size >= 8) {
-      val assumeBigEndian = false // implicit VR
-      val tag = bytesToTag(buffer, assumeBigEndian)
-      val vr = Dictionary.vrOf(tag)
-      val valueLength = bytesToInt(buffer.drop(4), assumeBigEndian)
-      if (tag == 0xFFFEE000 || tag == 0xFFFEE00D || tag == 0xFFFEE0DD)
-        if (valueLength == indeterminateLength)
-          None // special case: sequences, with indeterminate length not supported
-        else
-          Some((tag, null, 8, lengthToLong(valueLength)))
-      else
-        Some((tag, vr, 8, lengthToLong(valueLength)))
-    } else
-      None
 
   def tagVr(data: ByteString, bigEndian: Boolean, explicitVr: Boolean): (Int, VR) = {
     val tag = bytesToTag(data, bigEndian)
@@ -177,13 +79,10 @@ trait DicomParsing {
   }
 
   def isPreamble(data: ByteString): Boolean = data.length >= dicomPreambleLength && data.slice(dicomPreambleLength - 4, dicomPreambleLength) == ByteString('D', 'I', 'C', 'M')
-  def isHeader(data: ByteString): Boolean = dicomInfo(data).isDefined
-
-  def isSequenceDelimiter(tag: Int): Boolean = groupNumber(tag) == 0xFFFE
+  def isHeader(data: ByteString): Boolean = headerInfo(data).isDefined
   def isFileMetaInformation(tag: Int): Boolean = (tag & 0xFFFF0000) == 0x00020000
   def isPrivate(tag: Int): Boolean = groupNumber(tag) % 2 == 1
   def isGroupLength(tag: Int): Boolean = elementNumber(tag) == 0
-
   def isDeflated(transferSyntaxUid: String): Boolean = transferSyntaxUid == UID.DeflatedExplicitVRLittleEndian || transferSyntaxUid == UID.JPIPReferencedDeflate
 
 
@@ -312,9 +211,7 @@ trait DicomParsing {
     Option(PatientName(comps.head, comps(1), comps(2), comps(3), comps(4)))
   }
 
-  def parseURI(s: String): Option[URI] = try Option(new URI(s)) catch {
-    case _: Throwable => None
-  }
+  def parseURI(s: String): Option[URI] = try Option(new URI(s)) catch { case _: Throwable => None }
 
 }
 
