@@ -154,7 +154,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
     val source = Source.single(bytes)
       .via(ParseFlow())
-      .via(tagFilter(_ => false)(tagPath => !DicomParsing.isFileMetaInformation(tagPath.tag)))
+      .via(tagFilter(_ => false)(tagPath => !isFileMetaInformation(tagPath.tag)))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.StudyDate)
@@ -166,7 +166,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val file = new File(getClass.getResource("../data/test001.dcm").toURI)
     val source = FileIO.fromPath(file.toPath)
       .via(ParseFlow())
-      .via(tagFilter(_ => false)(tagPath => !DicomParsing.isFileMetaInformation(tagPath.tag)))
+      .via(tagFilter(_ => false)(tagPath => !isFileMetaInformation(tagPath.tag)))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.SpecificCharacterSet)
@@ -178,7 +178,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
     val file = new File(getClass.getResource("../data/test001.dcm").toURI)
     val source = FileIO.fromPath(file.toPath)
       .via(ParseFlow())
-      .via(tagFilter(_ => true)(tagPath => !DicomParsing.isPrivate(tagPath.tag)))
+      .via(tagFilter(_ => true)(tagPath => !isPrivate(tagPath.tag)))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectPreamble()

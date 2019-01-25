@@ -1,10 +1,11 @@
 package se.nimsa.dicom.data
 
 import java.net.URI
-import java.time.{LocalDate, LocalTime, ZoneOffset, ZonedDateTime}
+import java.time.format.{DateTimeFormatterBuilder, SignStyle}
+import java.time.temporal.ChronoField._
+import java.time._
 
 import akka.util.ByteString
-import se.nimsa.dicom.data.DicomParsing._
 import se.nimsa.dicom.data.VR._
 
 /**
@@ -13,6 +14,7 @@ import se.nimsa.dicom.data.VR._
   * @param bytes     the binary data of this value
   */
 case class Value private[data](bytes: ByteString) {
+  import Value._
 
   val length: Int = bytes.length
 
@@ -253,6 +255,8 @@ case class Value private[data](bytes: ByteString) {
 
 object Value {
 
+  final val multiValueDelimiterRegex = """\\"""
+
   private def combine(vr: VR, values: Seq[ByteString]): ByteString = vr match {
     case AT | FL | FD | SL | SS | UL | US | OB | OW | OL | OF | OD => values.reduce(_ ++ _)
     case _ => if (values.isEmpty) ByteString.empty else values.tail.foldLeft(values.head)((bytes, b) => bytes ++ ByteString('\\') ++ b)
@@ -387,4 +391,121 @@ object Value {
     case _ => throw new IllegalArgumentException(s"Cannot create value of VR $vr from URI")
   }
   def fromURI(vr: VR, value: URI): Value = apply(vr, uriBytes(vr, value))
+
+  // parsing of value bytes for various value representations to higher types
+
+  def split(bytes: ByteString, size: Int): Seq[ByteString] = bytes.grouped(size).filter(_.length == size).toSeq
+  def split(s: String): Seq[String] = s.split(multiValueDelimiterRegex)
+
+  def trim(s: String): String = s.trim
+  def trimPadding(s: String, paddingByte: Byte): String = {
+    var index = s.length - 1
+    while (index >= 0 && s(index) <= paddingByte)
+      index -= 1
+    val n = s.length - 1 - index
+    if (n > 0) s.dropRight(n) else s
+  }
+
+  def parseAT(value: ByteString, bigEndian: Boolean): Seq[Int] = split(value, 4).map(b => bytesToTag(b, bigEndian))
+  def parseSL(value: ByteString, bigEndian: Boolean): Seq[Int] = split(value, 4).map(bytesToInt(_, bigEndian))
+  def parseUL(value: ByteString, bigEndian: Boolean): Seq[Long] = parseSL(value, bigEndian).map(intToUnsignedLong)
+  def parseSS(value: ByteString, bigEndian: Boolean): Seq[Short] = split(value, 2).map(bytesToShort(_, bigEndian))
+  def parseUS(value: ByteString, bigEndian: Boolean): Seq[Int] = parseSS(value, bigEndian).map(shortToUnsignedInt)
+  def parseFL(value: ByteString, bigEndian: Boolean): Seq[Float] = split(value, 4).map(bytesToFloat(_, bigEndian))
+  def parseFD(value: ByteString, bigEndian: Boolean): Seq[Double] = split(value, 8).map(bytesToDouble(_, bigEndian))
+  def parseDS(value: ByteString): Seq[Double] = split(value.utf8String).map(trim).flatMap(s => try Option(java.lang.Double.parseDouble(s)) catch {
+    case _: Throwable => None
+  })
+  def parseIS(value: ByteString): Seq[Long] = split(value.utf8String).map(trim).flatMap(s => try Option(java.lang.Long.parseLong(s)) catch {
+    case _: Throwable => None
+  })
+  def parseDA(value: ByteString): Seq[LocalDate] = split(value.utf8String).flatMap(parseDate)
+  def parseTM(value: ByteString): Seq[LocalTime] = split(value.utf8String).flatMap(parseTime)
+  def parseDT(value: ByteString, zoneOffset: ZoneOffset): Seq[ZonedDateTime] = split(value.utf8String).flatMap(parseDateTime(_, zoneOffset))
+  def parsePN(string: String): Seq[PatientName] = split(string).map(trimPadding(_, VR.PN.paddingByte)).flatMap(parsePatientName)
+  def parsePN(value: ByteString, characterSets: CharacterSets): Seq[PatientName] = parsePN(characterSets.decode(VR.PN, value))
+  def parseUR(string: String): Option[URI] = parseURI(string)
+  def parseUR(value: ByteString): Option[URI] = parseUR(trimPadding(value.utf8String, VR.UR.paddingByte))
+
+  // parsing of strings to more specific types
+
+  final val dateFormat = new DateTimeFormatterBuilder()
+    .appendValue(YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
+    .appendPattern("['.']MM['.']dd")
+    .toFormatter
+
+  final val timeFormat = new DateTimeFormatterBuilder()
+    .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.EXCEEDS_PAD)
+    .appendPattern("[[':']mm[[':']ss[")
+    .appendFraction(MICRO_OF_SECOND, 1, 6, true)
+    .appendPattern("]]]")
+    .parseDefaulting(MINUTE_OF_HOUR, 0)
+    .parseDefaulting(SECOND_OF_MINUTE, 0)
+    .parseDefaulting(MICRO_OF_SECOND, 0)
+    .toFormatter
+
+  final val dateTimeFormat = new DateTimeFormatterBuilder()
+    .appendValue(YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
+    .appendPattern("[MM[dd[HH[mm[ss[")
+    .appendFraction(MICRO_OF_SECOND, 1, 6, true)
+    .appendPattern("]]]]]]")
+    .parseDefaulting(MONTH_OF_YEAR, 1)
+    .parseDefaulting(DAY_OF_MONTH, 1)
+    .parseDefaulting(HOUR_OF_DAY, 0)
+    .parseDefaulting(MINUTE_OF_HOUR, 0)
+    .parseDefaulting(SECOND_OF_MINUTE, 0)
+    .parseDefaulting(MICRO_OF_SECOND, 0)
+    .toFormatter
+
+  final val dateTimeZoneFormat = new DateTimeFormatterBuilder()
+    .append(dateTimeFormat)
+    .appendPattern("[Z]")
+    .toFormatter
+
+  final val dateFormatForEncoding = new DateTimeFormatterBuilder()
+    .appendValue(YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
+    .appendPattern("MMdd")
+    .toFormatter
+
+  final val timeFormatForEncoding = new DateTimeFormatterBuilder()
+    .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.EXCEEDS_PAD)
+    .appendPattern("mmss")
+    .toFormatter
+
+  def formatDate(date: LocalDate): String = date.format(dateFormatForEncoding)
+
+  def formatTime(time: LocalTime): String = time.format(timeFormatForEncoding)
+
+  def formatDateTime(dateTime: ZonedDateTime): String = dateTime.format(dateTimeZoneFormat)
+
+  def parseDate(s: String): Option[LocalDate] =
+    try Option(LocalDate.parse(s.trim, dateFormat)) catch {
+      case _: Throwable => None
+    }
+
+  def parseTime(s: String): Option[LocalTime] =
+    try Option(LocalTime.parse(s.trim, timeFormat)) catch {
+      case _: Throwable => None
+    }
+
+  def parseDateTime(s: String, zoneOffset: ZoneOffset): Option[ZonedDateTime] = {
+    val trimmed = s.trim
+    try Option(ZonedDateTime.parse(trimmed, dateTimeZoneFormat)) catch {
+      case _: Throwable => try Option(LocalDateTime.parse(trimmed, dateTimeFormat).atZone(zoneOffset)) catch {
+        case _: Throwable => None
+      }
+    }
+  }
+
+  def parsePatientName(s: String): Option[PatientName] = {
+    def ensureLength(ss: Seq[String], n: Int) = ss ++ Seq.fill(math.max(0, n - ss.length))("")
+
+    val comps = ensureLength(s.split("""\^"""), 5)
+      .map(s => ensureLength(s.split("="), 3).map(trim))
+      .map(c => ComponentGroup(c.head, c(1), c(2)))
+
+    Option(PatientName(comps.head, comps(1), comps(2), comps(3), comps(4)))
+  }
+
+  def parseURI(s: String): Option[URI] = try Option(new URI(s)) catch { case _: Throwable => None }
 }

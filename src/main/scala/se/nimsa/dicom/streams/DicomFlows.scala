@@ -24,7 +24,6 @@ import akka.stream.javadsl.MergePreferred
 import akka.stream.scaladsl.{Compression, Flow, GraphDSL, Partition, Source}
 import akka.util.ByteString
 import se.nimsa.dicom.data.CharacterSets.utf8Charset
-import se.nimsa.dicom.data.DicomParsing.defaultCharacterSet
 import se.nimsa.dicom.data.DicomParts._
 import se.nimsa.dicom.data.Elements.ValueElement
 import se.nimsa.dicom.data.TagPath.EmptyTagPath
@@ -86,7 +85,7 @@ object DicomFlows {
     * @return the associated filter Flow
     */
   def groupLengthDiscardFilter: Flow[DicomPart, DicomPart, NotUsed] =
-    tagFilter(_ => true)(tagPath => !DicomParsing.isGroupLength(tagPath.tag) || DicomParsing.isFileMetaInformation(tagPath.tag))
+    tagFilter(_ => true)(tagPath => !isGroupLength(tagPath.tag) || isFileMetaInformation(tagPath.tag))
 
   /**
     * Discards the file meta information.
@@ -94,7 +93,7 @@ object DicomFlows {
     * @return the associated filter Flow
     */
   def fmiDiscardFilter: Flow[DicomPart, DicomPart, NotUsed] =
-    tagFilter(_ => false)(tagPath => !DicomParsing.isFileMetaInformation(tagPath.tag))
+    tagFilter(_ => false)(tagPath => !isFileMetaInformation(tagPath.tag))
 
   /**
     * Filter a stream of DICOM parts leaving only those for which the supplied tag condition is `true`. As the stream of
@@ -146,13 +145,6 @@ object DicomFlows {
           part :: Nil
       }
     })
-
-  /**
-    * A flow which passes on the input bytes unchanged, but fails for non-DICOM files, determined by the first
-    * element found
-    */
-  def validateFlow(drainIncoming: Boolean = false): Flow[ByteString, ByteString, NotUsed] =
-    Flow[ByteString].via(new ValidateFlow(drainIncoming))
 
   /**
     * A flow which passes on the input parts unchanged, but fails for DICOM files which has a presentation context
@@ -274,8 +266,8 @@ object DicomFlows {
     * information group length attribute followed by remaining FMI.
     */
   def fmiGroupLengthFlow: Flow[DicomPart, DicomPart, NotUsed] = Flow[DicomPart]
-    .via(collectFlow(tagPath => tagPath.isRoot && DicomParsing.isFileMetaInformation(tagPath.tag), tagPath => !DicomParsing.isFileMetaInformation(tagPath.tag), "fmigrouplength", 0))
-    .via(tagFilter(_ => true)(tagPath => !DicomParsing.isFileMetaInformation(tagPath.tag)))
+    .via(collectFlow(tagPath => tagPath.isRoot && isFileMetaInformation(tagPath.tag), tagPath => !isFileMetaInformation(tagPath.tag), "fmigrouplength", 0))
+    .via(tagFilter(_ => true)(tagPath => !isFileMetaInformation(tagPath.tag)))
     .concat(Source.single(DicomEndMarker))
     .statefulMapConcat {
 

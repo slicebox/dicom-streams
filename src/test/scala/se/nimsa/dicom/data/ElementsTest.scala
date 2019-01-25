@@ -9,7 +9,6 @@ import akka.stream.scaladsl.Source
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{Assertion, BeforeAndAfterAll, FlatSpecLike, Matchers}
-import se.nimsa.dicom.data.DicomParsing.defaultCharacterSet
 import se.nimsa.dicom.data.DicomParts.HeaderPart
 import se.nimsa.dicom.data.Elements._
 import se.nimsa.dicom.data.TagPath.EmptyTagPath
