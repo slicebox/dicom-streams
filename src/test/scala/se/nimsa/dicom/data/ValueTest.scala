@@ -6,7 +6,8 @@ import akka.util.ByteString
 import org.scalatest.{FlatSpec, Matchers}
 
 class ValueTest extends FlatSpec with Matchers {
-  
+  import Value._
+
   "Formatting bytes into multiple strings" should "return empty sequence for empty byte string" in {
     Value.empty.toStrings(VR.SH) shouldBe Seq.empty
   }
@@ -529,4 +530,75 @@ class ValueTest extends FlatSpec with Matchers {
     Value.fromPatientName(VR.PN, pn1).toString(VR.PN) shouldBe Some("family=i=p^given=i=p^middle=i=p^prefix=i=p^suffix=i=p")
   }
 
+  "PatientName" should "be parsed from strings" in {
+    val pns = parsePN("John Doe")
+    pns should have length 1
+    pns.head.familyName.alphabetic shouldBe "John Doe"
+    pns.head.toString shouldBe "John Doe"
+  }
+
+  it should "parse into family, middle and given names" in {
+    val pns = parsePN("Family^Given^Middle^Prefix^Suffix")
+    pns should have length 1
+    pns.head.familyName.alphabetic shouldBe "Family"
+    pns.head.givenName.alphabetic shouldBe "Given"
+    pns.head.middleName.alphabetic shouldBe "Middle"
+    pns.head.prefix.alphabetic shouldBe "Prefix"
+    pns.head.suffix.alphabetic shouldBe "Suffix"
+  }
+
+  it should "parse empty components" in {
+    val pns = parsePN("Family^Given^^Prefix^")
+    pns should have length 1
+    pns.head.familyName.alphabetic shouldBe "Family"
+    pns.head.givenName.alphabetic shouldBe "Given"
+    pns.head.middleName.alphabetic shouldBe empty
+    pns.head.prefix.alphabetic shouldBe "Prefix"
+    pns.head.suffix.alphabetic shouldBe empty
+  }
+
+  it should "parse components into alphabetic, ideographic and phonetic elements" in {
+    val pns = parsePN("F-Alphabetic=F-Ideographic=F-Phonetic^Given^==M-Phonetic^P-Alphabetic==P-Phonetic^")
+    pns should have length 1
+    pns.head.familyName.alphabetic shouldBe "F-Alphabetic"
+    pns.head.familyName.ideographic shouldBe "F-Ideographic"
+    pns.head.familyName.phonetic shouldBe "F-Phonetic"
+
+    pns.head.givenName.alphabetic shouldBe "Given"
+    pns.head.givenName.ideographic shouldBe empty
+    pns.head.givenName.phonetic shouldBe empty
+
+    pns.head.middleName.alphabetic shouldBe empty
+    pns.head.middleName.ideographic shouldBe empty
+    pns.head.middleName.phonetic shouldBe "M-Phonetic"
+
+    pns.head.prefix.alphabetic shouldBe "P-Alphabetic"
+    pns.head.prefix.ideographic shouldBe empty
+    pns.head.prefix.phonetic shouldBe "P-Phonetic"
+
+    pns.head.suffix.alphabetic shouldBe empty
+    pns.head.suffix.ideographic shouldBe empty
+    pns.head.suffix.phonetic shouldBe empty
+  }
+
+  it should "parse multiple patient names" in {
+    val pns = parsePN("""Doe^John\Doe^Jane""")
+    pns should have length 2
+    pns.head.givenName.alphabetic shouldBe "John"
+    pns(1).givenName.alphabetic shouldBe "Jane"
+  }
+
+  "A URI" should "be parsed from strings" in {
+    val uri = parseUR("https://example.com:8080/path")
+    uri shouldBe defined
+    uri.get.getHost shouldBe "example.com"
+    uri.get.getPort shouldBe 8080
+    uri.get.getPath shouldBe "/path"
+    uri.get.getScheme shouldBe "https"
+  }
+
+  it should "not accept malformed URIs" in {
+    val uri = parseUR("not < a > uri")
+    uri shouldBe empty
+  }
 }

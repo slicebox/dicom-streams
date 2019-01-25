@@ -24,7 +24,6 @@ import akka.stream.javadsl.MergePreferred
 import akka.stream.scaladsl.{Compression, Flow, GraphDSL, Partition, Source}
 import akka.util.ByteString
 import se.nimsa.dicom.data.CharacterSets.utf8Charset
-import se.nimsa.dicom.data.DicomParsing.defaultCharacterSet
 import se.nimsa.dicom.data.DicomParts._
 import se.nimsa.dicom.data.Elements.ValueElement
 import se.nimsa.dicom.data.TagPath.EmptyTagPath
@@ -86,7 +85,7 @@ object DicomFlows {
     * @return the associated filter Flow
     */
   def groupLengthDiscardFilter: Flow[DicomPart, DicomPart, NotUsed] =
-    tagFilter(_ => true)(tagPath => !DicomParsing.isGroupLength(tagPath.tag) || DicomParsing.isFileMetaInformation(tagPath.tag))
+    tagFilter(_ => true)(tagPath => !isGroupLength(tagPath.tag) || isFileMetaInformation(tagPath.tag))
 
   /**
     * Discards the file meta information.
@@ -94,7 +93,7 @@ object DicomFlows {
     * @return the associated filter Flow
     */
   def fmiDiscardFilter: Flow[DicomPart, DicomPart, NotUsed] =
-    tagFilter(_ => false)(tagPath => !DicomParsing.isFileMetaInformation(tagPath.tag))
+    tagFilter(_ => false)(tagPath => !isFileMetaInformation(tagPath.tag))
 
   /**
     * Filter a stream of DICOM parts leaving only those for which the supplied tag condition is `true`. As the stream of
@@ -124,10 +123,10 @@ object DicomFlows {
     })
 
   /**
-    * Filter a stream of DICOM parts based on the last seen element header and the associated keep condition. All other
+    * Filter a stream of DICOM elements based on its element header and the associated keep condition. All other
     * parts are not filtered out (preamble, sequences, items, delimitations etc).
     *
-    * @param keepCondition function that determines if DICOM parts should be discarded (condition false) based on the
+    * @param keepCondition function that determines if an element should be discarded (condition false) based on the
     *                      most recently encountered element header
     * @return the filtered flow
     */
@@ -148,18 +147,26 @@ object DicomFlows {
     })
 
   /**
-    * A flow which passes on the input bytes unchanged, but fails for non-DICOM files, determined by the first
-    * element found
+    * A flow which passes on the input parts unchanged, but fails for DICOM files which has a presentation context
+    * (combination of Media Storage SOP Class UID and Transfer Syntax UID) that is not present in the input sequence of
+    * allowed contexts.
+    *
+    * @param contexts valid contexts
+    * @return the flow unchanged unless interrupted by failing the context check
     */
-  val validateFlow: Flow[ByteString, ByteString, NotUsed] =
-    Flow[ByteString].via(new ValidateFlow(None, drainIncoming = false))
-
-  /**
-    * A flow which passes on the input bytes unchanged, fails for non-DICOM files, validates for DICOM files with supported
-    * Media Storage SOP Class UID, Transfer Syntax UID combination passed as context
-    */
-  def validateFlowWithContext(contexts: Seq[ValidationContext], drainIncoming: Boolean): Flow[ByteString, ByteString, NotUsed] =
-    Flow[ByteString].via(new ValidateFlow(Some(contexts), drainIncoming))
+  def validateContextFlow(contexts: Seq[ValidationContext]): Flow[DicomPart, DicomPart, NotUsed] =
+    collectFlow(Set(TagPath.fromTag(Tag.MediaStorageSOPClassUID), TagPath.fromTag(Tag.TransferSyntaxUID), TagPath.fromTag(Tag.SOPClassUID)), "validatecontext")
+      .mapConcat {
+        case e: ElementsPart if e.label == "validatecontext" =>
+          val scuid = e.elements.getString(Tag.MediaStorageSOPClassUID).orElse(e.elements.getString(Tag.SOPClassUID)).getOrElse("<empty>")
+          val tsuid = e.elements.getString(Tag.TransferSyntaxUID).getOrElse("<empty>")
+          if (contexts.contains(ValidationContext(scuid, tsuid)))
+            Nil
+          else
+            throw new DicomStreamException(s"The presentation context [SOPClassUID = $scuid, TransferSyntaxUID = $tsuid] is not supported")
+        case p =>
+          p :: Nil
+      }
 
   /**
     * A flow which deflates the dataset but leaves the meta information intact. Useful when the dicom parsing in `DicomParseFlow`
@@ -259,8 +266,8 @@ object DicomFlows {
     * information group length attribute followed by remaining FMI.
     */
   def fmiGroupLengthFlow: Flow[DicomPart, DicomPart, NotUsed] = Flow[DicomPart]
-    .via(collectFlow(tagPath => tagPath.isRoot && DicomParsing.isFileMetaInformation(tagPath.tag), tagPath => !DicomParsing.isFileMetaInformation(tagPath.tag), "fmigrouplength", 0))
-    .via(tagFilter(_ => true)(tagPath => !DicomParsing.isFileMetaInformation(tagPath.tag)))
+    .via(collectFlow(tagPath => tagPath.isRoot && isFileMetaInformation(tagPath.tag), tagPath => !isFileMetaInformation(tagPath.tag), "fmigrouplength", 0))
+    .via(tagFilter(_ => true)(tagPath => !isFileMetaInformation(tagPath.tag)))
     .concat(Source.single(DicomEndMarker))
     .statefulMapConcat {
 

@@ -26,9 +26,11 @@ import se.nimsa.dicom.data.VR.VR
 
 package object data {
 
-  val indeterminateLength = 0xFFFFFFFF
+  final val multiValueDelimiter = """\"""
 
-  private val hexDigits = Array('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F')
+  final val indeterminateLength = 0xFFFFFFFF
+
+  private final val hexDigits = Array('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F')
 
   def groupNumber(tag: Int): Int = tag >>> 16
   def elementNumber(tag: Int): Int = tag & '\uffff'
@@ -85,32 +87,39 @@ package object data {
     hexDigits(i >>> 28), hexDigits(i >>> 24 & 15), hexDigits(i >>> 20 & 15), hexDigits(i >>> 16 & 15),
     hexDigits(i >>> 12 & 15), hexDigits(i >>> 8 & 15), hexDigits(i >>> 4 & 15), hexDigits(i >>> 0 & 15)))
 
+  def lengthToLong(length: Int): Long = if (length == indeterminateLength) -1L else intToUnsignedLong(length)
+
   def padToEvenLength(bytes: ByteString, tag: Int): ByteString = padToEvenLength(bytes, Dictionary.vrOf(tag))
   def padToEvenLength(bytes: ByteString, vr: VR): ByteString = {
     val padding = if ((bytes.length & 1) != 0) ByteString(vr.paddingByte) else ByteString.empty
     bytes ++ padding
   }
 
-  val itemLE: ByteString = tagToBytesLE(Tag.Item) ++ intToBytesLE(indeterminateLength)
-  val itemBE: ByteString = tagToBytesBE(Tag.Item) ++ intToBytesBE(indeterminateLength)
+  final val itemLE: ByteString = tagToBytesLE(Tag.Item) ++ intToBytesLE(indeterminateLength)
+  final val itemBE: ByteString = tagToBytesBE(Tag.Item) ++ intToBytesBE(indeterminateLength)
   def item(bigEndian: Boolean = false): ByteString = if (bigEndian) itemBE else itemLE
   def item(length: Int): ByteString = tagToBytesLE(Tag.Item) ++ intToBytesLE(length)
   def item(length: Int, bigEndian: Boolean): ByteString = tagToBytes(Tag.Item, bigEndian) ++ intToBytes(length, bigEndian)
 
-  val zero4Bytes = ByteString(0, 0, 0, 0)
-  val itemDelimitationLE: ByteString = tagToBytesLE(Tag.ItemDelimitationItem) ++ zero4Bytes
-  val itemDelimitationBE: ByteString = tagToBytesBE(Tag.ItemDelimitationItem) ++ zero4Bytes
+  final val zero4Bytes = ByteString(0, 0, 0, 0)
+  final val itemDelimitationLE: ByteString = tagToBytesLE(Tag.ItemDelimitationItem) ++ zero4Bytes
+  final val itemDelimitationBE: ByteString = tagToBytesBE(Tag.ItemDelimitationItem) ++ zero4Bytes
   def itemDelimitation(bigEndian: Boolean = false): ByteString = if (bigEndian) itemDelimitationBE else itemDelimitationLE
 
-  val sequenceDelimitationLE: ByteString = tagToBytesLE(Tag.SequenceDelimitationItem) ++ zero4Bytes
-  val sequenceDelimitationBE: ByteString = tagToBytesBE(Tag.SequenceDelimitationItem) ++ zero4Bytes
+  final val sequenceDelimitationLE: ByteString = tagToBytesLE(Tag.SequenceDelimitationItem) ++ zero4Bytes
+  final val sequenceDelimitationBE: ByteString = tagToBytesBE(Tag.SequenceDelimitationItem) ++ zero4Bytes
   def sequenceDelimitation(bigEndian: Boolean = false): ByteString = if (bigEndian) sequenceDelimitationBE else sequenceDelimitationLE
 
-  // System time zone
+  // System time zone and default character set
   def systemZone: ZoneOffset = ZonedDateTime.now().getOffset
+  final val defaultCharacterSet: CharacterSets = CharacterSets.defaultOnly
+
+  def isFileMetaInformation(tag: Int): Boolean = (tag & 0xFFFF0000) == 0x00020000
+  def isPrivate(tag: Int): Boolean = groupNumber(tag) % 2 == 1
+  def isGroupLength(tag: Int): Boolean = elementNumber(tag) == 0
 
   // UID utility tools (from dcm4che UIDUtils)
-  private val uuidRoot = "2.25"
+  private final val uuidRoot = "2.25"
   private def toUID(root: String, uuid: UUID) = {
     val uuidBytes = ByteString(0) ++
       longToBytesBE(uuid.getMostSignificantBits) ++

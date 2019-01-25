@@ -1,7 +1,5 @@
 package se.nimsa.dicom.data
 
-import se.nimsa.dicom.data.DicomParsing.parsePN
-
 case class ComponentGroup(alphabetic: String, ideographic: String, phonetic: String) {
   override def toString: String = s"$alphabetic=$ideographic=$phonetic".replaceAll("=+$", "")
 }
@@ -11,5 +9,5 @@ case class PatientName(familyName: ComponentGroup, givenName: ComponentGroup, mi
 }
 
 object PatientName {
-  def parse(s: String): Seq[PatientName] = parsePN(s)
+  def parse(s: String): Seq[PatientName] = Value.parsePN(s)
 }

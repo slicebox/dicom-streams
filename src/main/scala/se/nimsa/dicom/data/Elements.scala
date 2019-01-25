@@ -7,7 +7,6 @@ import java.util
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Source, StreamConverters}
 import akka.util.ByteString
-import se.nimsa.dicom.data.DicomParsing.{Element => _, _}
 import se.nimsa.dicom.data.DicomParts._
 import se.nimsa.dicom.data.Elements.{ValueElement, _}
 import se.nimsa.dicom.data.TagPath._
@@ -482,6 +481,11 @@ object Elements {
     groupLength :: fmiElements
   }
 
+  def parseZoneOffset(s: String): Option[ZoneOffset] =
+    try Option(ZoneOffset.of(s)) catch {
+      case _: Throwable => None
+    }
+
   /**
     * A complete DICOM element, e.g. a standard value element, a sequence start marker, a sequence delimiation marker or
     * a fragments start marker.
@@ -519,7 +523,7 @@ object Elements {
       HeaderPart(tag, vr, length, isFileMetaInformation(tag), bigEndian, explicitVR) :: ValueChunk(bigEndian, value.bytes, last = true) :: Nil
     override def toElements: List[Element] = this :: Nil
     override def toString: String = {
-      val strings = value.toStrings(vr, bigEndian, CharacterSets.defaultOnly)
+      val strings = value.toStrings(vr, bigEndian, defaultCharacterSet)
       val s = strings.mkString(multiValueDelimiter)
       val vm = strings.length.toString
       s"ValueElement(${tagToString(tag)} $vr [$s] # $length, $vm ${Dictionary.keywordOf(tag)})"
@@ -710,7 +714,7 @@ object Elements {
   /**
     * A builder for performant creation of Elements.
     */
-  class ElementsBuilder private[Elements](var characterSets: CharacterSets = CharacterSets.defaultOnly, var zoneOffset: ZoneOffset = systemZone) {
+  class ElementsBuilder private[Elements](var characterSets: CharacterSets = defaultCharacterSet, var zoneOffset: ZoneOffset = systemZone) {
     val data: ArrayBuffer[ElementSet] = ArrayBuffer.empty
     def +=(element: ElementSet): ElementsBuilder = {
       element match {
