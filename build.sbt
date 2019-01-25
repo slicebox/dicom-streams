@@ -2,9 +2,9 @@ import sbt.IO
 import DicomSourceGenerators._
 
 name := "dicom-streams"
-version := "0.7-SNAPSHOT"
+version := "0.7"
 organization := "se.nimsa"
-scalaVersion := "2.12.7"
+scalaVersion := "2.12.8"
 scalacOptions := Seq("-encoding", "UTF-8", "-Xlint", "-deprecation", "-unchecked", "-feature", "-target:jvm-1.8")
 scalacOptions in(Compile, doc) ++= Seq(
   "-no-link-warnings" // Suppresses problems with Scaladoc @throws links
