@@ -171,7 +171,6 @@ class ParseFlow private(chunkSize: Int, stopTag: Option[Int]) extends ByteString
     case class InDatasetHeader(state: DatasetHeaderState) extends DicomParseStep {
       private def readDatasetHeader(reader: ByteReader, state: DatasetHeaderState): Option[DicomPart] = {
         val (tag, vr, headerLength, valueLength) = readHeader(reader, state)
-        // println(s"$tag $vr $headerLength $valueLength")
         if (stopTag.isDefined && tag >= stopTag.get)
           None
         else if (vr != null) {

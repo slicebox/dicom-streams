@@ -19,9 +19,7 @@ package se.nimsa.dicom.streams
 import java.util.zip.Deflater
 
 import akka.NotUsed
-import akka.stream.FlowShape
-import akka.stream.javadsl.MergePreferred
-import akka.stream.scaladsl.{Compression, Flow, GraphDSL, Partition, Source}
+import akka.stream.scaladsl.{Flow, Source}
 import akka.util.ByteString
 import se.nimsa.dicom.data.CharacterSets.utf8Charset
 import se.nimsa.dicom.data.DicomParts._
@@ -180,32 +178,66 @@ object DicomFlows {
     * @return the associated `DicomPart` `Flow`
     */
   val deflateDatasetFlow: Flow[DicomPart, DicomPart, NotUsed] =
-    Flow.fromGraph(GraphDSL.create() { implicit builder =>
-      import GraphDSL.Implicits._
+    Flow[DicomPart]
+      .concat(Source.single(DicomEndMarker))
+      .statefulMapConcat {
+        () =>
+          var inFmi = false
+          var collectingTs = false
+          var tsBytes = ByteString.empty
+          var shouldDeflate = false
+          val buffer = new Array[Byte](2048)
+          val deflater = new Deflater(-1, true)
 
-      val decider = builder.add(Flow[DicomPart]
-        .statefulMapConcat(() => {
-          var route = 0
-
-          {
-            case part: HeaderPart if !part.isFmi =>
-              route = 1
-              (part, route) :: Nil
-            case part => (part, route) :: Nil
+          def deflate(dicomPart: DicomPart) = {
+            val input = dicomPart.bytes
+            deflater.setInput(input.toArray)
+            var output = ByteString.empty
+            while (!deflater.needsInput) {
+              val bytesDeflated = deflater.deflate(buffer)
+              output = output ++ ByteString(buffer.take(bytesDeflated))
+            }
+            if (output.isEmpty) Nil else DeflatedChunk(dicomPart.bigEndian, output, nowrap = true) :: Nil
           }
-        }))
-      val partition = builder.add(Partition[(DicomPart, Int)](2, _._2))
-      val toBytes = Flow.fromFunction[(DicomPart, Int), ByteString](_._1.bytes)
-      val toPart = Flow.fromFunction[(DicomPart, Int), DicomPart](_._1)
-      val deflater = Compression.deflate(Deflater.BEST_COMPRESSION, nowrap = true)
-      val toDeflatedPart = Flow.fromFunction[ByteString, DicomPart](bytes => DeflatedChunk(bigEndian = false, bytes, nowrap = true))
-      val merge = builder.add(MergePreferred.create[DicomPart](1))
 
-      decider ~> partition
-      partition.out(0) ~> toPart ~> merge.preferred
-      partition.out(1) ~> toBytes ~> deflater ~> toDeflatedPart ~> merge.in(0)
-      FlowShape(decider.in, merge.out)
-    })
+          def finishDeflating() = {
+            deflater.finish()
+            var output = ByteString.empty
+            var done = false
+            while (!done) {
+              val bytesDeflated = deflater.deflate(buffer)
+              if (bytesDeflated == 0)
+                done = true
+              else
+                output = output ++ ByteString(buffer.take(bytesDeflated))
+            }
+            deflater.end()
+            if (output.isEmpty) Nil else DeflatedChunk(bigEndian = false, output, nowrap = true) :: Nil
+          }
+
+        {
+          case DicomEndMarker => // end of stream, make sure deflater writes final bytes if deflating has occurred
+            if (shouldDeflate && deflater.getBytesRead > 0) finishDeflating() else Nil
+          case header: HeaderPart if header.isFmi => // FMI, do not deflate and remember we are in FMI
+            inFmi = true
+            collectingTs = header.tag == Tag.TransferSyntaxUID
+            header :: Nil
+          case value: ValueChunk if collectingTs => // collect transfer syntax bytes so we can check if deflated
+            tsBytes = tsBytes ++ value.bytes
+            value :: Nil
+          case header: HeaderPart => // dataset header, remember we are no longer in FMI, deflate
+            inFmi = false
+            collectingTs = false
+            shouldDeflate = tsBytes.utf8String.trim == UID.DeflatedExplicitVRLittleEndian
+            if (shouldDeflate) deflate(header) else header :: Nil
+          case part if inFmi => // for any dicom part within FMI, do not deflate
+            part :: Nil
+          case deflatedChunk: DeflatedChunk => // already deflated, pass as-is
+            deflatedChunk :: Nil
+          case part => // for all other cases, deflate if we should deflate
+            if (shouldDeflate) deflate(part) else part :: Nil
+        }
+      }
 
   /**
     * Remove elements from stream that may contain large quantities of data (bulk data)
