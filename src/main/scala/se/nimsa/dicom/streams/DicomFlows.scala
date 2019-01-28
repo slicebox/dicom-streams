@@ -186,7 +186,7 @@ object DicomFlows {
           var collectingTs = false
           var tsBytes = ByteString.empty
           var shouldDeflate = false
-          val buffer = new Array[Byte](2048)
+          val buffer = new Array[Byte](8192)
           val deflater = new Deflater(-1, true)
 
           def deflate(dicomPart: DicomPart) = {
