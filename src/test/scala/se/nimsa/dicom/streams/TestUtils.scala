@@ -214,11 +214,32 @@ object TestUtils {
         case p => throw new RuntimeException(s"Expected Fragment with length $length, got $p")
       }
 
-    def expectSequenceDelimitation(): ElementProbe = probe
+    def expectSequence(tag: Int, length: Long): ElementProbe = probe
       .request(1)
       .expectNextChainingPF {
-        case e: SequenceDelimitationElement => true
-        case p => throw new RuntimeException(s"Expected SequencdDelimitationElement, got $p")
+        case e: SequenceElement if e.tag == tag && e.length == length => true
+        case p => throw new RuntimeException(s"Expected SequenceElement, got $p")
+      }
+
+    def expectItem(index: Int, length: Long): ElementProbe = probe
+      .request(1)
+      .expectNextChainingPF {
+        case e: ItemElement if e.index == index && e.length == length => true
+        case p => throw new RuntimeException(s"Expected ItemElement, got $p")
+      }
+
+    def expectItemDelimitation(index: Int, marker: Boolean): ElementProbe = probe
+      .request(1)
+      .expectNextChainingPF {
+        case e: ItemDelimitationElement if e.index == index && e.marker == marker => true
+        case p => throw new RuntimeException(s"Expected ItemDelimitationElement, got $p")
+      }
+
+    def expectSequenceDelimitation(marker: Boolean): ElementProbe = probe
+      .request(1)
+      .expectNextChainingPF {
+        case e: SequenceDelimitationElement if e.marker == marker => true
+        case p => throw new RuntimeException(s"Expected SequencedDelimitationElement, got $p")
       }
 
     def expectDicomComplete(): ElementProbe = probe

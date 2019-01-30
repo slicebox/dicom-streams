@@ -47,7 +47,7 @@ class ElementFlowsTest extends TestKit(ActorSystem("ElementFlowsSpec")) with Fla
       .expectFragments(Tag.PixelData)
       .expectFragment(4)
       .expectFragment(4)
-      .expectSequenceDelimitation()
+      .expectSequenceDelimitation(marker = false)
       .expectDicomComplete()
   }
 
@@ -65,7 +65,24 @@ class ElementFlowsTest extends TestKit(ActorSystem("ElementFlowsSpec")) with Fla
       .expectFragments(Tag.PixelData)
       .expectFragment(0)
       .expectFragment(4)
-      .expectSequenceDelimitation()
+      .expectSequenceDelimitation(marker = false)
+      .expectDicomComplete()
+  }
+
+  it should "handle determinate length sequences and items" in {
+    val bytes =
+      sequence(Tag.DerivationCodeSequence, 24) ++ item(16) ++ patientNameJohnDoe()
+
+    val source = Source.single(bytes)
+      .via(ParseFlow())
+      .via(elementFlow)
+
+    source.runWith(TestSink.probe[Element])
+      .expectSequence(Tag.DerivationCodeSequence, 24)
+      .expectItem(1, 16)
+      .expectElement(Tag.PatientName)
+      .expectItemDelimitation(1, marker = true)
+      .expectSequenceDelimitation(marker = true)
       .expectDicomComplete()
   }
 
