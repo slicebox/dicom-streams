@@ -16,8 +16,6 @@
 
 package se.nimsa.dicom.streams
 
-import java.util.zip.Deflater
-
 import akka.NotUsed
 import akka.stream.javadsl.MergePreferred
 import akka.stream.scaladsl.{Compression, Flow, GraphDSL, Partition}
@@ -299,7 +297,7 @@ class ParseFlow private(chunkSize: Int, stopTag: Option[Int]) extends ByteString
 object ParseFlow {
 
   private def inflateNowrap(maxBytesPerChunk: Int): Flow[ByteString, ByteString, NotUsed] =
-    Flow[ByteString].via(Compression.inflate(Deflater.BEST_COMPRESSION, nowrap = true))
+    Flow[ByteString].via(Compression.inflate(maxBytesPerChunk, nowrap = true))
 
   /**
     * Flow which ingests a stream of bytes and outputs a stream of DICOM data parts as specified by the <code>DicomPart</code>
