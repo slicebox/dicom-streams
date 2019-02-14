@@ -372,7 +372,7 @@ object DicomFlows {
       override def onSequenceDelimitation(part: SequenceDelimitationPart): List[DicomPart] =
         super.onSequenceDelimitation(part) ::: (
           if (part.bytes.isEmpty)
-            SequenceDelimitationPart(part.bigEndian, itemDelimitation(part.bigEndian)) :: Nil
+            SequenceDelimitationPart(part.bigEndian, sequenceDelimitation(part.bigEndian)) :: Nil
           else
             Nil)
 
