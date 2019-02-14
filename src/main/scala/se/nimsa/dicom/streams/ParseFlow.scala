@@ -16,8 +16,6 @@
 
 package se.nimsa.dicom.streams
 
-import java.util.zip.Inflater
-
 import akka.NotUsed
 import akka.stream.javadsl.MergePreferred
 import akka.stream.scaladsl.{Compression, Flow, GraphDSL, Partition}
@@ -27,7 +25,6 @@ import akka.util.ByteString
 import se.nimsa.dicom.data.DicomParts._
 import se.nimsa.dicom.data.VR.VR
 import se.nimsa.dicom.data._
-import se.nimsa.dicom.streams.ByteStringParser.{ByteReader, ParseResult, ParseStep}
 
 class ParseFlow private(chunkSize: Int, stopTag: Option[Int]) extends ByteStringParser[DicomPart] {
 
@@ -299,62 +296,8 @@ class ParseFlow private(chunkSize: Int, stopTag: Option[Int]) extends ByteString
 
 object ParseFlow {
 
-  private abstract class DeflateDecompressorBase(maxBytesPerChunk: Int) extends ByteStringParser[ByteString] {
-
-    /*
-    The following two classes (DecompressorParsingLogic, DeflateDecompressorNoWrap) have been copied (and very slightly
-    modified) from akka streams internal API as this API does not provide an inflate stage handling raw data (no
-    wrapper). If and when this functionality becomes available, remove this code.
-     */
-    abstract class DecompressorParsingLogic extends ParsingLogic {
-      val inflater: Inflater
-      def afterInflate: ParseStep[ByteString]
-      def afterBytesRead(buffer: Array[Byte], offset: Int, length: Int): Unit
-      def inflating: Inflate
-
-      abstract class Inflate(noPostProcessing: Boolean) extends ParseStep[ByteString] {
-        override def canWorkWithPartialData = true
-        override def parse(reader: ByteReader): ParseResult[ByteString] = {
-          inflater.setInput(reader.remainingData.toArray)
-
-          val buffer = new Array[Byte](maxBytesPerChunk)
-          val read = inflater.inflate(buffer)
-
-          reader.skip(reader.remainingSize - inflater.getRemaining)
-
-          if (read > 0) {
-            afterBytesRead(buffer, 0, read)
-            val next = if (inflater.finished()) afterInflate else this
-            ParseResult(Some(ByteString.fromArray(buffer, 0, read)), next, noPostProcessing)
-          } else {
-            if (inflater.finished()) ParseResult(None, afterInflate, noPostProcessing)
-            else throw ByteStringParser.NeedMoreData
-          }
-        }
-      }
-
-      override def postStop(): Unit = inflater.end()
-    }
-  }
-
-  private class DeflateDecompressorNoWrap(maxBytesPerChunk: Int) extends DeflateDecompressorBase(maxBytesPerChunk) {
-
-    override def createLogic(attr: Attributes): DecompressorParsingLogic = new DecompressorParsingLogic {
-      override val inflater: Inflater = new Inflater(true) // here is the only change, setting nowrap to true
-
-      override case object inflating extends Inflate(noPostProcessing = true) {
-        override def onTruncation(reader: ByteReader): Unit = completeStage()
-      }
-
-      override def afterInflate: Inflate = inflating
-      override def afterBytesRead(buffer: Array[Byte], offset: Int, length: Int): Unit = {}
-
-      startWith(inflating)
-    }
-  }
-
   private def inflateNowrap(maxBytesPerChunk: Int): Flow[ByteString, ByteString, NotUsed] =
-    Flow[ByteString].via(new DeflateDecompressorNoWrap(maxBytesPerChunk))
+    Flow[ByteString].via(Compression.inflate(maxBytesPerChunk, nowrap = true))
 
   /**
     * Flow which ingests a stream of bytes and outputs a stream of DICOM data parts as specified by the <code>DicomPart</code>
