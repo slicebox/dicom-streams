@@ -18,16 +18,12 @@ package se.nimsa.dicom.data
 
 import java.net.URI
 import java.time.{LocalDate, LocalTime, ZoneOffset, ZonedDateTime}
-import java.util
 
-import akka.stream.Materializer
-import akka.stream.scaladsl.{Source, StreamConverters}
 import akka.util.ByteString
 import se.nimsa.dicom.data.DicomParts._
 import se.nimsa.dicom.data.Elements.{ValueElement, _}
 import se.nimsa.dicom.data.TagPath._
 import se.nimsa.dicom.data.VR.VR
-import se.nimsa.dicom.streams.ElementFlows
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -412,11 +408,6 @@ case class Elements(characterSets: CharacterSets, zoneOffset: ZoneOffset, data: 
   def toParts: List[DicomPart] = toElements.flatMap(_.toParts)
   def toBytes(withPreamble: Boolean = true): ByteString =
     data.map(_.toBytes).foldLeft(if (withPreamble) PreambleElement.toBytes else ByteString.empty)(_ ++ _)
-
-  def elementIterator(implicit materializer: Materializer): util.Iterator[(TagPath, Element)] = Source(toElements)
-    .via(ElementFlows.tagPathFlow)
-    .runWith(StreamConverters.asJavaStream())
-    .iterator
 
   private def toStrings(indent: String): Vector[String] = {
     def space1(description: String): String = " " * Math.max(0, 40 - description.length)
