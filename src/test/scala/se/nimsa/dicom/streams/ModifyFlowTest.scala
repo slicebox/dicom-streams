@@ -430,4 +430,23 @@ class ModifyFlowTest extends TestKit(ActorSystem("ModifyFlowSpec")) with FlatSpe
       .expectValueChunk(mikeBytes)
       .expectDicomComplete()
   }
+
+  it should "not emit sequence and item delimiters for data with explicit length sequences and items" in {
+    val bytes = patientNameJohnDoe() ++
+      sequence(Tag.DerivationCodeSequence, 24) ++
+      item(16) ++ studyDate()
+
+    val source = Source.single(bytes)
+      .via(parseFlow)
+      .via(modifyFlow())
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectHeader(Tag.PatientName)
+      .expectValueChunk()
+      .expectSequence(Tag.DerivationCodeSequence, 24)
+      .expectItem(1, 16)
+      .expectHeader(Tag.StudyDate)
+      .expectValueChunk()
+      .expectDicomComplete()
+  }
 }

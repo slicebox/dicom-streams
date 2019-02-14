@@ -19,10 +19,9 @@ package se.nimsa.dicom.streams
 import akka.NotUsed
 import akka.stream.scaladsl.Flow
 import akka.util.ByteString
-import se.nimsa.dicom.data.isFileMetaInformation
 import se.nimsa.dicom.data.DicomParts._
 import se.nimsa.dicom.data.TagPath.{EmptyTagPath, TagPathTag}
-import se.nimsa.dicom.data.{Dictionary, TagPath, VR}
+import se.nimsa.dicom.data.{Dictionary, TagPath, VR, isFileMetaInformation}
 
 object ModifyFlow {
 
