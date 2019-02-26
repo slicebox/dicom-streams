@@ -22,7 +22,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
 
   override def afterAll(): Unit = system.terminate()
 
-  "A DICOM flow" should "produce a preamble, FMI tags and dataset tags for a complete DICOM file" in {
+  "The parse flow" should "produce a preamble, FMI tags and dataset tags for a complete DICOM file" in {
     val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
@@ -55,6 +55,21 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
       .expectDicomComplete()
   }
 
+  it should "read a file with only FMI" in {
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID()
+
+    val source = Source.single(bytes)
+      .via(ParseFlow())
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectPreamble()
+      .expectHeader(Tag.FileMetaInformationGroupLength)
+      .expectValueChunk()
+      .expectHeader(Tag.TransferSyntaxUID)
+      .expectValueChunk()
+      .expectDicomComplete()
+  }
+
   it should "read a file with neither FMI nor preamble" in {
     val bytes = patientNameJohnDoe()
 
@@ -78,7 +93,7 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
       .expectDicomComplete()
   }
 
-  it should "output a warning message when non-meta information is included in the header" in {
+  it should "output a warning message when file meta information group length is wrong" in {
     val bytes = fmiGroupLength(transferSyntaxUID(), studyDate()) ++ transferSyntaxUID() ++ studyDate()
 
     val source = Source.single(bytes)
@@ -123,12 +138,16 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   }
 
   it should "fail reading a truncated DICOM file" in {
-    val bytes = patientNameJohnDoe().dropRight(2)
+    val bytes = fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ patientNameJohnDoe().dropRight(2)
 
     val source = Source.single(bytes)
       .via(ParseFlow(inflate = false))
 
     source.runWith(TestSink.probe[DicomPart])
+      .expectHeader(Tag.FileMetaInformationGroupLength)
+      .expectValueChunk()
+      .expectHeader(Tag.TransferSyntaxUID)
+      .expectValueChunk()
       .expectHeader(Tag.PatientName)
       .expectDicomError()
   }
@@ -397,13 +416,15 @@ class ParseFlowTest extends TestKit(ActorSystem("ParseFlowSpec")) with FlatSpecL
   }
 
   it should "accept meta information encoded with implicit VR" in {
-    val bytes = preamble ++ transferSyntaxUID(explicitVR = false) ++ patientNameJohnDoe()
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID(explicitVR = false)) ++ transferSyntaxUID(explicitVR = false) ++ patientNameJohnDoe()
 
     val source = Source.single(bytes)
       .via(ParseFlow())
 
     source.runWith(TestSink.probe[DicomPart])
       .expectPreamble()
+      .expectHeader(Tag.FileMetaInformationGroupLength)
+      .expectValueChunk()
       .expectHeader(Tag.TransferSyntaxUID)
       .expectValueChunk()
       .expectHeader(Tag.PatientName)

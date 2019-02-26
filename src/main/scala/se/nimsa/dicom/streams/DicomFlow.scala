@@ -19,9 +19,10 @@ package se.nimsa.dicom.streams
 import akka.NotUsed
 import akka.stream.scaladsl.{Flow, Source}
 import akka.util.ByteString
+import org.slf4j.{Logger, LoggerFactory}
 import se.nimsa.dicom.data.DicomParts._
-import se.nimsa.dicom.data.TagPath
 import se.nimsa.dicom.data.TagPath._
+import se.nimsa.dicom.data.{Tag, TagPath, isGroupLength}
 
 /**
   * This class defines events for modular construction of DICOM flows. Events correspond to the DICOM parts commonly
@@ -45,7 +46,7 @@ abstract class DicomFlow[Out] {
   /**
     * @return the flow of `DicomPart`s entering the stage
     */
-  def baseFlow: Flow[DicomPart, DicomPart, NotUsed] = Flow[DicomPart]
+  def baseFlow: PartFlow = Flow[DicomPart]
 
   /**
     * This method defines the mapping from `DicomPart` to event used to create the stage, see 'DicomFlowFactory.create'.
@@ -112,7 +113,7 @@ case object DicomStartMarker extends MetaPart
 trait StartEvent[Out] extends DicomFlow[Out] {
   def onStart(): List[Out] = Nil
 
-  override def baseFlow: Flow[DicomPart, DicomPart, NotUsed] =
+  override def baseFlow: PartFlow =
     super.baseFlow.prepend(Source.single(DicomStartMarker)) // add marker to start of stream
 
   override def handlePart(dicomPart: DicomPart): List[Out] = dicomPart match {
@@ -129,7 +130,7 @@ case object DicomEndMarker extends MetaPart
 trait EndEvent[Out] extends DicomFlow[Out] {
   def onEnd(): List[Out] = Nil
 
-  override def baseFlow: Flow[DicomPart, DicomPart, NotUsed] =
+  override def baseFlow: PartFlow =
     super.baseFlow.concat(Source.single(DicomEndMarker)) // add marker to end of stream
 
   override def handlePart(dicomPart: DicomPart): List[Out] = dicomPart match {
@@ -290,7 +291,7 @@ trait TagPathTracking[Out] extends DicomFlow[Out] with GuaranteedValueEvent[Out]
   }
 
   abstract override def onItem(part: ItemPart): List[Out] = {
-      if (!inFragments) tagPath = tagPath.previous.thenItem(tagPath.tag, part.index)
+    if (!inFragments) tagPath = tagPath.previous.thenItem(tagPath.tag, part.index)
     super.onItem(part)
   }
 
@@ -303,6 +304,36 @@ trait TagPathTracking[Out] extends DicomFlow[Out] with GuaranteedValueEvent[Out]
       }
     }
     super.onItemDelimitation(part)
+  }
+
+}
+
+/**
+  * This mixin will log warnings when group length tags are encountered (except the file meta information group length
+  * tag), or when sequences or items with determinate length are encountered. This is useful in flows which alter the
+  * DICOM information such that these length attributes may no longer be correct. This reminds the user to re-encode the
+  * stream to indeterminate length sequences and items, and to remove group length attributes.
+  */
+trait GroupLengthWarnings[Out] extends DicomFlow[Out] with InFragments[Out] {
+  val log: Logger = LoggerFactory.getLogger("GroupLengthWarningsLogger")
+  var silent = false // opt out of warnings
+
+  abstract override def onHeader(part: HeaderPart): List[Out] = {
+    if (!silent && isGroupLength(part.tag) && part.tag != Tag.FileMetaInformationGroupLength)
+      log.warn(s"Group length attribute detected, consider removing group lengths to maintain valid DICOM information")
+    super.onHeader(part)
+  }
+
+  abstract override def onSequence(part: SequencePart): List[Out] = {
+    if (!silent && !part.indeterminate && part.length > 0)
+      log.warn(s"Determinate length sequence detected, consider re-encoding sequences to indeterminate length to maintain valid DICOM information")
+    super.onSequence(part)
+  }
+
+  abstract override def onItem(part: ItemPart): List[Out] = {
+    if (!silent && !inFragments && !part.indeterminate && part.length > 0)
+      log.warn(s"Determinate length item detected, consider re-encoding items to indeterminate length to maintain valid DICOM information")
+    super.onItem(part)
   }
 
 }

@@ -543,7 +543,7 @@ object Elements {
     def fromBytes(tag: Int, bytes: ByteString, bigEndian: Boolean = false, explicitVR: Boolean = true): ValueElement =
       apply(tag, Value(bytes), bigEndian, explicitVR)
     def fromString(tag: Int, string: String, bigEndian: Boolean = false, explicitVR: Boolean = true): ValueElement =
-      apply(tag, Value(ByteString(string)), bigEndian, explicitVR)
+      apply(tag, Value.fromString(Dictionary.vrOf(tag), string, bigEndian), bigEndian, explicitVR)
     def empty(tag: Int, vr: VR, bigEndian: Boolean = false, explicitVR: Boolean = true): ValueElement =
       ValueElement(tag, vr, Value.empty, bigEndian, explicitVR)
   }
@@ -626,15 +626,13 @@ object Elements {
 
   case class Item(elements: Elements, length: Long = indeterminateLength, bigEndian: Boolean = false) {
     val indeterminate: Boolean = length == indeterminateLength
-    def withElements(elements: Elements): Item = copy(elements = elements)
     def toElements(index: Int): List[Element] = ItemElement(index, length, bigEndian) :: elements.toElements :::
       ItemDelimitationElement(index, marker = !indeterminate, bigEndian) :: Nil
-    def toBytes: ByteString = tagToBytes(Tag.Item, bigEndian) ++ elements.toBytes(withPreamble = false) ++ intToBytes(length.toInt, bigEndian)
-    def setElements(elements: Elements): Item =
-      if (indeterminate)
-        copy(elements = elements)
-      else
-        copy(elements = elements, length = elements.toBytes(withPreamble = false).length)
+    def toBytes: ByteString = toElements(1).map(_.toBytes).reduce(_ ++ _)
+    def setElements(elements: Elements): Item = {
+      val newLength = if (this.indeterminate) indeterminateLength else elements.toBytes(withPreamble = false).length
+      copy(elements = elements, length = newLength)
+    }
     override def toString: String = s"Item(length = $length, elements size = ${elements.size})"
   }
 

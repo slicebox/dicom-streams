@@ -155,8 +155,13 @@ class ParseFlow private(chunkSize: Int, stopTag: Option[Int]) extends ByteString
           val part = Some(HeaderPart(tag, updatedVr, valueLength, isFmi = true, state.bigEndian, state.explicitVR, bytes))
           val nextStep = updatedState.fmiEndPos.filter(_ <= updatedPos) match {
             case Some(_) =>
-              reader.ensure(valueLength.toInt + 2)
-              toDatasetStep(reader.remainingData.drop(valueLength.toInt).take(2), updatedState)
+              reader.ensure(valueLength.toInt)
+              if (reader.remainingSize == valueLength && isUpstreamClosed)
+                FinishedParser
+              else {
+                reader.ensure(valueLength.toInt + 2)
+                toDatasetStep(reader.remainingData.drop(valueLength.toInt).take(2), updatedState)
+              }
             case None =>
               InFmiHeader(updatedState)
           }

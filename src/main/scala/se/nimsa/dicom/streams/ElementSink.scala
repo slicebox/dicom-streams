@@ -84,7 +84,7 @@ object ElementSink {
             val elements = sinkData.builderStack.head.result()
             val sequence = sinkData.sequenceStack.head//  + elements
             val updatedSequence = sequence.items.lastOption
-              .map(item => sequence.copy(items = sequence.items.init :+ item.withElements(elements)))
+              .map(item => sequence.copy(items = sequence.items.init :+ item.setElements(elements)))
               .getOrElse(sequence)
             sinkData.popBuilder().updated(updatedSequence)
 

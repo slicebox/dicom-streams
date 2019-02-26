@@ -438,7 +438,7 @@ class ModifyFlowTest extends TestKit(ActorSystem("ModifyFlowSpec")) with FlatSpe
 
     val source = Source.single(bytes)
       .via(parseFlow)
-      .via(modifyFlow())
+      .via(modifyFlow(logGroupLengthWarnings = false))
 
     source.runWith(TestSink.probe[DicomPart])
       .expectHeader(Tag.PatientName)

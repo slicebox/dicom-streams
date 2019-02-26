@@ -16,9 +16,11 @@
 
 package se.nimsa.dicom
 
+import akka.NotUsed
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.Source
+import akka.stream.scaladsl.{Flow, Source}
 import akka.util.ByteString
+import se.nimsa.dicom.data.DicomParts.DicomPart
 import se.nimsa.dicom.data.Elements
 
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
@@ -29,6 +31,8 @@ package object streams {
   import ElementFlows.elementFlow
   import ElementSink.elementSink
   import ParseFlow.parseFlow
+
+  type PartFlow = Flow[DicomPart, DicomPart, NotUsed]
 
   def toElements(source: Source[ByteString, Any])(implicit ec: ExecutionContext, mat: ActorMaterializer): Future[Elements] =
     source

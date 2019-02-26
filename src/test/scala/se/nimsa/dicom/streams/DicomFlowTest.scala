@@ -2,7 +2,6 @@ package se.nimsa.dicom.streams
 
 import java.io.File
 
-import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{FileIO, Flow, Sink, Source}
@@ -10,9 +9,8 @@ import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
-import se.nimsa.dicom.data._
 import se.nimsa.dicom.data.TagPath.EmptyTagPath
-import se.nimsa.dicom.data.{Tag, TagPath}
+import se.nimsa.dicom.data.{Tag, TagPath, _}
 import se.nimsa.dicom.streams.ParseFlow.parseFlow
 
 import scala.concurrent.duration.DurationInt
@@ -311,7 +309,7 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
   "The start event flow" should "notify when dicom stream starts" in {
     val bytes = patientNameJohnDoe()
 
-    val startEventTestFlow: Flow[DicomPart, DicomPart, NotUsed] =
+    val startEventTestFlow: PartFlow =
       DicomFlowFactory.create(new IdentityFlow with StartEvent[DicomPart] {
         override def onStart(): List[DicomPart] = DicomStartMarker :: Nil
       })
@@ -379,7 +377,7 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
   "The end event flow" should "notify when dicom stream ends" in {
     val bytes = patientNameJohnDoe()
 
-    val endEventTestFlow: Flow[DicomPart, DicomPart, NotUsed] =
+    val endEventTestFlow: PartFlow =
       DicomFlowFactory.create(new IdentityFlow with EndEvent[DicomPart] {
         override def onEnd(): List[DicomPart] = DicomEndMarker :: Nil
       })
@@ -550,5 +548,54 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
         case 3 => true
       }
       .expectComplete()
+  }
+
+  "The group length warnings flow" should "issue a warning when a group length attribute is encountered" in {
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ groupLength(8, studyDate().length) ++ studyDate()
+    val source = Source.single(bytes)
+      .via(parseFlow)
+      .via(DicomFlowFactory.create(new IdentityFlow with GroupLengthWarnings[DicomPart]))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectPreamble()
+      .expectHeader(Tag.FileMetaInformationGroupLength)
+      .expectValueChunk()
+      .expectHeader(Tag.TransferSyntaxUID)
+      .expectValueChunk()
+      .expectHeader(0x00080000, VR.UL, 4)
+      .expectValueChunk()
+      .expectHeader(Tag.StudyDate)
+      .expectValueChunk()
+      .expectDicomComplete()
+  }
+
+  it should "issue a warning when determinate length sequences and items are encountered" in {
+    val bytes = sequence(Tag.DerivationCodeSequence, 24) ++ item(16) ++ studyDate()
+    val source = Source.single(bytes)
+      .via(parseFlow)
+      .via(DicomFlowFactory.create(new IdentityFlow with GroupLengthWarnings[DicomPart]))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectSequence(Tag.DerivationCodeSequence, 24)
+      .expectItem(1, 16)
+      .expectHeader(Tag.StudyDate)
+      .expectValueChunk()
+      .expectDicomComplete()
+  }
+
+  it should "not warn when silent" in {
+    val bytes = sequence(Tag.DerivationCodeSequence, 24) ++ item(16) ++ studyDate()
+    val source = Source.single(bytes)
+      .via(parseFlow)
+      .via(DicomFlowFactory.create(new IdentityFlow with GroupLengthWarnings[DicomPart] {
+        silent = true
+      }))
+
+    source.runWith(TestSink.probe[DicomPart])
+      .expectSequence(Tag.DerivationCodeSequence, 24)
+      .expectItem(1, 16)
+      .expectHeader(Tag.StudyDate)
+      .expectValueChunk()
+      .expectDicomComplete()
   }
 }

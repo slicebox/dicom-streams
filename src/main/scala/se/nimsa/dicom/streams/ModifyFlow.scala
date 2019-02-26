@@ -16,8 +16,6 @@
 
 package se.nimsa.dicom.streams
 
-import akka.NotUsed
-import akka.stream.scaladsl.Flow
 import akka.util.ByteString
 import se.nimsa.dicom.data.DicomParts._
 import se.nimsa.dicom.data.TagPath.{EmptyTagPath, TagPathTag}
@@ -82,14 +80,17 @@ object ModifyFlow {
     * Modifications can either be supplied as input arguments or passed at any time on the stream encapsulated in a
     * [[se.nimsa.dicom.streams.ModifyFlow.TagModificationsPart]]
     *
-    * @param modifications a sequence of tag modifications each with its on trigger function on current tag path, and
-    *                      modification function for element value when triggered
-    * @param insertions    a sequence of tag insertion specifications each with a tag path pointer to the element to
-    *                      be replaced or inserted, and the new value
+    * @param modifications          a sequence of tag modifications each with its on trigger function on current tag path, and
+    *                               modification function for element value when triggered
+    * @param insertions             a sequence of tag insertion specifications each with a tag path pointer to the element to
+    *                               be replaced or inserted, and the new value
+    * @param logGroupLengthWarnings determines whether to log a warning when group length tags, or sequences or items
+    *                               with determinate length are encountered
     * @return the modified flow of DICOM parts
     */
-  def modifyFlow(modifications: Seq[TagModification] = Seq.empty, insertions: Seq[TagInsertion] = Seq.empty): Flow[DicomPart, DicomPart, NotUsed] =
-    DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with EndEvent[DicomPart] with TagPathTracking[DicomPart] {
+  def modifyFlow(modifications: Seq[TagModification] = Seq.empty, insertions: Seq[TagInsertion] = Seq.empty, logGroupLengthWarnings: Boolean = true): PartFlow =
+    DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with EndEvent[DicomPart] with TagPathTracking[DicomPart] with GroupLengthWarnings[DicomPart] {
+      silent = !logGroupLengthWarnings
 
       var currentModifications: List[TagModification] = Nil
       var currentInsertions: List[TagInsertion] = Nil
