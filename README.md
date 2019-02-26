@@ -91,12 +91,16 @@ val updatedSOPInstanceUID = padToEvenLength(ByteString(createUID()), VR.UI)
 FileIO.fromPath(Paths.get("source-file.dcm"))
   .via(parseFlow)
   .via(groupLengthDiscardFilter) // discard group length elements in dataset
-  .via(modifyFlow(Seq(
-    TagModification.endsWith(TagPath.fromTag(Tag.PatientName), _ => padToEvenLength(ByteString("John Doe"), VR.PN), insert = false),
-    TagModification.endsWith(TagPath.fromTag(Tag.MediaStorageSOPInstanceUID), _ => updatedSOPInstanceUID, insert = false),
-    TagModification.endsWith(TagPath.fromTag(Tag.SOPInstanceUID), _ => updatedSOPInstanceUID, insert = true),
-  )))
-  .via(fmiGroupLengthFlow()) // update group length in meta information, if present
+  .via(modifyFlow(
+    Seq(
+        TagModification.endsWith(TagPath.fromTag(Tag.PatientName), _ => padToEvenLength(ByteString("John Doe"), VR.PN)),
+        TagModification.endsWith(TagPath.fromTag(Tag.MediaStorageSOPInstanceUID), _ => updatedSOPInstanceUID)
+    ), 
+    Seq(
+      TagInsertion(TagPath.fromTag(Tag.SOPInstanceUID), _ => updatedSOPInstanceUID)
+    )
+  ))
+  .via(fmiGroupLengthFlow) // update group length in meta information, if present
   .map(_.bytes)
   .runWith(FileIO.toPath(Paths.get("target-file.dcm")))
 ```
@@ -135,7 +139,7 @@ nested sequences from a dataset. We define a nested dataset as a sequence with `
 has `depth = 0`.
 ```scala
   def nestedSequencesFilter() = DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with TagPathTracking[DicomPart] {
-    override def onPart(part: DicomPart): List[DicomPart] = if (tagPath.depth() > 1) Nil else part :: Nil
+    override def onPart(part: DicomPart): List[DicomPart] = if (tagPath.depth > 1) Nil else part :: Nil
   })
 ```
 In this example, we chose to use `DeferToPartFlow` as the core class and mixed in the `TagPathTracking` capability
