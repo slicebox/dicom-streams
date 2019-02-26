@@ -74,9 +74,8 @@ and writes it to a new file.
 
 ```scala
 FileIO.fromPath(Paths.get("source-file.dcm"))
-  .via(validateFlow)
   .via(parseFlow)
-  .via(tagFilter(_ => true)(tagPath => tagPath.toList.map(_.tag).exists(isPrivate))) // no private elements anywhere on tag path
+  .via(tagFilter(tagPath => tagPath.toList.map(_.tag).exists(isPrivate))) // no private elements anywhere on tag path
   .map(_.bytes)
   .runWith(FileIO.toPath(Paths.get("target-file.dcm")))
 ```
@@ -90,14 +89,13 @@ the meta information group tag is updated.
 val updatedSOPInstanceUID = padToEvenLength(ByteString(createUID()), VR.UI)
 
 FileIO.fromPath(Paths.get("source-file.dcm"))
-  .via(validateFlow)
   .via(parseFlow)
   .via(groupLengthDiscardFilter) // discard group length elements in dataset
-  .via(modifyFlow(
+  .via(modifyFlow(Seq(
     TagModification.endsWith(TagPath.fromTag(Tag.PatientName), _ => padToEvenLength(ByteString("John Doe"), VR.PN), insert = false),
     TagModification.endsWith(TagPath.fromTag(Tag.MediaStorageSOPInstanceUID), _ => updatedSOPInstanceUID, insert = false),
     TagModification.endsWith(TagPath.fromTag(Tag.SOPInstanceUID), _ => updatedSOPInstanceUID, insert = true),
-  ))
+  )))
   .via(fmiGroupLengthFlow()) // update group length in meta information, if present
   .map(_.bytes)
   .runWith(FileIO.toPath(Paths.get("target-file.dcm")))
@@ -136,7 +134,7 @@ To give an example of a custom flow, here is the implementation of a filter that
 nested sequences from a dataset. We define a nested dataset as a sequence with `depth > 1` given that the root dataset 
 has `depth = 0`.
 ```scala
-  def nestedSequencesFilter() = DicomFlowFactory.create(new DeferToPartFlow with TagPathTracking {
+  def nestedSequencesFilter() = DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with TagPathTracking[DicomPart] {
     override def onPart(part: DicomPart): List[DicomPart] = if (tagPath.depth() > 1) Nil else part :: Nil
   })
 ```
