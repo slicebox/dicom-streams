@@ -25,7 +25,7 @@ resolvers ++= Seq(Resolver.sonatypeRepo("releases"), Resolver.sonatypeRepo("snap
 
 The library is included by
 ```scala
-libraryDependencies += "se.nimsa" %% "dicom-streams" % "0.6"
+libraryDependencies += "se.nimsa" %% "dicom-streams" % "0.8"
 ```
 
 ### Data Model
