@@ -45,9 +45,9 @@ object TestData {
   def sequenceEndNonZeroLength(bigEndian: Boolean = false): ByteString = tagToBytes(Tag.SequenceDelimitationItem, bigEndian) ++ intToBytes(0x00000010, bigEndian)
   def pixeDataFragments(bigEndian: Boolean = false): ByteString = tagToBytes(Tag.PixelData, bigEndian) ++ ByteString('O', 'W', 0, 0) ++ ByteString(0xFF, 0xFF, 0xFF, 0xFF)
 
-  def sequence(tag: Int, bigEndian: Boolean = false): ByteString = sequence(tag, indeterminateLength, bigEndian)
-  def sequence(tag: Int, length: Int): ByteString = sequence(tag, length, bigEndian = false)
-  def sequence(tag: Int, length: Int, bigEndian: Boolean): ByteString = tagToBytes(tag, bigEndian) ++ ByteString('S', 'Q', 0, 0) ++ intToBytes(length, bigEndian)
+  def sequence(tag: Int, bigEndian: Boolean = false, explicitVR: Boolean = true): ByteString = sequence(tag, indeterminateLength, bigEndian, explicitVR)
+  def sequence(tag: Int, length: Int): ByteString = sequence(tag, length, bigEndian = false, explicitVR = true)
+  def sequence(tag: Int, length: Int, bigEndian: Boolean, explicitVR: Boolean): ByteString = tagToBytes(tag, bigEndian) ++ (if (explicitVR) ByteString('S', 'Q', 0, 0) else ByteString.empty) ++ intToBytes(length, bigEndian)
 
   def waveformSeqStart(bigEndian: Boolean = false, explicitVR: Boolean = true): ByteString = sequence(Tag.WaveformSequence, bigEndian)
 

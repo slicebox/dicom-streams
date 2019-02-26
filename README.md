@@ -93,8 +93,8 @@ FileIO.fromPath(Paths.get("source-file.dcm"))
   .via(groupLengthDiscardFilter) // discard group length elements in dataset
   .via(modifyFlow(
     Seq(
-        TagModification.endsWith(TagPath.fromTag(Tag.PatientName), _ => padToEvenLength(ByteString("John Doe"), VR.PN)),
-        TagModification.endsWith(TagPath.fromTag(Tag.MediaStorageSOPInstanceUID), _ => updatedSOPInstanceUID)
+      TagModification.endsWith(TagPath.fromTag(Tag.PatientName), _ => padToEvenLength(ByteString("John Doe"), VR.PN)),
+      TagModification.endsWith(TagPath.fromTag(Tag.MediaStorageSOPInstanceUID), _ => updatedSOPInstanceUID)
     ), 
     Seq(
       TagInsertion(TagPath.fromTag(Tag.SOPInstanceUID), _ => updatedSOPInstanceUID)
