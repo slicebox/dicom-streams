@@ -2,7 +2,6 @@ package se.nimsa.dicom.streams
 
 import java.io.File
 
-import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{FileIO, Flow, Sink, Source}
@@ -10,9 +9,8 @@ import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit.TestKit
 import akka.util.ByteString
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
-import se.nimsa.dicom.data._
 import se.nimsa.dicom.data.TagPath.EmptyTagPath
-import se.nimsa.dicom.data.{Tag, TagPath}
+import se.nimsa.dicom.data.{Tag, TagPath, _}
 import se.nimsa.dicom.streams.ParseFlow.parseFlow
 
 import scala.concurrent.duration.DurationInt
@@ -311,7 +309,7 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
   "The start event flow" should "notify when dicom stream starts" in {
     val bytes = patientNameJohnDoe()
 
-    val startEventTestFlow: Flow[DicomPart, DicomPart, NotUsed] =
+    val startEventTestFlow: PartFlow =
       DicomFlowFactory.create(new IdentityFlow with StartEvent[DicomPart] {
         override def onStart(): List[DicomPart] = DicomStartMarker :: Nil
       })
@@ -379,7 +377,7 @@ class DicomFlowTest extends TestKit(ActorSystem("DicomFlowSpec")) with FlatSpecL
   "The end event flow" should "notify when dicom stream ends" in {
     val bytes = patientNameJohnDoe()
 
-    val endEventTestFlow: Flow[DicomPart, DicomPart, NotUsed] =
+    val endEventTestFlow: PartFlow =
       DicomFlowFactory.create(new IdentityFlow with EndEvent[DicomPart] {
         override def onEnd(): List[DicomPart] = DicomEndMarker :: Nil
       })

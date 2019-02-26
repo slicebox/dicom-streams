@@ -471,7 +471,7 @@ class ElementsTest extends FlatSpec with Matchers {
     elements(TagPath.fromItem(Tag.AbstractPriorCodeSequence, 1).thenTag(Tag.PatientID)) shouldBe None
   }
 
-  it should "return the specified seqeunce based on tag path" in {
+  it should "return the specified sequence based on tag path" in {
     elements.getNested(TagPath.fromItem(Tag.DerivationCodeSequence, 1)) shouldBe seq.item(1).map(_.elements)
   }
 

@@ -16,8 +16,6 @@
 
 package se.nimsa.dicom.streams
 
-import akka.NotUsed
-import akka.stream.scaladsl.Flow
 import se.nimsa.dicom.data.DicomParts._
 import se.nimsa.dicom.data.Elements.ValueElement
 import se.nimsa.dicom.data.{Elements, _}
@@ -42,7 +40,7 @@ object CollectFlow {
     *                      if this limit is exceed. Set to 0 for an unlimited buffer size
     * @return A DicomPart Flow which will begin with a ElementsPart part followed by other parts in the flow
     */
-  def collectFlow(tags: Set[_ <: TagPath], label: String, maxBufferSize: Int = 1000000): Flow[DicomPart, DicomPart, NotUsed] = {
+  def collectFlow(tags: Set[_ <: TagPath], label: String, maxBufferSize: Int = 1000000): PartFlow = {
     val maxTag = if (tags.isEmpty) 0 else tags.map(_.toList.head.tag).max
     val tagCondition = (tagPath: TagPath) => tags.exists(tagPath.startsWith)
     val stopCondition = if (tags.isEmpty)
@@ -70,7 +68,7 @@ object CollectFlow {
     *                      if this limit is exceed. Set to 0 for an unlimited buffer size
     * @return A DicomPart Flow which will begin with a ElementsPart followed by the input parts
     */
-  def collectFlow(tagCondition: TagPath => Boolean, stopCondition: TagPath => Boolean, label: String, maxBufferSize: Int): Flow[DicomPart, DicomPart, NotUsed] =
+  def collectFlow(tagCondition: TagPath => Boolean, stopCondition: TagPath => Boolean, label: String, maxBufferSize: Int): PartFlow =
     DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with TagPathTracking[DicomPart] with EndEvent[DicomPart] {
 
       var reachedEnd = false

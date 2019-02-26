@@ -50,15 +50,16 @@ object DicomFlows {
 
   /**
     * Filter a stream of dicom parts such that all elements except those with tags in the white list are discarded.
-    * Non-data parts such as preamble are discarded.
     *
     * Note that it is up to the user of this function to make sure the modified DICOM data is valid.
     *
-    * @param whitelist list of tag paths to keep.
+    * @param whitelist        list of tag paths to keep.
+    * @param defaultCondition determines whether to keep or discard elements with no tag path such as the preamble and
+    *                         synthetic DICOM parts inserted to hold state.
     * @return the associated filter Flow
     */
-  def whitelistFilter(whitelist: Set[_ <: TagTree]): Flow[DicomPart, DicomPart, NotUsed] =
-    tagFilter(_ => false)(currentPath => whitelist.exists(t => t.hasTrunk(currentPath) || t.isTrunkOf(currentPath)))
+  def whitelistFilter(whitelist: Set[_ <: TagTree], defaultCondition: DicomPart => Boolean): PartFlow =
+    tagFilter(currentPath => whitelist.exists(t => t.hasTrunk(currentPath) || t.isTrunkOf(currentPath)), defaultCondition)
 
   /**
     * Filter a stream of dicom parts such that elements with tag paths in the black list are discarded. Tag paths in
@@ -67,11 +68,13 @@ object DicomFlows {
     *
     * Note that it is up to the user of this function to make sure the modified DICOM data is valid.
     *
-    * @param blacklist list of tag paths to discard.
+    * @param blacklist        list of tag paths to discard.
+    * @param defaultCondition determines whether to keep or discard elements with no tag path such as the preamble and
+    *                         synthetic DICOM parts inserted to hold state.
     * @return the associated filter Flow
     */
-  def blacklistFilter(blacklist: Set[_ <: TagTree]): Flow[DicomPart, DicomPart, NotUsed] =
-    tagFilter(_ => true)(currentPath => !blacklist.exists(_.isTrunkOf(currentPath)))
+  def blacklistFilter(blacklist: Set[_ <: TagTree], defaultCondition: DicomPart => Boolean): PartFlow =
+    tagFilter(currentPath => !blacklist.exists(_.isTrunkOf(currentPath)), defaultCondition)
 
   /**
     * Filter a stream of dicom parts such that all elements that are group length elements except
@@ -82,16 +85,19 @@ object DicomFlows {
     *
     * @return the associated filter Flow
     */
-  def groupLengthDiscardFilter: Flow[DicomPart, DicomPart, NotUsed] =
-    tagFilter(_ => true)(tagPath => !isGroupLength(tagPath.tag) || isFileMetaInformation(tagPath.tag))
+  def groupLengthDiscardFilter: PartFlow =
+    tagFilter(tagPath => !isGroupLength(tagPath.tag) || tagPath.tag == Tag.FileMetaInformationGroupLength, _ => true, logGroupLengthWarnings = false)
 
   /**
     * Discards the file meta information.
     *
     * @return the associated filter Flow
     */
-  def fmiDiscardFilter: Flow[DicomPart, DicomPart, NotUsed] =
-    tagFilter(_ => false)(tagPath => !isFileMetaInformation(tagPath.tag))
+  def fmiDiscardFilter: PartFlow =
+    tagFilter(tagPath => !isFileMetaInformation(tagPath.tag), {
+      case _: PreamblePart => false
+      case _ => true
+    }, logGroupLengthWarnings = false)
 
   /**
     * Filter a stream of DICOM parts leaving only those for which the supplied tag condition is `true`. As the stream of
@@ -101,14 +107,17 @@ object DicomFlows {
     * Note that it is up to the user of this function to make sure the modified DICOM data is valid. When filtering
     * items from a sequence, item indices are preserved (i.e. not updated).
     *
-    * @param keepCondition    function that determines if DICOM parts should be discarded (condition false) based on the
-    *                         current tag path
-    * @param defaultCondition determines whether to keep or discard elements with no tag path such as the preamble and
-    *                         synthetic DICOM parts inserted to hold state.
+    * @param keepCondition          function that determines if DICOM parts should be discarded (condition false) based on the
+    *                               current tag path
+    * @param defaultCondition       determines whether to keep or discard elements with no tag path such as the preamble and
+    *                               synthetic DICOM parts inserted to hold state.
+    * @param logGroupLengthWarnings determines whether to log a warning when group length tags, or sequences or items
+    *                               with determinate length are encountered
     * @return the filtered flow
     */
-  def tagFilter(defaultCondition: DicomPart => Boolean)(keepCondition: TagPath => Boolean): Flow[DicomPart, DicomPart, NotUsed] =
-    DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with TagPathTracking[DicomPart] {
+  def tagFilter(keepCondition: TagPath => Boolean, defaultCondition: DicomPart => Boolean = _ => true, logGroupLengthWarnings: Boolean = true): PartFlow =
+    DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with TagPathTracking[DicomPart] with GroupLengthWarnings[DicomPart] {
+      silent = !logGroupLengthWarnings
       var keeping = false
 
       override def onPart(part: DicomPart): List[DicomPart] = {
@@ -124,23 +133,26 @@ object DicomFlows {
     * Filter a stream of DICOM elements based on its element header and the associated keep condition. All other
     * parts are not filtered out (preamble, sequences, items, delimitations etc).
     *
-    * @param keepCondition function that determines if an element should be discarded (condition false) based on the
-    *                      most recently encountered element header
+    * @param keepCondition          function that determines if an element should be discarded (condition false) based on the
+    *                               most recently encountered element header
+    * @param logGroupLengthWarnings determines whether to log a warning when group length tags, or sequences or items
+    *                               with determinate length are encountered
     * @return the filtered flow
     */
-  def headerFilter(keepCondition: HeaderPart => Boolean): Flow[DicomPart, DicomPart, NotUsed] = Flow[DicomPart]
-    .statefulMapConcat(() => {
+  def headerFilter(keepCondition: HeaderPart => Boolean, logGroupLengthWarnings: Boolean = true): PartFlow =
+    DicomFlowFactory.create(new DeferToPartFlow[DicomPart] with GroupLengthWarnings[DicomPart] {
+      silent = !logGroupLengthWarnings
       var keeping = true
 
-      {
-        case part: HeaderPart =>
-          keeping = keepCondition(part)
-          if (keeping) part :: Nil else Nil
-        case part: ValueChunk =>
-          if (keeping) part :: Nil else Nil
-        case part =>
+      override def onPart(part: DicomPart): List[DicomPart] = part match {
+        case p: HeaderPart =>
+          keeping = keepCondition(p)
+          if (keeping) p :: Nil else Nil
+        case p: ValueChunk =>
+          if (keeping) p :: Nil else Nil
+        case p =>
           keeping = true
-          part :: Nil
+          p :: Nil
       }
     })
 
@@ -152,7 +164,7 @@ object DicomFlows {
     * @param contexts valid contexts
     * @return the flow unchanged unless interrupted by failing the context check
     */
-  def validateContextFlow(contexts: Seq[ValidationContext]): Flow[DicomPart, DicomPart, NotUsed] =
+  def validateContextFlow(contexts: Seq[ValidationContext]): PartFlow =
     collectFlow(Set(TagPath.fromTag(Tag.MediaStorageSOPClassUID), TagPath.fromTag(Tag.TransferSyntaxUID), TagPath.fromTag(Tag.SOPClassUID)), "validatecontext")
       .mapConcat {
         case e: ElementsPart if e.label == "validatecontext" =>
@@ -177,7 +189,7 @@ object DicomFlows {
     *
     * @return the associated `DicomPart` `Flow`
     */
-  val deflateDatasetFlow: Flow[DicomPart, DicomPart, NotUsed] =
+  val deflateDatasetFlow: PartFlow =
     Flow[DicomPart]
       .concat(Source.single(DicomEndMarker))
       .statefulMapConcat {
@@ -249,7 +261,7 @@ object DicomFlows {
     *
     * @return the associated DicomPart Flow
     */
-  val bulkDataFilter: Flow[DicomPart, DicomPart, NotUsed] =
+  val bulkDataFilter: PartFlow =
     Flow[DicomPart]
       .statefulMapConcat {
 
@@ -297,9 +309,9 @@ object DicomFlows {
     * Buffers all file meta information elements and calculates their lengths, then emits the correct file meta
     * information group length attribute followed by remaining FMI.
     */
-  def fmiGroupLengthFlow: Flow[DicomPart, DicomPart, NotUsed] = Flow[DicomPart]
+  def fmiGroupLengthFlow: PartFlow = Flow[DicomPart]
     .via(collectFlow(tagPath => tagPath.isRoot && isFileMetaInformation(tagPath.tag), tagPath => !isFileMetaInformation(tagPath.tag), "fmigrouplength", 0))
-    .via(tagFilter(_ => true)(tagPath => !isFileMetaInformation(tagPath.tag)))
+    .via(tagFilter(tagPath => !isFileMetaInformation(tagPath.tag), _ => true, logGroupLengthWarnings = false))
     .concat(Source.single(DicomEndMarker))
     .statefulMapConcat {
 
@@ -354,12 +366,12 @@ object DicomFlows {
   /**
     * Remove all DICOM parts that do not contribute to file bytes
     */
-  val emptyPartsFilter: Flow[DicomPart, DicomPart, NotUsed] = Flow[DicomPart].filter(_.bytes.nonEmpty)
+  val emptyPartsFilter: PartFlow = Flow[DicomPart].filter(_.bytes.nonEmpty)
 
   /**
     * Sets any sequences and/or items with known length to indeterminate length and inserts delimiters.
     */
-  def toIndeterminateLengthSequences: Flow[DicomPart, DicomPart, NotUsed] =
+  def toIndeterminateLengthSequences: PartFlow =
     DicomFlowFactory.create(new IdentityFlow with GuaranteedDelimitationEvents[DicomPart] { // map to indeterminate length
       val indeterminateBytes = ByteString(0xFF, 0xFF, 0xFF, 0xFF)
 
@@ -401,7 +413,7 @@ object DicomFlows {
     *
     * @return the associated DicomPart Flow
     */
-  def toUtf8Flow: Flow[DicomPart, DicomPart, NotUsed] = Flow[DicomPart]
+  def toUtf8Flow: PartFlow = Flow[DicomPart]
     .via(collectFlow(Set(TagPath.fromTag(Tag.SpecificCharacterSet)), "toutf8"))
     .via(modifyFlow(insertions = Seq(TagInsertion(TagPath.fromTag(Tag.SpecificCharacterSet), _ => ByteString("ISO_IR 192")))))
     .statefulMapConcat {
@@ -452,7 +464,7 @@ object DicomFlows {
     *
     * @return the associated DicomPart Flow
     */
-  def toExplicitVrLittleEndianFlow: Flow[DicomPart, DicomPart, NotUsed] =
+  def toExplicitVrLittleEndianFlow: PartFlow =
     modifyFlow(modifications = Seq(TagModification.equals(TagPath.fromTag(Tag.TransferSyntaxUID), _ => padToEvenLength(ByteString(UID.ExplicitVRLittleEndian), VR.UI))))
       .via(fmiGroupLengthFlow)
       .statefulMapConcat {
