@@ -308,25 +308,31 @@ trait TagPathTracking[Out] extends DicomFlow[Out] with GuaranteedValueEvent[Out]
 
 }
 
+/**
+  * This mixin will log warnings when group length tags are encountered (except the file meta information group length
+  * tag), or when sequences or items with determinate length are encountered. This is useful in flows which alter the
+  * DICOM information such that these length attributes may no longer be correct. This reminds the user to re-encode the
+  * stream to indeterminate length sequences and items, and to remove group length attributes.
+  */
 trait GroupLengthWarnings[Out] extends DicomFlow[Out] with InFragments[Out] {
   val log: Logger = LoggerFactory.getLogger("GroupLengthWarningsLogger")
-  var silent = false
+  var silent = false // opt out of warnings
 
   abstract override def onHeader(part: HeaderPart): List[Out] = {
     if (!silent && isGroupLength(part.tag) && part.tag != Tag.FileMetaInformationGroupLength)
-      log.warn(s"Group length attribute detected, consider removing group lengths to maintain a valid binary DICOM representation")
+      log.warn(s"Group length attribute detected, consider removing group lengths to maintain valid DICOM information")
     super.onHeader(part)
   }
 
   abstract override def onSequence(part: SequencePart): List[Out] = {
     if (!silent && !part.indeterminate && part.length > 0)
-      log.warn(s"Determinate length sequence detected, consider re-encoding sequences to indeterminate length to maintain a valid binary DICOM representation")
+      log.warn(s"Determinate length sequence detected, consider re-encoding sequences to indeterminate length to maintain valid DICOM information")
     super.onSequence(part)
   }
 
   abstract override def onItem(part: ItemPart): List[Out] = {
     if (!silent && !inFragments && !part.indeterminate && part.length > 0)
-      log.warn(s"Determinate length item detected, consider re-encoding items to indeterminate length to maintain a valid binary DICOM representation")
+      log.warn(s"Determinate length item detected, consider re-encoding items to indeterminate length to maintain valid DICOM information")
     super.onItem(part)
   }
 

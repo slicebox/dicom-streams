@@ -46,8 +46,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   "The DICOM group length discard filter" should "discard group length elements except 0002,0000" in {
-    val groupLength = ByteString(8, 0, 0, 0, 85, 76, 4, 0) ++ intToBytesLE(studyDate().size)
-    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ groupLength ++ studyDate()
+    val bytes = preamble ++ fmiGroupLength(transferSyntaxUID()) ++ transferSyntaxUID() ++ groupLength(8, studyDate().length) ++ studyDate()
 
     val source = Source.single(bytes)
       .via(parseFlow)
@@ -825,7 +824,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
   "The utf8 flow" should "transform a japanese patient name encoded with multiple character sets to valid utf8" in {
     val specificCharacterSet = tagToBytesLE(Tag.SpecificCharacterSet) ++ ByteString("CS") ++
-      shortToBytesLE(0x001E) ++ padToEvenLength(ByteString("ISO 2022 IR 13\\ISO 2022 IR 87"), VR.CS)
+      shortToBytesLE(0x001E.toShort) ++ padToEvenLength(ByteString("ISO 2022 IR 13\\ISO 2022 IR 87"), VR.CS)
     val patientName = tagToBytesLE(0x00100010) ++ ByteString("PN") ++ shortToBytesLE(0x0038) ++
       padToEvenLength(ByteString(
         0xD4, 0xCF, 0xC0, 0xDE, 0x5E, 0xC0, 0xDB, 0xB3, 0x3D, 0x1B, 0x24, 0x42, 0x3B, 0x33, 0x45, 0x44, 0x1B, 0x28,
@@ -849,7 +848,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
   it should "set specific character set to ISO_IR 192 (UTF-8)" in {
     val specificCharacterSet = tagToBytesLE(Tag.SpecificCharacterSet) ++ ByteString("CS") ++
-      shortToBytesLE(0x001E) ++ padToEvenLength(ByteString("ISO 2022 IR 13\\ISO 2022 IR 87"), VR.CS)
+      shortToBytesLE(0x001E.toShort) ++ padToEvenLength(ByteString("ISO 2022 IR 13\\ISO 2022 IR 87"), VR.CS)
 
     val bytes = specificCharacterSet
 
@@ -880,7 +879,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
   it should "transform data contained in sequences" in {
     val specificCharacterSet = tagToBytesLE(Tag.SpecificCharacterSet) ++ ByteString("CS") ++
-      shortToBytesLE(0x001E) ++ padToEvenLength(ByteString("ISO 2022 IR 13\\ISO 2022 IR 87"), VR.CS)
+      shortToBytesLE(0x001E.toShort) ++ padToEvenLength(ByteString("ISO 2022 IR 13\\ISO 2022 IR 87"), VR.CS)
     val patientName = tagToBytesLE(0x00100010) ++ ByteString("PN") ++ shortToBytesLE(0x0004) ++ padToEvenLength(ByteString(0xD4, 0xCF, 0xC0, 0xDE), VR.PN)
 
     val bytes = specificCharacterSet ++ sequence(Tag.DerivationCodeSequence) ++ item() ++ patientName ++ itemDelimitation() ++ sequenceDelimitation()
@@ -903,7 +902,7 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
 
   it should "not transform data with VR that doesn't support non-default encodings" in {
     val specificCharacterSet = tagToBytesLE(Tag.SpecificCharacterSet) ++ ByteString("CS") ++
-      shortToBytesLE(0x001E) ++ padToEvenLength(ByteString("ISO 2022 IR 13\\ISO 2022 IR 87"), VR.CS)
+      shortToBytesLE(0x001E.toShort) ++ padToEvenLength(ByteString("ISO 2022 IR 13\\ISO 2022 IR 87"), VR.CS)
     val patientNameCS = tagToBytesLE(0x00100010) ++ ByteString("CS") ++ shortToBytesLE(0x0004) ++ padToEvenLength(ByteString(0xD4, 0xCF, 0xC0, 0xDE), VR.PN)
 
     val bytes = specificCharacterSet ++ patientNameCS
@@ -921,8 +920,8 @@ class DicomFlowsTest extends TestKit(ActorSystem("DicomFlowsSpec")) with FlatSpe
   }
 
   it should "not change a file already encoded with ISO_IR 192 (UTF-8)" in {
-    val specificCharacterSet = tagToBytesLE(Tag.SpecificCharacterSet) ++ ByteString("CS") ++ shortToBytesLE(0x000A) ++ ByteString("ISO_IR 192")
-    val patientName = tagToBytesLE(Tag.PatientName) ++ ByteString("PN") ++ shortToBytesLE(0x000C) ++ ByteString("ABC^ÅÖ^ﾔ")
+    val specificCharacterSet = tagToBytesLE(Tag.SpecificCharacterSet) ++ ByteString("CS") ++ shortToBytesLE(0x000A.toShort) ++ ByteString("ISO_IR 192")
+    val patientName = tagToBytesLE(Tag.PatientName) ++ ByteString("PN") ++ shortToBytesLE(0x000C.toShort) ++ ByteString("ABC^ÅÖ^ﾔ")
     val bytes = specificCharacterSet ++ patientName
 
     val source = Source.single(bytes)
